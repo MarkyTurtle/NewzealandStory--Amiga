@@ -12,6 +12,11 @@ from the drive booted from, with the registers kept; a track the disk does not h
 Writes enhanced/build/test_boot.png: the display rendered from the emulated memory
 (original/tools/screen.py).
 
+The machine's memory (exec's memory list, which the bootblock's MemDetect reads) is one of
+MACHINES: the machine description must reach the extension module (src/ext.s), the track cache
+must be set up in the largest memory beyond 512K of chip RAM, a level read twice must be read
+from the disk once when it fits the cache, and the title's memory lines must say so.
+
 The bootblock finds the boot drive by opening trackdisk.device's units; exec's OpenDevice is a
 stub (a Python hook) that knows the drives connected. Cases: booted from DF0, DF1 and DF3, and
 from a unit of another device (DF0 then).
@@ -46,11 +51,31 @@ READS = [(2, 5), (84, 5), (18, 1), (89, 1), (152, 2), (158, 2), (144, 5), (68, 1
 MISSING = [(0, 1), (1, 1), (100, 1), (89, 2)]
 
 
+EXT_BASE = build_disk.EXT_BASE
+MEMLIST = 0x2000                        # the memory headers exec lists (overwritten by the game later)
+TRACK = 5632
+# name: [(lower, upper, attributes)] as exec lists them (MEMF_CHIP 2, MEMF_FAST 4), and what the
+# extension module must make of it: (cache kind, its base, its tracks, the title's two lines)
+MACHINES = {
+    'A500 512K': ([(0x400, 0x80000, 2)], (0, 0, 0, 'CHIP 512K  SLOW 0K  FAST 0K', 'NO TRACK CACHE')),
+    'A500 512K + 512K slow': ([(0xC00020, 0xC80000, 4), (0x400, 0x80000, 2)],
+                              (2, 0xC00020, 93, 'CHIP 512K  SLOW 512K  FAST 0K', 'TRACK CACHE 93 OF 96 IN SLOW RAM')),
+    'A500+ 1MB chip (Kickstart 1.3 lists $FE800)': ([(0x400, 0xFE800, 2)],
+                              (1, 0x80000, 92, 'CHIP 1024K  SLOW 0K  FAST 0K', 'TRACK CACHE 92 OF 96 IN CHIP RAM')),
+    'A500 512K + 512K slow + 2MB fast': ([(0x200000, 0x400000, 5), (0xC00020, 0xC80000, 4), (0x400, 0x80000, 2)],
+                              (3, 0x200000, 96, 'CHIP 512K  SLOW 512K  FAST 2048K', 'TRACK CACHE 96 OF 96 IN FAST RAM')),
+}
+
+
 class Machine:
-    def __init__(self):
+    def __init__(self, regions=()):
         u = self.u = Uc(UC_ARCH_M68K, UC_MODE_BIG_ENDIAN)
         u.ctl_set_cpu_model(UC_CPU_M68K_M68000)
         u.mem_map(0, 0x80000); u.mem_map(0xBFD000, 0x2000); u.mem_map(0xDFF000, 0x1000)
+        for lo, hi, attr in regions:                        # memory beyond the first 512K of chip RAM
+            lo = max(lo & ~0xFFF, 0x80000) if attr & 2 else lo & ~0xFFF
+            if hi > lo:
+                u.mem_map(lo, (hi - lo + 0xFFF) & ~0xFFF)
     def r8(self, a): return self.u.mem_read(a, 1)[0]
     def r16(self, a): return struct.unpack('>H', bytes(self.u.mem_read(a, 2)))[0]
     def r32(self, a): return struct.unpack('>L', bytes(self.u.mem_read(a, 4)))[0]
@@ -59,9 +84,36 @@ class Machine:
     def w32(self, a, v): self.u.mem_write(a, struct.pack('>L', v & 0xFFFFFFFF))
 
 
-def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None):
-    m = Machine(); u = m.u
+def memlist(w, regions):
+    """exec's MemList (ExecBase + $142) with a header per region; VBlankFrequency, AttnFlags"""
+    w(EXEC + 0x212, '>B', 50); w(EXEC + 0x128, '>H', 0)
+    nodes = [MEMLIST + 0x20 * k for k in range(len(regions))]
+    w(EXEC + 0x142, '>LLL', nodes[0], 0, nodes[-1])           # lh_Head, lh_Tail, lh_TailPred
+    for k, (lo, hi, attr) in enumerate(regions):
+        succ = nodes[k + 1] if k + 1 < len(regions) else EXEC + 0x146
+        w(nodes[k], '>LLBBLHLLL', succ, 0, 10, 0, 0, attr, 0, lo, hi)
+
+
+def title_lines(u):
+    """the extension module's title text (the printer's form) -> [(x, y, colour, text)]"""
+    import re
+    ext = open(os.path.join(build_disk.OUT, 'ext.bin'), 'rb').read()
+    a = EXT_BASE + ext.index(b'\xff' * 91)                    # TitleText as assembled: 91 x $FF
+    t = bytes(u.mem_read(a, 91))
+    out, p = [], 0
+    while p < len(t) and t[p] != 0xFF:
+        x, y, c2, col = t[p:p + 4]; p += 4
+        e = p
+        while t[e] not in (0, 0xFF): e += 1
+        out.append((x, y, col, t[p:e].decode('latin-1'))); p = e + (1 if t[e] == 0 else 0)
+    return out
+
+
+def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None, machine='A500 512K'):
+    regions, (kind, cbase, slots, line1, line2) = MACHINES[machine]
+    m = Machine(regions); u = m.u
     w = lambda a, f, *v: u.mem_write(a, struct.pack(f, *v))
+    memlist(w, regions)
     u.mem_write(BOOTBUF, adf[:1024])
     w(EXEC - 0x1BC, '>HL', 0x4EF9, OPENDEVICE)                 # jmp OPENDEVICE
     w(OPENDEVICE, '>H', 0x4E75)                                  # rts
@@ -121,7 +173,23 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
               ('the copper list (the 4 plane pointers), in chip RAM', coplist == want_cop and cop < 0x80000),
               (f'units opened: {opened}', opened[0] == 3 and opened[-1] == (0 if foreign else unit)),
               (f'the motor off and DF{unit} deselected', not fd.motor or not fd.sel)]
-    print(f'DF{unit} ({"booted from a unit of another device" if foreign else "booted from"}; drives {list(drives)}): '
+    ext = open(os.path.join(build_disk.OUT, 'ext.bin'), 'rb').read()
+    mi = bytes(u.mem_read(EXT_BASE + 32, 36))
+    chip = next((lo, hi) for lo, hi, at in reversed(regions) if at & 2)
+    slow = next(((lo, hi) for lo, hi, at in reversed(regions) if not at & 2 and 0xC00000 <= lo < 0xDC0000), (0, 0))
+    fast = next(((lo, hi) for lo, hi, at in reversed(regions) if not at & 2 and not 0xC00000 <= lo < 0xDC0000), (0, 0))
+    want_mi = b'NZSM' + struct.pack('>BBH', 1, 50, 0) + struct.pack('>6LL', *chip, *slow, *fast, unit if not foreign else 0)
+    cache = struct.unpack('>LHHH', bytes(u.mem_read(EXT_BASE + 68, 10)))
+    lines = title_lines(u)
+    with open(os.path.join(build_disk.OUT, f'test_ext_{list(MACHINES).index(machine)}.bin'), 'wb') as f:
+        f.write(bytes(u.mem_read(EXT_BASE, len(ext))))           # (the module as booted: tools/nzsemu can load it)
+    checks += [('the extension module at $65400', bytes(u.mem_read(EXT_BASE, 32)) == ext[:32]),
+               ('the machine description in it (chip, slow, fast RAM, PAL, the drive)', mi == want_mi),
+               (f'the track cache: {["none", "chip", "slow", "fast"][kind]} RAM, ${cbase:X}, {slots} tracks',
+                (cache[3], cache[1]) == (kind, slots) and (not slots or cache[0] == cbase)),
+               (f'the title: "{line1}" / "{line2}"', [l[3] for l in lines] == [line1, line2]
+                and all(l[0] == (40 - len(l[3])) // 2 for l in lines))]
+    print(f'{machine}, DF{unit} ({"booted from a unit of another device" if foreign else "booted from"}; drives {list(drives)}): '
           f'{fd.reads} track reads (random start: {random_start}), head at cylinder {fd.cyl}')
     # the game's own disk reading: run Relocate (to Init), then call TrackRead as the game does
     orig_track = build_disk.original_track
@@ -143,9 +211,18 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
         d0, data, kept = track_read(t, n)
         good_reads &= d0 == 0 and kept and data == b''.join(orig_track(t + k) for k in range(n))
     bad_reads = all(track_read(t, n)[0] == 0xFFFFFFFF for t, n in MISSING)
+    disk_reads = fd.reads                                     # the same reads again: from the cache?
+    again = True
+    for t, n in READS:
+        d0, data, kept = track_read(t, n)
+        again &= d0 == 0 and kept and data == b''.join(orig_track(t + k) for k in range(n))
+    tracks_read = len({t + k for t, n in READS for k in range(n)})
+    cached = fd.reads == disk_reads if slots >= tracks_read else fd.reads > disk_reads
     checks += [('Relocate run: at Init ($55A)', relocated),
                (f'TrackRead: {len(READS)} reads (tracks {", ".join(f"{t}+{n}" for t, n in READS)}) as on the original disk, registers kept', good_reads),
                (f'TrackRead: -1 for tracks the disk does not have ({", ".join(f"{t}+{n}" for t, n in MISSING)})', bad_reads),
+               (f'TrackRead again: the same tracks, ' + ('all from the cache (no disk reads)' if slots >= tracks_read
+                                                         else f'from the disk ({fd.reads - disk_reads} track reads)'), again and cached),
                (f'the motor off again', not fd.motor or not fd.sel)]
     ok = True
     for what, good in checks:
@@ -167,6 +244,8 @@ def main():
     cases = ((0, (0, 1), False), (1, (0, 1), False), (3, (0, 1, 2, 3), False), (0, (0, 1), True))
     for k, (unit, drives, foreign) in enumerate(cases):
         ok &= boot(adf, unit, drives, rs, foreign, png=os.path.join(build_disk.OUT, 'test_boot.png') if k == 0 else None)
+    for machine in list(MACHINES)[1:]:
+        ok &= boot(adf, 0, (0, 1), rs, False, machine=machine)
     print('all as expected' if ok else 'FAILED')
     return ok
 

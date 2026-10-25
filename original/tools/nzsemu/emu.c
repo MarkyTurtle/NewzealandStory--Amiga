@@ -26,6 +26,7 @@
  *   call ADDR [D0]        call a routine (interrupts masked, time going on) until it returns
  *   play ADDR N           N frames of: call ADDR, then the rest of the frame (a music player)
  *   audio FILE            log every write to the audio registers and DMACON: "cycle reg value"
+ *   load FILE ADDR        copy a file into memory at ADDR
  *   watch LO HI           log (to the log file) the first write to each 256-byte block of LO-HI,
  *                         with the PC that made it
  */
@@ -367,6 +368,10 @@ int main(int argc, char **argv) {
             char fn[300]; snprintf(fn, sizeof fn, "%s.mem", a1); FILE *o = fopen(fn, "wb"); fwrite(ram, 1, RAM, o); fclose(o);
             snprintf(fn, sizeof fn, "%s.regs", a1); o = fopen(fn, "wb");
             for (int i = 0; i < 0x100; i++) { uint16_t v = cust[i]; fputc(v >> 8, o); fputc(v & 0xFF, o); } fclose(o);
+        }
+        else if (!strcmp(cmd, "load")) {
+            FILE *i = fopen(a1, "rb"); if (!i) { perror(a1); return 1; }
+            unsigned a = strtoul(a2, 0, 0); fread(ram + a, 1, RAM - a, i); fclose(i);
         }
         else if (!strcmp(cmd, "cover")) { FILE *o = fopen(a1, "wb"); fwrite(cover, 1, sizeof cover, o); fclose(o); }
         else if (!strcmp(cmd, "audio")) { audf = fopen(a1, "w"); }
