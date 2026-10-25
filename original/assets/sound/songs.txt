@@ -1,0 +1,252 @@
+The New Zealand Story - the music and effect sequences (tools/assets/sound.py)
+Jonathan Dunn's driver ($E800); see the tool for the format.
+
+Instruments (from the IFF 8SVX files, at init):
+  1: VOICE-WAVE     base note C-5
+  2: PAN-MALLET     base note C-6
+  3: SYNTH-BASS1    base note C-2
+  4: VIBES          base note C-6
+  5: tick           base note C-4
+  6: bong           base note C-6
+
+Periods (note - base note): 358 338 319 301 284 268 253 239 225 213 201 190 179 169 159 151 142 134 127 119 113 106 100 95
+
+Arpeggios ($15794):
+  0: $15798 1 frames a step, offsets [0, 3, 7]
+  1: $1579D 3 frames a step, offsets [0, -12]
+
+Volume envelopes ($157A2): NxD = N frames adding D; N:+1/B = N frames, +1 every B; release R = hold until R frames are left
+  0: $157AE 1x+62 15x-2 release 8
+  1: $157B5 1x+40 end
+  2: $157B9 1x+62 end
+  3: $157BD 1x+62 10x-2 release 5
+  4: $157C4 1x+62 62x-1 end
+  5: $157CA 1x+62 15x-4 end
+
+Song 1 (word $0000):
+  voice 0: $1587A: P1 end
+  voice 1: $1587C: P2 end
+  voice 2: $1587E: P3 end
+Song 2 (word $0000):
+  voice 0: $15991: P4 loop P9 end
+  voice 1: $1598D: P5 loop P8 end
+  voice 2: $15989: P6 loop P7 end
+Song 3 (word $0000):
+  voice 0: $15AC7: loop P12 P12 P13 P15 end
+  voice 1: $15ACD: loop P16 P16 P17 end
+  voice 2: $15AC1: loop P10 P10 P11 P14 end
+Song 4 (word $0000):
+  voice 0: $15C95: P18 loop transpose 12 P19 end
+  voice 1: $15C9B: P0 loop P20 end
+  voice 2: $15C9F: P0 end
+Song 5 (word $0000):
+  voice 0: $15D70: loop P23 end
+  voice 1: $15D6D: loop P22 end
+  voice 2: $15D6A: loop P24 end
+Song 6 (word $0000):
+  voice 0: $15E36: P27 end
+  voice 1: $15E34: P0 end
+  voice 2: $15E32: P26 end
+Song 7 (word $0000):
+  voice 0: $15E6E: P28 end
+  voice 1: $15E6C: P0 end
+  voice 2: $15E6A: P25 end
+Song 8 (word $0000):
+  voice 0: $15EB2: loop P31 end
+  voice 1: $15EB0: P0 end
+  voice 2: $15EAD: loop P30 end
+Song 9 (word $0000):
+  voice 0: $15F16: P0 end
+  voice 1: $15F14: P0 end
+  voice 2: $15F12: P32 end
+Song 10 (word $0000):
+  voice 0: $15F30: P33 end
+  voice 1: $15F2C: transpose -12 P33 end
+  voice 2: $15F2A: P33 end
+Song 11 (word $0000):
+  voice 0: $15F47: loop P34 end
+  voice 1: $15F4A: loop P35 end
+  voice 2: $15F4D: loop P35 end
+Song 12 (word $0000):
+  voice 0: $15F6B: P36 end
+  voice 1: $15F6D: transpose 12 P36 end
+  voice 2: $15F71: P0 end
+
+Pattern 0 ($15880):
+    rest 80 | end
+Pattern 1 ($15883):
+    instrument 1 | volume_envelope 4 | note_durations | C-6 40 | B-5 40 | A-5 40 | B-5 40 | C-6 10
+    D-6 10 | E-6 20 | C-6 10 | D-6 10 | E-6 20 | F-5 10 | F-5 10 | E-5 10
+    F-5 10 | rest 40 | G-5 10 | A-5 10 | B-5 20 | G-5 10 | A-5 10 | B-5 20
+    C-6 10 | C-6 10 | B-5 10 | C-6 10 | rest 60 | end
+Pattern 2 ($158BD):
+    instrument 2 | volume_envelope 1 | fixed_duration 10 | C-7 | G-6 | A-6 | G-6 | C-7
+    G-6 | A-6 | G-6 | F-7 | C-7 | B-6 | C-7 | G-7
+    D-7 | G-7 | D-7 | C-7 | G-6 | A-6 | G-6 | C-7
+    G-6 | A-6 | G-6 | F-6 | C-6 | F-6 | C-6 | F-6
+    instrument 4 | arpeggio 1 | F-7 | fixed_duration 20 | F-7 | fixed_duration 10 | instrument 2 | arpeggio_off
+    G-6 | D-6 | E-6 | D-6 | G-6 | D-6 | E-6 | D-6
+    C-6 | C-6 | B-5 | C-6 | note_durations | rest 60 | end
+Pattern 3 ($158FD):
+    instrument 3 | volume_envelope 2 | note_durations | C-2 10 | F#2 5 | G-2 5 | C-2 10 | F#2 5
+    G-2 5 | C-2 10 | F#2 5 | G-2 5 | C-2 10 | F#2 5 | G-2 5 | F-2 10
+    B-2 5 | C-3 5 | F-2 10 | B-2 5 | C-3 5 | G-2 10 | C#3 5 | D-3 5
+    G-2 10 | C#3 5 | D-3 5 | C-2 10 | F#2 5 | G-2 5 | C-2 10 | F#2 5
+    G-2 5 | C-2 10 | F#2 5 | G-2 5 | C-2 10 | F#2 5 | G-2 5 | F-2 10
+    B-2 5 | C-3 5 | F-2 10 | B-2 5 | C-3 5 | F-2 10 | B-2 5 | C-3 5
+    F-2 10 | B-2 5 | C-3 5 | G-2 10 | C#3 5 | D-3 5 | G-2 10 | C#3 5
+    D-3 5 | G-2 10 | C#3 5 | D-3 5 | G-2 10 | C#3 5 | D-3 5 | C-2 10
+    F#2 5 | G-2 5 | C-2 10 | F#2 5 | G-2 5 | C-2 5 | end
+Pattern 4 ($15995):
+    instrument 3 | volume_envelope 2 | note_durations | rest 15 | G-2 10 | A-2 20 | B-2 20 | end
+Pattern 5 ($159E9):
+    instrument 2 | volume_envelope 2 | note_durations | rest 15 | G-6 10 | A-6 20 | B-6 20 | end
+Pattern 6 ($15A51):
+    instrument 4 | volume_envelope 3 | note_durations | arpeggio 1 | rest 15 | G-6 10 | A-6 20 | B-6 20
+    end
+Pattern 7 ($15A61):
+    C-6 5 | D-6 5 | C-6 5 | B-5 5 | C-6 10 | G-5 10 | G-5 10 | G-5 10
+    F#5 10 | G-5 10 | fixed_duration 10 | rest | C-6 | C-6 | C-6 | C-6
+    C-6 | D-6 | E-6 | note_durations | E-6 5 | F-6 5 | E-6 5 | D#6 5
+    E-6 10 | C-6 10 | C-6 10 | C-6 10 | B-5 10 | C-6 10 | fixed_duration 10 | rest
+    E-6 | E-6 | E-6 | E-6 | E-6 | F-6 | G-6 | rest
+    A-6 | G#6 | A-6 | F-6 | F-6 | E-6 | F-6 | rest
+    A-6 | G#6 | A-6 | F#6 | F#6 | E-6 | F#6 | rest
+    D-6 | D-6 | D-6 | D-6 | D-6 | E-6 | note_durations | F#6 20
+    G-6 10 | F#6 10 | G-6 10 | G-5 40 | end
+Pattern 8 ($159F7):
+    C-6 50 | G-6 10 | F#6 10 | G-6 10 | rest 10 | E-6 5 | F-6 5 | G-6 10
+    G-6 5 | A-6 5 | B-6 10 | C-7 5 | D-7 5 | E-7 10 | E-6 10 | E-6 50
+    E-6 10 | F-6 10 | G-6 10 | rest 10 | G-6 5 | A-6 5 | B-6 10 | C-7 5
+    D-7 5 | E-7 10 | F-7 5 | F#7 5 | G-7 10 | G-6 10 | fixed_duration 10 | C-7
+    A-6 | C-7 | A-6 | C-7 | A-6 | B-6 | C-7 | C-7
+    A-6 | C-7 | A-6 | C-7 | A-6 | B-6 | C-7 | D-7
+    A-6 | D-7 | A-6 | D-7 | A-6 | B-6 | C-7 | note_durations
+    G-6 80 | end
+Pattern 9 ($159A3):
+    fixed_duration 10 | C-2 | C-3 | E-2 | C-3 | G-2 | C-3 | G-1
+    C-3 | C-2 | C-3 | E-2 | C-3 | G-2 | C-3 | G-1
+    C-3 | C-2 | C-3 | E-2 | C-3 | G-2 | C-3 | G-1
+    C-3 | C-2 | C-3 | E-2 | C-3 | G-2 | C-3 | G-1
+    C-3 | F-2 | C-3 | A-2 | C-3 | C-3 | C-3 | F-2
+    C-3 | F#2 | C-3 | A-2 | C-3 | C-3 | C-3 | F#2
+    C-3 | D-2 | D-3 | F#2 | D-3 | A-2 | D-3 | D-2
+    D-3 | note_durations | G-2 20 | rest 35 | G-2 5 | A-2 10 | B-2 10 | end
+Pattern 10 ($15AD2):
+    fixed_duration 24 | rest | instrument 1 | volume_envelope 4 | arpeggio_off | fixed_duration 48 | C-5 | G-4
+    B-4 | F#4 | F#4 | A-4 | C-5 | G-4 | B-4 | note_durations
+    F#4 36 | A-4 84 | end
+Pattern 11 ($15AEB):
+    volume_envelope 5 | E-5 24 | D-5 12 | E-5 12 | D-5 12 | E-5 12 | D-5 24 | C-5 24
+    C-5 24 | D-5 24 | C-5 12 | D-5 12 | C-5 12 | D-5 12 | C-5 24 | B-4 24
+    B-4 24 | E-5 24 | D-5 12 | E-5 12 | D-5 12 | E-5 12 | D-5 24 | C-5 24
+    C-5 24 | fixed_duration 12 | D-5 | C-5 | D-5 | E-5 | D-5 | C-5
+    note_durations | B-4 24 | A-4 24 | C-5 24 | end
+Pattern 12 ($15B2D):
+    instrument 1 | volume_envelope 4 | fixed_duration 48 | B-4 | D-5 | A-4 | E-4 | G-4
+    G-4 | B-4 | D-5 | A-4 | E-4 | note_durations | B-4 24 | G-4 72
+    end
+Pattern 13 ($15B43):
+    volume_envelope 5 | C-5 24 | B-4 12 | C-5 12 | B-4 12 | C-5 12 | B-4 24 | A-4 24
+    A-4 24 | B-4 24 | A-4 12 | B-4 12 | A-4 12 | B-4 12 | A-4 24 | G-4 24
+    G-4 24 | C-5 24 | B-4 12 | C-5 12 | B-4 12 | C-5 12 | B-4 24 | A-4 24
+    A-4 24 | fixed_duration 12 | B-4 | A-4 | B-4 | C-5 | B-4 | A-4
+    note_durations | G-4 24 | F#4 24 | A-4 24 | end
+Pattern 14 ($15B85):
+    volume_envelope 4 | rest 24 | C-5 24 | D-5 36 | F#4 36 | B-4 48 | F#4 24 | G-4 48
+    G-4 48 | B-4 36 | B-4 36 | G-4 24 | A-4 24 | B-4 36 | D-4 24 | G-4 24
+    A-4 84 | E-5 72 | D-5 72 | end
+Pattern 15 ($15BAC):
+    volume_envelope 4 | B-4 36 | B-4 36 | G-4 24 | A-4 48 | E-4 36 | E-4 36 | F#4 48
+    A-4 48 | C-5 24 | D-5 36 | E-4 24 | E-4 36 | E-4 24 | F#4 24 | B-4 24
+    G-4 72 | C-5 72 | B-4 72 | end
+Pattern 16 ($15BD3):
+    instrument 3 | volume_envelope 2 | G-2 24 | B-2 12 | G-2 12 | D-3 24 | E-2 24 | F#2 12
+    E-2 12 | G-2 24 | C-2 24 | E-2 12 | C-2 12 | G-2 12 | E-2 12 | D-2 24
+    F#2 12 | D-2 12 | A-2 24 | G-2 24 | B-2 12 | G-2 12 | D-3 24 | E-2 24
+    F#2 12 | E-2 12 | B-2 24 | C-2 24 | E-2 12 | C-2 12 | G-2 24 | G-2 24
+    B-2 12 | G-2 12 | D-2 24 | end
+Pattern 17 ($15C1A):
+    C-2 12 | G-2 12 | E-2 24 | G-2 24 | D-2 12 | A-2 12 | F#2 24 | B-2 24
+    F#2 12 | D-3 12 | B-2 24 | D-3 24 | E-2 12 | B-2 12 | G-2 24 | B-2 24
+    C-2 12 | G-2 12 | E-2 24 | G-2 24 | A-2 12 | C-3 12 | E-2 24 | C-3 24
+    D-2 12 | A-2 12 | F#2 24 | A-2 24 | G-2 24 | B-2 24 | D-3 24 | G-2 24
+    B-2 24 | D-3 24 | E-2 24 | G-2 24 | B-2 24 | C-2 24 | E-2 24 | G-2 24
+    D-2 24 | F#2 24 | A-2 24 | G-2 24 | B-2 24 | D-3 24 | E-2 24 | G-2 24
+    B-2 24 | C-2 24 | E-3 24 | G-3 24 | G-2 24 | B-2 24 | D-3 24 | C-2 24
+    E-2 24 | G-2 24 | G-2 24 | B-2 24 | D-3 24 | end
+Pattern 18 ($15CA1):
+    instrument 4 | volume_envelope 5 | note_durations | arpeggio 1 | G-6 20 | G-6 20 | G-6 20 | G-6 20
+    end
+Pattern 19 ($15CB1):
+    fixed_duration 5 | G-5 | A-5 | B-5 | C-6 | note_durations | D-6 10 | fixed_duration 5
+    G-5 | A-5 | B-5 | C-6 | fixed_duration 10 | D-6 | G-5 | G-5
+    note_durations | D-5 5 | D-5 5 | E-5 10 | F#5 10 | A-5 10 | G-5 10 | G-5 10
+    D-5 10 | G-5 5 | A-5 5 | B-5 5 | C-6 5 | D-6 10 | fixed_duration 5 | G-5
+    A-5 | B-5 | C-6 | fixed_duration 10 | D-6 | G-5 | G-6 | G-6
+    note_durations | D-5 5 | D-5 5 | E-5 10 | F#5 10 | D-5 10 | G-5 10 | G-4 5
+    A-4 5 | G-5 10 | G-4 5 | A-4 5 | end
+Pattern 20 ($15D04):
+    instrument 3 | volume_envelope 2 | note_durations | G-2 10 | A-2 5 | B-2 5 | G-2 10 | A-2 5
+    B-2 5 | G-2 10 | A-2 5 | B-2 5 | G-2 10 | A-2 5 | B-2 5 | D-2 10
+    E-2 5 | F#2 5 | D-2 10 | E-2 5 | F#2 5 | G-2 10 | A-2 5 | B-2 5
+    G-2 10 | A-2 5 | B-2 5 | G-2 10 | B-2 5 | D-3 5 | G-2 10 | B-2 5
+    D-3 5 | G-2 10 | B-2 5 | D-3 5 | G-2 10 | B-2 5 | D-3 5 | D-2 10
+    F#2 5 | A-2 5 | D-2 10 | F#2 5 | A-2 5 | G-2 10 | B-2 5 | D-3 5
+    G-2 10 | B-2 5 | D-3 5 | end
+Pattern 22 ($15DDD):
+    instrument 2 | volume_envelope 5 | note_durations | vibrato 5,2,2 | F-4 10 | E-4 5 | D-5 5 | F-4 10
+    E-4 5 | D-5 5 | F-4 10 | E-4 5 | D-5 5 | F-4 10 | E-4 5 | D-5 5
+    F-4 10 | E-4 5 | D-5 5 | F-4 10 | E-4 5 | D-5 5 | F-4 10 | E-4 5
+    D-5 5 | F-4 10 | E-4 5 | volume_envelope 1 | E-4 85 | end
+Pattern 23 ($15E19):
+    instrument 3 | volume_envelope 2 | fixed_duration 10 | G#2 | A-2 | G#2 | A-2 | G#2
+    A-2 | G#2 | A-2 | G#2 | A-2 | G#2 | A-2 | G#2
+    A-2 | G#2 | note_durations | A-2 90 | end
+Pattern 24 ($15D73):
+    instrument 1 | volume_envelope 5 | note_durations | vibrato 5,2,2 | rest 10 | E-5 5 | D-6 5 | rest 10
+    E-5 5 | D-6 5 | rest 10 | E-5 5 | D-6 5 | rest 10 | E-5 5 | D-6 5
+    rest 10 | E-5 5 | D-6 5 | rest 10 | E-5 5 | D-6 5 | rest 10 | E-5 5
+    D-6 5 | rest 10 | E-5 5 | D-6 85 | rest 5 | G#5 5 | A-5 10 | G#4 5
+    G#5 5 | A-5 10 | G#4 5 | G#5 5 | A-5 10 | G#4 5 | G#5 5 | A-5 10
+    G#4 5 | G#5 5 | A-5 10 | G#4 5 | G#5 5 | A-5 10 | G#4 5 | G#5 5
+    A-5 10 | G#4 5 | G#5 5 | A-5 90 | end
+Pattern 25 ($15E70):
+    instrument 4 | volume_envelope 2 | note_durations | C-6 10 | C-6 10 | B-5 5 | B-5 10 | G-5 5
+    A-5 10 | A-5 10 | G-5 5 | G-5 10 | F-5 5 | E-5 10 | E-5 10 | D-5 5
+    E-5 10 | D-5 5 | C-5 40 | end
+Pattern 26 ($15E38):
+    instrument 4 | volume_envelope 2 | note_durations | C-6 20 | G-5 20 | E-5 10 | E-5 10 | E-5 10
+    D-5 20 | vibrato 0,1,2 | C-7 10 | B-6 10 | D-7 10 | C-7 20 | rest 20 | end
+Pattern 27 ($15E58):
+    instrument 3 | volume_envelope 2 | note_durations | C-2 20 | E-2 20 | G-2 10 | F-2 10 | E-2 10
+    D-2 10 | end
+Pattern 28 ($15E96):
+    fixed_duration 10 | instrument 3 | volume_envelope 2 | C-2 | G-3 | B-1 | G-3 | A-2
+    G-3 | G-2 | G-3 | C-2 | G-3 | C-2 | G-3 | C-2
+    G-2 | C-2 | rest | end
+Pattern 30 ($15EB5):
+    instrument 4 | volume_envelope 5 | note_durations | arpeggio 1 | C-6 16 | E-6 16 | G-6 8 | F-6 8
+    E-6 8 | D-6 8 | D-6 16 | F-6 16 | A-6 8 | G-6 8 | F-6 8 | E-6 8
+    E-6 16 | G-6 16 | C-7 8 | B-6 8 | A-6 8 | G-6 8 | F-6 16 | E-6 8
+    F-6 8 | D-6 16 | G-6 16 | end
+Pattern 31 ($15EEB):
+    fixed_duration 8 | instrument 3 | volume_envelope 2 | C-2 | G-2 | C-2 | G-2 | C-2
+    G-2 | C-2 | G-2 | D-2 | A-2 | D-2 | A-2 | D-2
+    A-2 | D-2 | A-2 | E-2 | B-2 | E-2 | B-2 | E-2
+    B-2 | E-2 | B-2 | F-2 | C-3 | F-2 | C-3 | G-2
+    D-3 | G-2 | D-3 | end
+Pattern 32 ($15F18):
+    instrument 4 | volume_envelope 2 | note_durations | vibrato 0,1,1 | C-6 10 | B-5 10 | D-6 10 | C-6 20
+    end
+Pattern 33 ($15F32):
+    note_durations | instrument 3 | volume_envelope 2 | C-3 6 | B-2 6 | fixed_duration 12 | C-3 | A-2
+    G#2 | A-2 | B-2 | C-3 | fixed_duration 48 | D#3 | end
+Pattern 34 ($15F50):
+    volume_envelope 2 | instrument 5 | fixed_duration 12 | C-4 | C-4 | C-4 | C-4 | C-4
+    C-4 | C-4 | C-4 | end
+Pattern 35 ($15F5F):
+    volume_envelope 2 | instrument 6 | note_durations | C-5 18 | rest 90 | rest 36 | end
+Pattern 36 ($15F73):
+    instrument 4 | volume_envelope 2 | fixed_duration 6 | C-5 | G-4 | E-4 | G-4 | fixed_duration 48
+    C-5 | end

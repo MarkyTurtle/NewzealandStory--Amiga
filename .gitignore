@@ -16,6 +16,8 @@ __pycache__/
 /original/tools/protemu/Musashi/
 /original/tools/protemu/protemu
 /original/tools/protemu/conf.h
+/original/tools/nzsemu/nzsemu
+/original/tools/nzsemu/conf.h
 # the enhanced build
 /enhanced/build/
 /original/tools/disk/capsimg_build.log

@@ -11,7 +11,8 @@
 | [vasm](http://sun.hasenbraten.de/vasm/) (`vasmm68k_mot`), the 68000 assembler with Motorola syntax | every build | Build it from its source (`make CPU=m68k SYNTAX=mot`). Tested with vasm 2.0f |
 | [Python](https://www.python.org/) 3 | the disk builder, the tests, the tools | Tested with Python 3.13 |
 | Python packages `capstone`, `pillow`, `unicorn` | see below | `pip install capstone pillow unicorn` |
-| A C/C++ compiler and Git | only to rebuild the protection tools (`original/tools/protemu`, `original/tools/disk/build_dump.sh`) | gcc / g++ |
+| A C/C++ compiler and Git | only to rebuild the protection tools (`original/tools/protemu`, `original/tools/disk/build_dump.sh`) and the study emulator (`original/tools/nzsemu/build.sh`) | gcc / g++ |
+| [FFmpeg](https://ffmpeg.org/) | optional: the rendered songs as `.ogg` (`make_assets.sh`; without it they are `.wav`) | |
 | An Amiga emulator and a Kickstart ROM | playing the disk | [WinUAE](https://www.winuae.net/), [FS-UAE](https://fs-uae.net/) or [Amiberry](https://github.com/BlitterStudio/amiberry). FS-UAE also runs it with its built-in AROS Kickstart replacement |
 
 | Package | Used by |
@@ -42,6 +43,11 @@ A500 (Kickstart 2.0 and later can also boot it from DF1-DF3) or write it to a fl
 ```
 original/build.sh                          # assembles the four sources and checks their SHA-1
 python3 original/tools/disasm/make.py      # regenerates the sources from their configs, and checks them
+```
+
+```
+original/tools/nzsemu/build.sh             # the study emulator (needed for the music renders)
+original/tools/assets/make_assets.sh       # regenerates original/assets/ (samples, music, BOBs)
 ```
 
 `original/README.md` describes the sources and tools. The files in `original/disk/files/` were

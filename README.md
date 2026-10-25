@@ -8,6 +8,7 @@ game rebuilt on an ordinary AmigaDOS-format disk.
 |---|---|
 | [`enhanced/`](enhanced) | **The game on a standard AmigaDOS disk**: a new bootblock with the [4489_byteloader](https://github.com/MarkyTurtle/4489_byteloader) in place of Rob Northen's Copylock-protected boot chain, and the game's own track reader replaced so it loads its levels from the new disk. `python3 enhanced/tools/build_disk.py` makes `enhanced/build/nzs.adf` |
 | [`original/`](original) | **The original disk**, disassembled: sources that reassemble byte-identical (the main program, the game loader, both bootblocks), the boot chain and the copy protection worked out ([`original/docs/BOOT.md`](original/docs/BOOT.md)), every file on the disk ([`original/disk/`](original/disk)) and the tools that produced them |
+| [`original/assets/`](original/assets) | **The game's assets, extracted**: the sound effects and instruments (IFF 8SVX, as `.iff` and `.wav`), the music decoded and rendered through the original driver, every BOB frame as a `.png`. Formats in [`original/docs/SOUND.md`](original/docs/SOUND.md) and [`GRAPHICS.md`](original/docs/GRAPHICS.md) |
 | [`BUILDING.md`](BUILDING.md) | What to install, and how to build and check both |
 
 ## The original disk in brief

@@ -3229,9 +3229,9 @@ l_04016:
         bsr.w   sub_0BB76                       ; 04022
         move.w  #$c7,d0                         ; 04026
         bsr.w   sub_0BADC                       ; 0402A
-        lea.l   (dat_22AA6).l,a0                ; 0402E
-        lea.l   (dat_39AA6).l,a1                ; 04034
-        lea.l   (sub_0B6C4+2).l,a2              ; 0403A
+        lea.l   (BobData).l,a0                  ; 0402E
+        lea.l   (BobDirectory).l,a1             ; 04034
+        lea.l   (BlitBob+2).l,a2                ; 0403A
         move.l  a0,(a2)                         ; 04040
         move.l  a1,$6(a2)                       ; 04042
         lea.l   (dat_0C0A2).l,a0                ; 04046
@@ -3239,8 +3239,8 @@ l_04016:
         move.l  #$980078,d0                     ; 04052
         moveq   #$1,d1                          ; 04058
         bsr.w   sub_0B69A                       ; 0405A
-        lea.l   (dat_0C1AA).l,a0                ; 0405E
-        bsr.w   sub_0BEFE                       ; 04064
+        lea.l   (GamePalette).l,a0              ; 0405E
+        bsr.w   SetPalette                      ; 04064
         move.w  #$1e,(a6)                       ; 04068
         bsr.w   sub_0B9F0                       ; 0406C
         tst.w   (a6)                            ; 04070
@@ -3276,14 +3276,14 @@ l_040BC:
         lea.l   (dat_053B3).l,a0                ; 040C8
         jsr     (sub_0C812).l                   ; 040CE
         moveq   #$6,d0                          ; 040D4
-        bsr.w   sub_0BDC0                       ; 040D6
+        bsr.w   PlaySong                        ; 040D6
 l_040DA:
-        tst.w   (dat_0E810).l                   ; 040DA
+        tst.w   (Music_Voices).l                ; 040DA
         beq.b   l_040E8                         ; 040E0
         bsr.w   sub_0BAAE                       ; 040E2
         beq.b   l_040DA                         ; 040E6
 l_040E8:
-        bsr.w   sub_0BDCC                       ; 040E8
+        bsr.w   StopSong                        ; 040E8
         bsr.w   sub_04690                       ; 040EC
         bsr.w   sub_0BB76                       ; 040F0
         bra.w   l_04016                         ; 040F4
@@ -3299,8 +3299,8 @@ l_040F8:
         jsr     (sub_0C81A).l                   ; 04118
 l_0411E:
         move.w  #$4b,$24(a6)                    ; 0411E
-        lea.l   (dat_0C1AA).l,a0                ; 04124
-        bsr.w   sub_0BEFE                       ; 0412A
+        lea.l   (GamePalette).l,a0              ; 04124
+        bsr.w   SetPalette                      ; 0412A
         move.w  $8(a6),d0                       ; 0412E
         cmp.w   (LoadedLevel).l,d0              ; 04132  already loaded?
         beq.w   l_041FE                         ; 04138
@@ -3362,7 +3362,7 @@ l_041BE:
         movea.l a0,a2                           ; 041D8
         lea.l   $2a00(a0),a0                    ; 041DA
         subq.w  #$1,d7                          ; 041DE
-        bsr.w   sub_04E92                       ; 041E0
+        bsr.w   DeinterleaveBobs                ; 041E0
         movea.l (a7)+,a0                        ; 041E4
         lea.l   (mem_613A6).l,a1                ; 041E6
         move.w  #$a7f,d0                        ; 041EC
@@ -3403,11 +3403,11 @@ l_04252:
         bsr.w   sub_0BB76                       ; 04262
         clr.w   $82(a6)                         ; 04266
 l_0426A:
-        bsr.w   sub_0BDCC                       ; 0426A
+        bsr.w   StopSong                        ; 0426A
         tst.w   $46(a6)                         ; 0426E
         bne.b   l_0427A                         ; 04272
         moveq   #$1,d0                          ; 04274
-        bsr.w   sub_0BDC0                       ; 04276
+        bsr.w   PlaySong                        ; 04276
 l_0427A:
         bsr.w   sub_05240                       ; 0427A
         bsr.w   sub_053C4                       ; 0427E
@@ -3424,7 +3424,7 @@ l_04298:
         tst.w   $6a(a6)                         ; 042A4
         beq.b   l_042B4                         ; 042A8
         moveq   #$1,d0                          ; 042AA
-        bsr.w   sub_0BDC0                       ; 042AC
+        bsr.w   PlaySong                        ; 042AC
         clr.w   $6a(a6)                         ; 042B0
 l_042B4:
         eori.w  #$1,$56(a6)                     ; 042B4
@@ -3484,23 +3484,23 @@ l_04354:
         cmpi.b  #$1,(dat_0E812).l               ; 04364
         bne.b   l_0437C                         ; 0436C
 l_0436E:
-        tst.w   (dat_0E810).l                   ; 0436E
+        tst.w   (Music_Voices).l                ; 0436E
         bne.b   l_0437C                         ; 04374
 l_04376:
         moveq   #$2,d0                          ; 04376
-        bsr.w   sub_0BDC0                       ; 04378
+        bsr.w   PlaySong                        ; 04378
 l_0437C:
-        lea.l   dat_0C1AA(pc),a0                ; 0437C
+        lea.l   GamePalette(pc),a0              ; 0437C
         cmpa.l  $16(a6),a0                      ; 04380
         beq.b   l_0438A                         ; 04384
-        bsr.w   sub_0BEFE                       ; 04386
+        bsr.w   SetPalette                      ; 04386
 l_0438A:
         tst.w   $68(a6)                         ; 0438A
         beq.b   l_0439C                         ; 0438E
         subq.w  #$1,$68(a6)                     ; 04390
         bne.b   l_0439C                         ; 04394
         moveq   #$2,d0                          ; 04396
-        bsr.w   sub_0BDC0                       ; 04398
+        bsr.w   PlaySong                        ; 04398
 l_0439C:
         tst.w   (a6)                            ; 0439C
         bne.b   l_043C0                         ; 0439E
@@ -3511,7 +3511,7 @@ l_0439C:
         tst.w   $52(a6)                         ; 043AC
         bne.b   l_043C0                         ; 043B0
         moveq   #$4,d0                          ; 043B2
-        bsr.w   sub_0BDC0                       ; 043B4
+        bsr.w   PlaySong                        ; 043B4
         move.w  #$3c,(a6)                       ; 043B8
         bsr.w   sub_050F4                       ; 043BC
 l_043C0:
@@ -3542,11 +3542,11 @@ l_043F4:
         bsr.w   sub_04DBE                       ; 04418
         lea.l   (dat_3CAF6).l,a2                ; 0441C
         lea.l   (dat_3CAA6).l,a0                ; 04422
-        lea.l   sub_0B6C4+2(pc),a1              ; 04428
+        lea.l   BlitBob+2(pc),a1                ; 04428
         move.l  a2,(a1)                         ; 0442C
         move.l  a0,$6(a1)                       ; 0442E
         moveq   #$4,d7                          ; 04432
-        bsr.w   sub_04E92                       ; 04434
+        bsr.w   DeinterleaveBobs                ; 04434
         move.w  $8(a6),d7                       ; 04438
         asr.w   #$4,d7                          ; 0443C
         move.w  d7,d2                           ; 0443E
@@ -3591,8 +3591,8 @@ l_04466:
         moveq   #$0,d0                          ; 044DA
         moveq   #$0,d1                          ; 044DC
         bsr.w   sub_0B950                       ; 044DE
-        lea.l   (dat_0C1AA).l,a0                ; 044E2
-        bsr.w   sub_0BEFE                       ; 044E8
+        lea.l   (GamePalette).l,a0              ; 044E2
+        bsr.w   SetPalette                      ; 044E8
         move.w  $8(a6),d0                       ; 044EC
         asr.w   #$4,d0                          ; 044F0
         move.w  d0,d1                           ; 044F2
@@ -3614,9 +3614,9 @@ l_04506:
         movem.l (a7)+,d0-d1/d7                  ; 04526
         dbra    d7,l_04506                      ; 0452A
 l_0452E:
-        lea.l   (dat_22AA6).l,a0                ; 0452E
-        lea.l   (dat_39AA6).l,a1                ; 04534
-        lea.l   (sub_0B6C4+2).l,a2              ; 0453A
+        lea.l   (BobData).l,a0                  ; 0452E
+        lea.l   (BobDirectory).l,a1             ; 04534
+        lea.l   (BlitBob+2).l,a2                ; 0453A
         move.l  a0,(a2)                         ; 04540
         move.l  a1,$6(a2)                       ; 04542
         bra.w   l_040A0                         ; 04546
@@ -3859,8 +3859,8 @@ l_0490E:
         dbra    d1,l_04880                      ; 0490E
         jmp     (sub_0C6A8).l                   ; 04912
 l_04918:
-        movea.l #dat_0C1AA,a0                   ; 04918
-        bsr.w   sub_0BEFE                       ; 0491E
+        movea.l #GamePalette,a0                 ; 04918
+        bsr.w   SetPalette                      ; 0491E
         lea.l   (mem_68000).l,a0                ; 04922
         move.l  $20(a6),d0                      ; 04928
         bchg    #$f,d0                          ; 0492C
@@ -3913,8 +3913,8 @@ l_0496E:
         bne.b   l_0496E                         ; 049CA
         rts                                     ; 049CC
 sub_049CE:		; (no references found: found by the code sweep)
-        movea.l #dat_0C1AA,a0                   ; 049CE
-        bsr.w   sub_0BEFE                       ; 049D4
+        movea.l #GamePalette,a0                 ; 049CE
+        bsr.w   SetPalette                      ; 049D4
         lea.l   (mem_69F18).l,a0                ; 049D8
         move.w  #$c7,d7                         ; 049DE
 l_049E2:
@@ -4126,7 +4126,7 @@ l_04CE0:
         bne.w   l_04088                         ; 04CE4
         subi.w  #$10,d0                         ; 04CE8
         bpl.b   l_04CE0                         ; 04CEC
-        lea.l   sub_0B6C4+2(pc),a2              ; 04CEE
+        lea.l   BlitBob+2(pc),a2                ; 04CEE
         move.l  a0,(a2)                         ; 04CF2
         move.l  a1,$6(a2)                       ; 04CF4
         lea.l   (mem_64380).l,a0                ; 04CF8
@@ -4137,7 +4137,7 @@ l_04D02:
         lea.l   $3a(a0),a0                      ; 04D0C
         dbra    d0,l_04D02                      ; 04D10
         lea.l   dat_0C18A(pc),a0                ; 04D14
-        bsr.w   sub_0BEFE                       ; 04D18
+        bsr.w   SetPalette                      ; 04D18
         bsr.w   sub_04E08                       ; 04D1C
         bsr.w   sub_0BB76                       ; 04D20
         bsr.w   sub_0BCDA                       ; 04D24
@@ -4145,23 +4145,23 @@ l_04D02:
         lea.l   (dat_4CCC8).l,a0                ; 04D2E
         bsr.w   sub_04DBE                       ; 04D34
         lea.l   (dat_4CCA8).l,a0                ; 04D38
-        bsr.w   sub_0BEFE                       ; 04D3E
+        bsr.w   SetPalette                      ; 04D3E
         moveq   #-1,d0                          ; 04D42
         move.l  #$a000c0,d1                     ; 04D44
         lea.l   dat_04F64(pc),a0                ; 04D4A
-        lea.l   dat_04F86(pc),a1                ; 04D4E
+        lea.l   l_04F86(pc),a1                  ; 04D4E
         moveq   #$4,d2                          ; 04D52
         bsr.w   sub_0B4E2                       ; 04D54
         st.b    $2e(a5)                         ; 04D58
         moveq   #-1,d0                          ; 04D5C
         move.l  #$c0,d1                         ; 04D5E
         lea.l   dat_04F88(pc),a0                ; 04D64
-        lea.l   dat_04FEA(pc),a1                ; 04D68
+        lea.l   l_04FEA(pc),a1                  ; 04D68
         moveq   #$4,d2                          ; 04D6C
         bsr.w   sub_0B4E2                       ; 04D6E
         st.b    $2e(a5)                         ; 04D72
         moveq   #$1,d0                          ; 04D76
-        bsr.w   sub_0BDC0                       ; 04D78
+        bsr.w   PlaySong                        ; 04D78
 l_04D7C:
         bsr.w   sub_0B0E6                       ; 04D7C
         bsr.w   sub_0BCD0                       ; 04D80
@@ -4242,10 +4242,15 @@ l_04E54:
         lea.l   (dat_3CAA6).l,a2                ; 04E80
         move.w  $88(a6),d7                      ; 04E86
         subq.w  #$2,d7                          ; 04E8A
-        bsr.w   sub_04E92                       ; 04E8C
+        bsr.w   DeinterleaveBobs                ; 04E8C
 l_04E90:
         rts                                     ; 04E90
-sub_04E92:
+
+;-------------------------------------------------------------------------------
+; DeinterleaveBobs - rearrange each BOB frame in place from the stored form (per line, per
+; 16-pixel column: mask, planes 0-3) into mask + 4 separate planes (docs/GRAPHICS.md).
+;-------------------------------------------------------------------------------
+DeinterleaveBobs:
         move.l  (a0),d1                         ; 04E92
         lea.l   $10(a0),a0                      ; 04E94
         move.l  a0,-(a7)                        ; 04E98
@@ -4292,13 +4297,13 @@ l_04F0C:
         move.w  (a1)+,(a0)+                     ; 04F0C
         dbra    d0,l_04F0C                      ; 04F0E
         movea.l (a7)+,a0                        ; 04F12
-        dbra    d7,sub_04E92                    ; 04F14
+        dbra    d7,DeinterleaveBobs             ; 04F14
         rts                                     ; 04F18
 sub_04F1A:
         bsr.w   sub_0C52C                       ; 04F1A
-        lea.l   (dat_22AA6).l,a0                ; 04F1E
-        lea.l   (dat_39AA6).l,a1                ; 04F24
-        move.l  a0,(sub_0B6C4+2).l              ; 04F2A
+        lea.l   (BobData).l,a0                  ; 04F1E
+        lea.l   (BobDirectory).l,a1             ; 04F24
+        move.l  a0,(BlitBob+2).l                ; 04F2A
         move.l  a1,$b6cc.l                      ; 04F30
         move.w  #$b0,d0                         ; 04F36
         move.w  d0,$8e(a6)                      ; 04F3A
@@ -4316,8 +4321,8 @@ dat_04F64:
 	dc.b	$80,$20,$00,$03,$00,$01,$00,$02,$00,$03,$80,$24,$00,$04,$80,$04
 	dc.b	$00,$04,$80,$20,$00,$05,$00,$05,$00,$06,$00,$07,$80,$24,$80,$48
 	dc.b	$00,$00
-dat_04F86:
-	dc.b	$4E,$75
+l_04F86:
+        rts                                     ; 04F86
 dat_04F88:
 	dc.b	$80,$20,$00,$03,$00,$00,$00,$00,$00,$00,$80,$24,$00,$08,$80,$04
 	dc.b	$00,$03,$80,$20,$00,$06,$00,$08,$00,$09,$00,$0A,$80,$24,$80,$04
@@ -4326,16 +4331,44 @@ dat_04F88:
 	dc.b	$00,$04,$00,$0B,$00,$0C,$00,$0D,$80,$24,$80,$4C,$00,$00,$4F,$EC
 	dc.b	$80,$20,$00,$06,$00,$0B,$00,$0C,$00,$0D,$80,$24,$80,$4C,$00,$00
 	dc.b	$4D,$A2
-dat_04FEA:
-	dc.b	$4E,$75,$2F,$0D,$22,$15,$04,$41,$00
-	dc.b	'<HAPAHAp'
-	dc.b	$FF,$41,$FA,$00,$1C,$43,$FA,$00,$20,$74,$01,$61,$00,$64,$DA,$3B
-	dc.b	$7C,$FF,$FE,$00,$06,$3B,$7C,$00,$03,$00,$04,$2A,$5F,$4E,$75,$00
-	dc.b	$0F,$80,$00,$00,$0E,$80,$00,$0C,$6D,$00,$C0,$00,$02,$6D,$24,$3B
-	dc.b	$7C,$00,$C0,$00,$02,$2B,$7C,$00,$00,$50,$1E,$00,$14,$42,$6D,$00
-	dc.b	$22,$2B,$7C,$00,$00,$50,$4C,$00,$18,$42,$AD,$00,$04,$3C,$BC,$00
-	dc.b	$0A,$4E,$75,$0C,$6D,$00,$07,$00,$06,$6C,$04,$52,$6D,$00,$06,$4E
-	dc.b	$75
+l_04FEA:
+        rts                                     ; 04FEA
+        move.l  a5,-(a7)                        ; 04FEC
+        move.l  (a5),d1                         ; 04FEE
+        subi.w  #$3c,d1                         ; 04FF0
+        swap    d1                              ; 04FF4
+        addq.w  #$8,d1                          ; 04FF6
+        swap    d1                              ; 04FF8
+        moveq   #-1,d0                          ; 04FFA
+        lea.l   dat_0501A(pc),a0                ; 04FFC
+        lea.l   l_05022(pc),a1                  ; 05000
+        moveq   #$1,d2                          ; 05004
+        bsr.w   sub_0B4E2                       ; 05006
+        move.w  #$fffe,$6(a5)                   ; 0500A
+        move.w  #$3,$4(a5)                      ; 05010
+        movea.l (a7)+,a5                        ; 05016
+        rts                                     ; 05018
+dat_0501A:
+	dc.b	$00,$0F,$80,$00
+dat_0501E:
+	dc.b	$00,$0E,$80,$00
+l_05022:
+        cmpi.w  #$c0,$2(a5)                     ; 05022
+        blt.b   l_0504E                         ; 05028
+        move.w  #$c0,$2(a5)                     ; 0502A
+        move.l  #dat_0501E,$14(a5)              ; 05030
+        clr.w   $22(a5)                         ; 05038
+        move.l  #sub_0504C,$18(a5)              ; 0503C
+        clr.l   $4(a5)                          ; 05044
+        move.w  #$a,(a6)                        ; 05048
+sub_0504C:
+        rts                                     ; 0504C
+l_0504E:
+        cmpi.w  #$7,$6(a5)                      ; 0504E
+        bge.b   l_0505A                         ; 05054
+        addq.w  #$1,$6(a5)                      ; 05056
+l_0505A:
+        rts                                     ; 0505A
 sub_0505C:
         lea.l   (mem_68000).l,a0                ; 0505C
         move.l  $20(a6),d0                      ; 05062
@@ -4582,10 +4615,10 @@ l_05322:
         moveq   #$23,d1                         ; 05352
         move.l  #$11800bc,d0                    ; 05354
         lea.l   (dat_0DA2C).l,a5                ; 0535A
-        bsr.w   sub_0B6C4                       ; 05360
+        bsr.w   BlitBob                         ; 05360
         moveq   #$24,d1                         ; 05364
         move.l  #$11800bc,d0                    ; 05366
-        bsr.w   sub_0B6C4                       ; 0536C
+        bsr.w   BlitBob                         ; 0536C
         move.w  (a7)+,$36(a6)                   ; 05370
         move.w  (a7)+,$8e(a6)                   ; 05374
         rts                                     ; 05378
@@ -4698,12 +4731,12 @@ l_054AE:
         bsr.w   sub_0B098                       ; 054DA
         lea.l   dat_05504(pc),a0                ; 054DE
         bsr.w   sub_0C6A8                       ; 054E2
-        lea.l   dat_0C1AA(pc),a0                ; 054E6
-        bsr.w   sub_0BEFE                       ; 054EA
+        lea.l   GamePalette(pc),a0              ; 054E6
+        bsr.w   SetPalette                      ; 054EA
         moveq   #$3,d0                          ; 054EE
-        bsr.w   sub_0BDC0                       ; 054F0
+        bsr.w   PlaySong                        ; 054F0
         bsr.w   sub_0B9E8                       ; 054F4
-        bsr.w   sub_0BDCC                       ; 054F8
+        bsr.w   StopSong                        ; 054F8
         bsr.w   sub_0BB76                       ; 054FC
         bra.w   l_04016                         ; 05500
 dat_05504:
@@ -4741,8 +4774,8 @@ l_055C6:
         bpl.b   l_055EE                         ; 055D4
         subq.w  #$1,$c2(a6)                     ; 055D6
         bne.b   l_055C6                         ; 055DA
-        lea.l   dat_0C1AA(pc),a0                ; 055DC
-        bsr.w   sub_0BEFE                       ; 055E0
+        lea.l   GamePalette(pc),a0              ; 055DC
+        bsr.w   SetPalette                      ; 055E0
         lea.l   DiskErrorText(pc),a0            ; 055E4
         bsr.w   sub_0C6A8                       ; 055E8
 l_055EC:
@@ -4797,13 +4830,20 @@ l_05680:
 l_0568C:
         movem.l (a7)+,d0-d3/a0-a2               ; 0568C
         rts                                     ; 05690
-sub_05692:		; (no references found: found by the code sweep)
+StopSample:		; (no references found: found by the code sweep)
         move.w  #$8,(CUSTOM+DMACON).l           ; 05692
         clr.l   $98(a6)                         ; 0569A
         clr.l   $a4(a6)                         ; 0569E
         clr.w   $40(a6)                         ; 056A2
         rts                                     ; 056A6
-sub_056A8:
+
+;-------------------------------------------------------------------------------
+; PlaySample - play a sound effect: a0 = an IFF 8SVX file (FORM). Finds VHDR and BODY,
+; period = 3579546 / samples per second, and plays it on channel 3; the level 4 interrupt
+; (Level4_Sample) sets the repeat. The effects are IFF 8SVX files saved with Audio Master
+; (tools/assets/sound.py extracts them).
+;-------------------------------------------------------------------------------
+PlaySample:
         movem.l a4-a5,-(a7)                     ; 056A8
         lea.l   CUSTOM,a5                       ; 056AC
         move.w  #$ff,ADKCON(a5)                 ; 056B2
@@ -4841,7 +4881,7 @@ l_05720:
         asr.l   #$1,d0                          ; 05724
         move.w  d0,$d4(a5)                      ; 05726
         move.w  d1,$d6(a5)                      ; 0572A
-        move.l  #sub_05778,(V_Level4).w         ; 0572E
+        move.l  #Level4_Sample,(V_Level4).w     ; 0572E
         move.w  #$7f,$d8(a5)                    ; 05736
         moveq   #$2,d0                          ; 0573C
         move.w  $6(a5),d1                       ; 0573E
@@ -4861,7 +4901,7 @@ l_05746:
         rts                                     ; 05774
 dat_05776:
 	dc.b	$00,$00
-sub_05778:
+Level4_Sample:
         movem.l d0/a6,-(a7)                     ; 05778
         tst.w   (dat_05776).l                   ; 0577C
         bne.b   l_0578C                         ; 05782
@@ -4977,13 +5017,14 @@ dat_0585E:
 	dc.b	$00,$00,$00,$00,$62,$A0,$00,$00,$AE,$DC,$00,$00,$00,$00,$00,$00
 	dc.b	$7A,$CC,$00,$00,$80,$0E,$00,$00,$00,$00,$00,$00,$62,$3A,$00,$00
 	dc.b	$AE,$38,$00,$00,$00,$00,$00,$00,$61,$62,$00,$00,$AE,$3C,$00,$00
-	dc.b	$00,$00,$00,$00,$61,$D6,$00,$00,$AE,$40,$00,$00,$00,$00,$00,$00
-	dc.b	$6F,$78,$00,$00,$80,$C8,$00,$00,$70,$F8,$00,$00,$81,$64,$00,$00
-	dc.b	$6F,$DC,$00,$00,$80,$FE,$00,$00,$71,$E6,$00,$00,$80,$94,$00,$00
-	dc.b	$84,$2C,$00,$00,$81,$C6,$00,$00,$6F,$6C,$00,$00,$7E,$54,$00,$00
-	dc.b	$6F,$6C,$00,$00,$7E,$E4,$00,$00,$71,$5C,$00,$00,$80,$3E,$00,$00
-	dc.b	$70,$3C,$00,$00,$81,$34,$00,$00,$70,$94,$00,$00,$80,$66,$00,$00
-	dc.b	$6F,$6C,$00,$00,$7F,$84
+	dc.b	$00,$00,$00,$00,$61,$D6,$00,$00,$AE,$40,$00,$00,$00,$00
+dat_05A7C:
+	dc.b	$00,$00,$6F,$78,$00,$00,$80,$C8,$00,$00,$70,$F8,$00,$00,$81,$64
+	dc.b	$00,$00,$6F,$DC,$00,$00,$80,$FE,$00,$00,$71,$E6,$00,$00,$80,$94
+	dc.b	$00,$00,$84,$2C,$00,$00,$81,$C6,$00,$00,$6F,$6C,$00,$00,$7E,$54
+	dc.b	$00,$00,$6F,$6C,$00,$00,$7E,$E4,$00,$00,$71,$5C,$00,$00,$80,$3E
+	dc.b	$00,$00,$70,$3C,$00,$00,$81,$34,$00,$00,$70,$94,$00,$00,$80,$66
+	dc.b	$00,$00,$6F,$6C,$00,$00,$7F,$84
 sub_05AD4:
         cmpi.w  #$130,$8(a6)                    ; 05AD4
         bne.b   l_05AE0                         ; 05ADA
@@ -5037,7 +5078,7 @@ l_05B42:
         swap    d1                              ; 05B4C
         move.l  d1,-(a7)                        ; 05B4E
 l_05B50:
-        lea.l   dat_098A4(pc),a1                ; 05B50
+        lea.l   l_098A4(pc),a1                  ; 05B50
         lea.l   dat_0AE2E(pc),a0                ; 05B54
         moveq   #$0,d2                          ; 05B58
         moveq   #$0,d0                          ; 05B5A
@@ -5189,7 +5230,7 @@ l_05F20:
 l_05F28:
         moveq   #-1,d0                          ; 05F28
         rts                                     ; 05F2A
-sub_05F2C:		; (no references found: found by the code sweep)
+sub_05F2C:
         lea.l   (mem_643BA).l,a4                ; 05F2C
         cmpi.l  #sub_0965C,$18(a4)              ; 05F32
         beq.b   l_05F70                         ; 05F3A
@@ -5441,7 +5482,6 @@ sub_061C8:
         sub.w   d1,(a5)                         ; 061D2
 l_061D4:
         rts                                     ; 061D4
-sub_061D6:		; (no references found: found by the code sweep)
         lea.l   (mem_643BA).l,a4                ; 061D6
         move.w  #$a,$2e(a5)                     ; 061DC
         move.w  $6(a4),d0                       ; 061E2
@@ -5473,7 +5513,6 @@ l_061F0:
 l_06234:
         clr.w   $6(a5)                          ; 06234
         rts                                     ; 06238
-sub_0623A:		; (no references found: found by the code sweep)
         lea.l   (mem_643BA).l,a4                ; 0623A
         move.w  #$a,$2e(a5)                     ; 06240
         move.w  $6(a4),d0                       ; 06246
@@ -5521,7 +5560,7 @@ sub_06298:		; (no references found: found by the code sweep)
         beq.b   l_062E6                         ; 062C8
 l_062CA:
         lea.l   (dat_1BD06).l,a0                ; 062CA
-        bsr.w   sub_056A8                       ; 062D0
+        bsr.w   PlaySample                      ; 062D0
         move.w  #$1,$20(a5)                     ; 062D4
         clr.l   $4(a5)                          ; 062DA
 l_062DE:
@@ -5669,7 +5708,7 @@ l_064CE:
         move.w  #$96,$32(a5)                    ; 064E4
 l_064EA:
         rts                                     ; 064EA
-sub_064EC:		; (no references found: found by the code sweep)
+sub_064EC:
         move.w  $6c(a6),d0                      ; 064EC
         bne.b   l_0651E                         ; 064F0
         lea.l   $c6(a6),a3                      ; 064F2
@@ -5709,7 +5748,7 @@ sub_06530:
         bsr.w   sub_065B2                       ; 06550
         beq.b   l_06568                         ; 06554
         lea.l   (dat_1BD06).l,a0                ; 06556
-        bsr.w   sub_056A8                       ; 0655C
+        bsr.w   PlaySample                      ; 0655C
         moveq   #-1,d0                          ; 06560
 l_06562:
         rts                                     ; 06562
@@ -5738,7 +5777,7 @@ l_06590:
 l_06594:
         move.w  #$2,$20(a4)                     ; 06594
         lea.l   (dat_1BD06).l,a0                ; 0659A
-        bsr.w   sub_056A8                       ; 065A0
+        bsr.w   PlaySample                      ; 065A0
         moveq   #$0,d0                          ; 065A4
         rts                                     ; 065A6
 sub_065A8:
@@ -5777,7 +5816,7 @@ l_065EE:
         cmp.w   $e(a5),d0                       ; 065F0
         blt.b   l_065EA                         ; 065F4
         bra.b   l_065CE                         ; 065F6
-sub_065F8:		; (no references found: found by the code sweep)
+sub_065F8:
         tst.w   $4(a5)                          ; 065F8
         beq.b   l_06620                         ; 065FC
         tst.l   $c(a5)                          ; 065FE
@@ -5814,7 +5853,7 @@ l_06646:
         cmp.w   $e(a5),d0                       ; 06648
         blt.b   l_06642                         ; 0664C
         bra.b   l_06620                         ; 0664E
-sub_06650:		; (no references found: found by the code sweep)
+sub_06650:
         move.l  $26(a5),d0                      ; 06650
         beq.w   l_066D8                         ; 06654
         move.l  a5,-(a7)                        ; 06658
@@ -5845,7 +5884,7 @@ l_0669A:
         bne.b   l_066CC                         ; 066A6
 l_066A8:
         lea.l   (dat_1BD06).l,a0                ; 066A8
-        bsr.w   sub_056A8                       ; 066AE
+        bsr.w   PlaySample                      ; 066AE
         clr.l   $4(a5)                          ; 066B2
         move.w  #$1,$20(a5)                     ; 066B6
         moveq   #-1,d0                          ; 066BC
@@ -5863,7 +5902,7 @@ l_066D6:
         movea.l (a7)+,a5                        ; 066D6
 l_066D8:
         rts                                     ; 066D8
-sub_066DA:		; (no references found: found by the code sweep)
+l_066DA:
         move.l  #sub_0732A,$18(a5)              ; 066DA
         move.l  a0,$14(a5)                      ; 066E2
         clr.w   $22(a5)                         ; 066E6
@@ -5876,8 +5915,8 @@ sub_066DA:		; (no references found: found by the code sweep)
         move.w  #$2,$20(a5)                     ; 06702
         move.w  #$ffff,$1c(a5)                  ; 06708
         lea.l   (dat_1731C).l,a0                ; 0670E
-        bra.w   sub_056A8                       ; 06714
-sub_06718:		; (no references found: found by the code sweep)
+        bra.w   PlaySample                      ; 06714
+l_06718:
         move.w  #$5,$32(a5)                     ; 06718
         movea.l $26(a5),a4                      ; 0671E
         bsr.w   sub_08B9A                       ; 06722
@@ -5960,7 +5999,7 @@ l_067BC:
         clr.l   $4(a4)                          ; 067EE
 l_067F2:
         rts                                     ; 067F2
-sub_067F4:		; (no references found: found by the code sweep)
+l_067F4:
         move.w  #$5,$32(a5)                     ; 067F4
         movea.l $26(a5),a4                      ; 067FA
         bsr.w   sub_08B9A                       ; 067FE
@@ -6212,7 +6251,7 @@ l_06A4E:
         clr.l   $4(a4)                          ; 06A80
 l_06A84:
         rts                                     ; 06A84
-sub_06A86:		; (no references found: found by the code sweep)
+sub_06A86:
         movea.l $26(a5),a4                      ; 06A86
         bsr.w   sub_08B9A                       ; 06A8A
         bne.b   l_06A9A                         ; 06A8E
@@ -6409,13 +6448,13 @@ l_06C96:
         dbra    d7,l_06C5A                      ; 06C9C
 l_06CA0:
         lea.l   (dat_1E94C).l,a0                ; 06CA0
-        bra.w   sub_056A8                       ; 06CA6
+        bra.w   PlaySample                      ; 06CA6
 sub_06CAA:		; (no references found: found by the code sweep)
         bsr.w   sub_06650                       ; 06CAA
         beq.b   l_06CBA                         ; 06CAE
 l_06CB0:
         lea.l   (dat_07F84).l,a0                ; 06CB0
-        bra.w   sub_066DA                       ; 06CB6
+        bra.w   l_066DA                         ; 06CB6
 l_06CBA:
         bsr.w   sub_064EC                       ; 06CBA
         beq.b   l_06CD6                         ; 06CBE
@@ -6512,7 +6551,7 @@ l_06DAC:
         move.w  $4(a0),$30(a5)                  ; 06DC8
         bsr.w   sub_08D4E                       ; 06DCE
         lea.l   (dat_1D398).l,a0                ; 06DD2
-        bra.w   sub_056A8                       ; 06DD8
+        bra.w   PlaySample                      ; 06DD8
 	dc.b	$4E,$75,$4A,$AD,$00,$32,$66,$02,$5E,$55,$3B,$7C,$00,$06,$00,$06
 	dc.b	$60,$C4,$4A,$AD,$00,$32,$66,$0E,$04,$6D,$00,$09,$00,$02,$06,$55
 	dc.b	$00,$0A,$50,$ED,$00,$10,$3B,$7C,$00,$06,$00,$04,$60,$A8,$4A,$AD
@@ -6542,68 +6581,296 @@ l_06E60:
 	dc.b	$00,$E8,$00,$00,$00,$19,$00,$EB,$00,$00,$00,$19,$00,$EC,$00,$00
 	dc.b	$00,$0F,$00,$EC,$00,$00,$00,$14,$61,$00,$F7,$2C,$66,$00,$1B,$C8
 	dc.b	$41,$FA,$FA,$4E,$60,$00,$00,$42,$41,$FA,$FC,$BE,$60,$00,$00,$3A
-	dc.b	$41,$FA,$FB,$14,$60,$00,$00,$32,$41,$FA,$FB,$EA,$60,$00,$00,$2A
-	dc.b	$41,$FA,$F8,$74,$60,$00,$00,$22,$41,$FA,$FB,$DA,$60,$00,$00,$1A
-	dc.b	$41,$FA,$F8,$64,$60,$00,$00,$12,$41,$FA,$F9,$38,$60,$00,$00,$0A
-	dc.b	$41,$FA,$FB,$C2,$60,$00,$00,$02,$23,$C8,$00,$00,$6F,$20,$61,$00
-	dc.b	$F7,$7E,$67,$16,$30,$2D,$00,$1C,$04,$40,$00,$0A,$E7,$40,$41,$FA
-	dc.b	$EB,$9A,$20,$70,$00,$04,$60,$00,$F7,$F0,$61,$00,$F5,$FE,$67,$16
-	dc.b	$20,$2D,$00,$26,$67,$DE,$28,$40,$29,$6C,$00,$32,$00,$18,$39,$7C
-	dc.b	$00,$96,$00,$32,$60,$CE,$4A,$6D,$00,$30,$66,$38,$28,$6D,$00,$26
-	dc.b	$4A,$6C,$00,$20,$66,$4E,$3B,$7C,$00,$04,$00,$20,$4E,$B9,$00,$00
-	dc.b	$6A,$86,$4A,$6D,$00,$2C,$67,$40,$53,$6D,$00,$32,$6A,$3A,$50,$ED
-	dc.b	$00,$30,$42,$6D,$00,$22,$42,$6D,$00,$32,$3B,$6D,$00,$20,$00,$1E
-	dc.b	$53,$6D,$00,$1E,$42,$AD,$00,$04,$28,$6D,$00,$26,$42,$AC,$00,$04
-	dc.b	$30,$2D,$00,$1C,$04,$40,$00,$0A,$E7,$40,$41,$FA,$EB,$1E,$20,$70
-	dc.b	$00,$00,$4E,$D0,$42,$AD,$00,$04,$4E,$75,$42,$6D,$00,$30,$3B,$7C
-	dc.b	$00,$0F,$00,$32,$4E,$75,$2B,$7C,$00,$00,$80,$B0,$00,$14,$4A,$6D
-	dc.b	$00,$32,$67,$48,$61,$00,$45,$1A,$67,$44,$20,$15,$04,$40,$00,$10
-	dc.b	$D0,$6D,$00,$2A,$28,$80,$72,$06,$4A,$6D,$00,$10,$67,$02,$44,$41
-	dc.b	$39,$41,$00,$04,$39,$6D,$00,$10,$00,$10,$29,$7C,$00,$00,$72,$70
-	dc.b	$00,$18,$29,$7C,$00,$00,$80,$D4,$00,$14,$39,$7C,$00,$01,$00,$20
-	dc.b	$42,$6C,$00,$22,$29,$4D,$00,$30,$42,$6D,$00,$32,$4E,$75,$42,$6D
-	dc.b	$00,$30,$3B,$7C,$00,$0F,$00,$32,$4E,$75,$2B,$7C,$00,$00,$80,$E0
-	dc.b	$00,$14,$4A,$6D,$00,$32,$67,$44,$61,$00,$44,$B6,$67,$40,$20,$15
-	dc.b	$04,$40,$00,$10,$D0,$6D,$00,$2A,$28,$80,$39,$40,$00,$34,$39,$7C
-	dc.b	$FF,$F6,$00,$06,$39,$6D,$00,$10,$00,$10,$29,$7C,$00,$00,$72,$D6
-	dc.b	$00,$18,$29,$7C,$00,$00,$81,$0A,$00,$14,$39,$7C,$00,$01,$00,$20
-	dc.b	$42,$6C,$00,$22,$29,$4D,$00,$30,$42,$6D,$00,$32,$4E,$75,$42,$6D
-	dc.b	$00,$30,$3B,$7C,$00,$0F,$00,$32,$4E,$75,$2B,$7C,$00,$00,$81,$20
-	dc.b	$00,$14,$4A,$6D,$00,$32,$67,$3C,$61,$00,$44,$56,$67,$38,$20,$15
-	dc.b	$50,$40,$D0,$6D,$00,$2A,$28,$80,$42,$6C,$00,$04,$39,$7C,$00,$04
-	dc.b	$00,$06,$29,$7C,$00,$00,$72,$70,$00,$18,$29,$7C,$00,$00,$81,$40
-	dc.b	$00,$14,$39,$7C,$00,$01,$00,$20,$42,$6C,$00,$22,$29,$4D,$00,$30
-	dc.b	$42,$6D,$00,$32,$4E,$75,$42,$6D,$00,$30,$3B,$7C,$00,$0F,$00,$32
-	dc.b	$4E,$75,$2B,$7C,$00,$00,$80,$4E,$00,$14,$4A,$6D,$00,$32,$67,$48
-	dc.b	$61,$00,$43,$FE,$67,$44,$20,$15,$04,$40,$00,$0C,$D0,$6D,$00,$2A
-	dc.b	$28,$80,$72,$06,$4A,$6D,$00,$10,$67,$02,$44,$41,$39,$41,$00,$04
-	dc.b	$39,$6D,$00,$10,$00,$10,$29,$7C,$00,$00,$72,$70,$00,$18,$29,$7C
-	dc.b	$00,$00,$80,$72,$00,$14,$39,$7C,$00,$01,$00,$20,$42,$6C,$00,$22
-	dc.b	$29,$4D,$00,$30,$42,$6D,$00,$32,$4E,$75,$42,$6D,$00,$30,$3B,$7C
-	dc.b	$00,$0F,$00,$32,$4E,$75,$2B,$7C,$00,$00,$81,$4E,$00,$14,$4A,$6D
-	dc.b	$00,$32,$67,$48,$61,$00,$43,$9A,$67,$44,$20,$15,$04,$40,$00,$0C
-	dc.b	$D0,$6D,$00,$2A,$28,$80,$72,$06,$4A,$6D,$00,$10,$67,$02,$44,$41
-	dc.b	$39,$41,$00,$04,$39,$6D,$00,$10,$00,$10,$29,$7C,$00,$00,$72,$70
-	dc.b	$00,$18,$29,$7C,$00,$00,$81,$70,$00,$14,$39,$7C,$00,$01,$00,$20
-	dc.b	$42,$6C,$00,$22,$29,$4D,$00,$30,$42,$6D,$00,$32,$4E,$75,$42,$6D
-	dc.b	$00,$30,$3B,$7C,$00,$0F,$00,$32,$4E,$75,$2B,$7C,$00,$00,$80,$24
-	dc.b	$00,$14,$4A,$6D,$00,$32,$67,$6E,$61,$00,$43,$36,$67,$6A,$20,$15
-	dc.b	$04,$40,$00,$0C,$D0,$6D,$00,$2A,$28,$80,$72,$06,$4A,$6D,$00,$10
-	dc.b	$67,$02,$44,$41,$39,$41,$00,$04,$30,$39,$00,$06,$43,$BC,$90,$6C
-	dc.b	$00,$02,$3F,$00,$6A,$02,$44,$40,$E8,$40,$B0,$7C,$00,$04,$6F,$02
-	dc.b	$70,$04,$32,$00,$30,$1F,$6A,$02,$44,$41,$39,$41,$00,$06,$39,$6D
-	dc.b	$00,$10,$00,$10,$29,$7C,$00,$00,$72,$70,$00,$18,$29,$7C,$00,$00
-	dc.b	$80,$46,$00,$14,$39,$7C,$00,$01,$00,$20,$42,$6C,$00,$22,$29,$4D
-	dc.b	$00,$30,$42,$6D,$00,$32,$4E,$75,$42,$6D,$00,$30,$3B,$7C,$00,$0F
-	dc.b	$00,$32,$4E,$75,$2B,$7C,$00,$00,$80,$80,$00,$14,$4A,$6D,$00,$32
-	dc.b	$67,$6E,$61,$00,$42,$AC,$67,$6A,$20,$15,$04,$40,$00,$0C,$D0,$6D
-	dc.b	$00,$2A,$28,$80,$72,$06,$4A,$6D,$00,$10,$67,$02,$44,$41,$39,$41
-	dc.b	$00,$04,$30,$39,$00,$06,$43,$BC,$90,$6C,$00,$02,$3F,$00,$6A,$02
-	dc.b	$44,$40,$E8,$40,$B0,$7C,$00,$04,$6F,$02,$70,$04,$32,$00,$30,$1F
-	dc.b	$6A,$02,$44,$41,$39,$41,$00,$06,$39,$6D,$00,$10,$00,$10,$29,$7C
-	dc.b	$00,$00,$72,$70,$00,$18,$29,$7C,$00,$00,$80,$9E,$00,$14,$39,$7C
-	dc.b	$00,$01,$00,$20,$42,$6C,$00,$22,$29,$4D,$00,$30,$42,$6D,$00,$32
-	dc.b	$4E,$75,$42,$6D,$00,$30,$3B,$7C,$00,$0F,$00,$32,$4E,$75
+	dc.b	$41,$FA,$FB,$14,$60,$00,$00,$32
+        lea.l   sub_06A86(pc),a0                ; 06E9A
+        bra.w   l_06ECA                         ; 06E9E
+        lea.l   l_06718(pc),a0                  ; 06EA2
+        bra.w   l_06ECA                         ; 06EA6
+        lea.l   sub_06A86(pc),a0                ; 06EAA
+        bra.w   l_06ECA                         ; 06EAE
+	dc.b	$41,$FA,$F8,$64,$60,$00,$00,$12
+        lea.l   l_067F4(pc),a0                  ; 06EBA
+        bra.w   l_06ECA                         ; 06EBE
+        lea.l   sub_06A86(pc),a0                ; 06EC2
+        bra.w   l_06ECA                         ; 06EC6
+l_06ECA:
+        move.l  a0,$6f20.l                      ; 06ECA
+        bsr.w   sub_06650                       ; 06ED0
+        beq.b   l_06EEC                         ; 06ED4
+l_06ED6:
+        move.w  $1c(a5),d0                      ; 06ED6
+        subi.w  #$a,d0                          ; 06EDA
+        asl.w   #$3,d0                          ; 06EDE
+        lea.l   dat_05A7C(pc),a0                ; 06EE0
+        movea.l $4(a0,d0.w),a0                  ; 06EE4
+        bra.w   l_066DA                         ; 06EE8
+l_06EEC:
+        bsr.w   sub_064EC                       ; 06EEC
+        beq.b   l_06F08                         ; 06EF0
+        move.l  $26(a5),d0                      ; 06EF2
+        beq.b   l_06ED6                         ; 06EF6
+        movea.l d0,a4                           ; 06EF8
+        move.l  $32(a4),$18(a4)                 ; 06EFA
+        move.w  #$96,$32(a4)                    ; 06F00
+        bra.b   l_06ED6                         ; 06F06
+l_06F08:
+        tst.w   $30(a5)                         ; 06F08
+        bne.b   l_06F46                         ; 06F0C
+        movea.l $26(a5),a4                      ; 06F0E
+        tst.w   $20(a4)                         ; 06F12
+        bne.b   l_06F66                         ; 06F16
+        move.w  #$4,$20(a5)                     ; 06F18
+        jsr     (sub_06A86).l                   ; 06F1E
+        tst.w   $2c(a5)                         ; 06F24
+        beq.b   l_06F6A                         ; 06F28
+        subq.w  #$1,$32(a5)                     ; 06F2A
+        bpl.b   l_06F6A                         ; 06F2E
+        st.b    $30(a5)                         ; 06F30
+        clr.w   $22(a5)                         ; 06F34
+        clr.w   $32(a5)                         ; 06F38
+        move.w  $20(a5),$1e(a5)                 ; 06F3C
+        subq.w  #$1,$1e(a5)                     ; 06F42
+l_06F46:
+        clr.l   $4(a5)                          ; 06F46
+        movea.l $26(a5),a4                      ; 06F4A
+        clr.l   $4(a4)                          ; 06F4E
+        move.w  $1c(a5),d0                      ; 06F52
+        subi.w  #$a,d0                          ; 06F56
+        asl.w   #$3,d0                          ; 06F5A
+        lea.l   dat_05A7C(pc),a0                ; 06F5C
+        movea.l (a0,d0.w),a0                    ; 06F60
+        jmp     (a0)                            ; 06F64
+l_06F66:
+        clr.l   $4(a5)                          ; 06F66
+l_06F6A:
+        rts                                     ; 06F6A
+sub_06F6C:		; (no references found: found by the code sweep)
+        clr.w   $30(a5)                         ; 06F6C
+        move.w  #$f,$32(a5)                     ; 06F70
+        rts                                     ; 06F76
+        move.l  #dat_080B0,$14(a5)              ; 06F78
+        tst.w   $32(a5)                         ; 06F80
+        beq.b   l_06FCE                         ; 06F84
+        bsr.w   sub_0B4A2                       ; 06F86
+        beq.b   l_06FD0                         ; 06F8A
+        move.l  (a5),d0                         ; 06F8C
+        subi.w  #$10,d0                         ; 06F8E
+        add.w   $2a(a5),d0                      ; 06F92
+        move.l  d0,(a4)                         ; 06F96
+        moveq   #$6,d1                          ; 06F98
+        tst.w   $10(a5)                         ; 06F9A
+        beq.b   l_06FA2                         ; 06F9E
+        neg.w   d1                              ; 06FA0
+l_06FA2:
+        move.w  d1,$4(a4)                       ; 06FA2
+        move.w  $10(a5),$10(a4)                 ; 06FA6
+        move.l  #sub_07270,$18(a4)              ; 06FAC
+        move.l  #dat_080D4,$14(a4)              ; 06FB4
+        move.w  #$1,$20(a4)                     ; 06FBC
+        clr.w   $22(a4)                         ; 06FC2
+        move.l  a5,$30(a4)                      ; 06FC6
+        clr.w   $32(a5)                         ; 06FCA
+l_06FCE:
+        rts                                     ; 06FCE
+l_06FD0:
+        clr.w   $30(a5)                         ; 06FD0
+        move.w  #$f,$32(a5)                     ; 06FD4
+        rts                                     ; 06FDA
+sub_06FDC:		; (no references found: found by the code sweep)
+        move.l  #dat_080E0,$14(a5)              ; 06FDC
+        tst.w   $32(a5)                         ; 06FE4
+        beq.b   l_0702E                         ; 06FE8
+        bsr.w   sub_0B4A2                       ; 06FEA
+        beq.b   l_07030                         ; 06FEE
+        move.l  (a5),d0                         ; 06FF0
+        subi.w  #$10,d0                         ; 06FF2
+        add.w   $2a(a5),d0                      ; 06FF6
+        move.l  d0,(a4)                         ; 06FFA
+        move.w  d0,$34(a4)                      ; 06FFC
+        move.w  #$fff6,$6(a4)                   ; 07000
+        move.w  $10(a5),$10(a4)                 ; 07006
+        move.l  #sub_072D6,$18(a4)              ; 0700C
+        move.l  #dat_0810A,$14(a4)              ; 07014
+        move.w  #$1,$20(a4)                     ; 0701C
+        clr.w   $22(a4)                         ; 07022
+        move.l  a5,$30(a4)                      ; 07026
+        clr.w   $32(a5)                         ; 0702A
+l_0702E:
+        rts                                     ; 0702E
+l_07030:
+        clr.w   $30(a5)                         ; 07030
+        move.w  #$f,$32(a5)                     ; 07034
+        rts                                     ; 0703A
+        move.l  #dat_08120,$14(a5)              ; 0703C
+        tst.w   $32(a5)                         ; 07044
+        beq.b   l_07086                         ; 07048
+        bsr.w   sub_0B4A2                       ; 0704A
+        beq.b   l_07088                         ; 0704E
+        move.l  (a5),d0                         ; 07050
+        addq.w  #$8,d0                          ; 07052
+        add.w   $2a(a5),d0                      ; 07054
+        move.l  d0,(a4)                         ; 07058
+        clr.w   $4(a4)                          ; 0705A
+        move.w  #$4,$6(a4)                      ; 0705E
+        move.l  #sub_07270,$18(a4)              ; 07064
+        move.l  #dat_08140,$14(a4)              ; 0706C
+        move.w  #$1,$20(a4)                     ; 07074
+        clr.w   $22(a4)                         ; 0707A
+        move.l  a5,$30(a4)                      ; 0707E
+        clr.w   $32(a5)                         ; 07082
+l_07086:
+        rts                                     ; 07086
+l_07088:
+        clr.w   $30(a5)                         ; 07088
+        move.w  #$f,$32(a5)                     ; 0708C
+        rts                                     ; 07092
+        move.l  #dat_0804E,$14(a5)              ; 07094
+        tst.w   $32(a5)                         ; 0709C
+        beq.b   l_070EA                         ; 070A0
+        bsr.w   sub_0B4A2                       ; 070A2
+        beq.b   l_070EC                         ; 070A6
+        move.l  (a5),d0                         ; 070A8
+        subi.w  #$c,d0                          ; 070AA
+        add.w   $2a(a5),d0                      ; 070AE
+        move.l  d0,(a4)                         ; 070B2
+        moveq   #$6,d1                          ; 070B4
+        tst.w   $10(a5)                         ; 070B6
+        beq.b   l_070BE                         ; 070BA
+        neg.w   d1                              ; 070BC
+l_070BE:
+        move.w  d1,$4(a4)                       ; 070BE
+        move.w  $10(a5),$10(a4)                 ; 070C2
+        move.l  #sub_07270,$18(a4)              ; 070C8
+        move.l  #dat_08072,$14(a4)              ; 070D0
+        move.w  #$1,$20(a4)                     ; 070D8
+        clr.w   $22(a4)                         ; 070DE
+        move.l  a5,$30(a4)                      ; 070E2
+        clr.w   $32(a5)                         ; 070E6
+l_070EA:
+        rts                                     ; 070EA
+l_070EC:
+        clr.w   $30(a5)                         ; 070EC
+        move.w  #$f,$32(a5)                     ; 070F0
+        rts                                     ; 070F6
+        move.l  #dat_0814E,$14(a5)              ; 070F8
+        tst.w   $32(a5)                         ; 07100
+        beq.b   l_0714E                         ; 07104
+        bsr.w   sub_0B4A2                       ; 07106
+        beq.b   l_07150                         ; 0710A
+        move.l  (a5),d0                         ; 0710C
+        subi.w  #$c,d0                          ; 0710E
+        add.w   $2a(a5),d0                      ; 07112
+        move.l  d0,(a4)                         ; 07116
+        moveq   #$6,d1                          ; 07118
+        tst.w   $10(a5)                         ; 0711A
+        beq.b   l_07122                         ; 0711E
+        neg.w   d1                              ; 07120
+l_07122:
+        move.w  d1,$4(a4)                       ; 07122
+        move.w  $10(a5),$10(a4)                 ; 07126
+        move.l  #sub_07270,$18(a4)              ; 0712C
+        move.l  #dat_08170,$14(a4)              ; 07134
+        move.w  #$1,$20(a4)                     ; 0713C
+        clr.w   $22(a4)                         ; 07142
+        move.l  a5,$30(a4)                      ; 07146
+        clr.w   $32(a5)                         ; 0714A
+l_0714E:
+        rts                                     ; 0714E
+l_07150:
+        clr.w   $30(a5)                         ; 07150
+        move.w  #$f,$32(a5)                     ; 07154
+        rts                                     ; 0715A
+        move.l  #dat_08024,$14(a5)              ; 0715C
+        tst.w   $32(a5)                         ; 07164
+        beq.b   l_071D8                         ; 07168
+        bsr.w   sub_0B4A2                       ; 0716A
+        beq.b   l_071DA                         ; 0716E
+        move.l  (a5),d0                         ; 07170
+        subi.w  #$c,d0                          ; 07172
+        add.w   $2a(a5),d0                      ; 07176
+        move.l  d0,(a4)                         ; 0717A
+        moveq   #$6,d1                          ; 0717C
+        tst.w   $10(a5)                         ; 0717E
+        beq.b   l_07186                         ; 07182
+        neg.w   d1                              ; 07184
+l_07186:
+        move.w  d1,$4(a4)                       ; 07186
+        move.w  (mem_643BC).l,d0                ; 0718A
+        sub.w   $2(a4),d0                       ; 07190
+        move.w  d0,-(a7)                        ; 07194
+        bpl.b   l_0719A                         ; 07196
+        neg.w   d0                              ; 07198
+l_0719A:
+        asr.w   #$4,d0                          ; 0719A
+        cmp.w   #$4,d0                          ; 0719C
+        ble.b   l_071A4                         ; 071A0
+        moveq   #$4,d0                          ; 071A2
+l_071A4:
+        move.w  d0,d1                           ; 071A4
+        move.w  (a7)+,d0                        ; 071A6
+        bpl.b   l_071AC                         ; 071A8
+        neg.w   d1                              ; 071AA
+l_071AC:
+        move.w  d1,$6(a4)                       ; 071AC
+        move.w  $10(a5),$10(a4)                 ; 071B0
+        move.l  #sub_07270,$18(a4)              ; 071B6
+        move.l  #dat_08046,$14(a4)              ; 071BE
+        move.w  #$1,$20(a4)                     ; 071C6
+        clr.w   $22(a4)                         ; 071CC
+        move.l  a5,$30(a4)                      ; 071D0
+        clr.w   $32(a5)                         ; 071D4
+l_071D8:
+        rts                                     ; 071D8
+l_071DA:
+        clr.w   $30(a5)                         ; 071DA
+        move.w  #$f,$32(a5)                     ; 071DE
+        rts                                     ; 071E4
+sub_071E6:		; (no references found: found by the code sweep)
+        move.l  #dat_08080,$14(a5)              ; 071E6
+        tst.w   $32(a5)                         ; 071EE
+        beq.b   l_07262                         ; 071F2
+        bsr.w   sub_0B4A2                       ; 071F4
+        beq.b   l_07264                         ; 071F8
+        move.l  (a5),d0                         ; 071FA
+        subi.w  #$c,d0                          ; 071FC
+        add.w   $2a(a5),d0                      ; 07200
+        move.l  d0,(a4)                         ; 07204
+        moveq   #$6,d1                          ; 07206
+        tst.w   $10(a5)                         ; 07208
+        beq.b   l_07210                         ; 0720C
+        neg.w   d1                              ; 0720E
+l_07210:
+        move.w  d1,$4(a4)                       ; 07210
+        move.w  (mem_643BC).l,d0                ; 07214
+        sub.w   $2(a4),d0                       ; 0721A
+        move.w  d0,-(a7)                        ; 0721E
+        bpl.b   l_07224                         ; 07220
+        neg.w   d0                              ; 07222
+l_07224:
+        asr.w   #$4,d0                          ; 07224
+        cmp.w   #$4,d0                          ; 07226
+        ble.b   l_0722E                         ; 0722A
+        moveq   #$4,d0                          ; 0722C
+l_0722E:
+        move.w  d0,d1                           ; 0722E
+        move.w  (a7)+,d0                        ; 07230
+        bpl.b   l_07236                         ; 07232
+        neg.w   d1                              ; 07234
+l_07236:
+        move.w  d1,$6(a4)                       ; 07236
+        move.w  $10(a5),$10(a4)                 ; 0723A
+        move.l  #sub_07270,$18(a4)              ; 07240
+        move.l  #dat_0809E,$14(a4)              ; 07248
+        move.w  #$1,$20(a4)                     ; 07250
+        clr.w   $22(a4)                         ; 07256
+        move.l  a5,$30(a4)                      ; 0725A
+        clr.w   $32(a5)                         ; 0725E
+l_07262:
+        rts                                     ; 07262
+l_07264:
+        clr.w   $30(a5)                         ; 07264
+        move.w  #$f,$32(a5)                     ; 07268
+        rts                                     ; 0726E
 sub_07270:
         tst.w   $2e(a5)                         ; 07270
         bmi.b   l_072BC                         ; 07274
@@ -6643,7 +6910,7 @@ l_072BE:
         bra.w   l_08970                         ; 072D0
 l_072D4:
         rts                                     ; 072D4
-sub_072D6:		; (no references found: found by the code sweep)
+sub_072D6:
         addq.w  #$1,$6(a5)                      ; 072D6
         bne.b   l_072E2                         ; 072DA
         move.w  #$4,$22(a5)                     ; 072DC
@@ -6692,7 +6959,7 @@ sub_07362:
         rts                                     ; 07368
 l_0736A:
         lea.l   (dat_1731C).l,a0                ; 0736A
-        bsr.w   sub_056A8                       ; 07370
+        bsr.w   PlaySample                      ; 07370
 l_07374:
         clr.w   $30(a5)                         ; 07374
 l_07378:
@@ -6785,10 +7052,10 @@ sub_07494:
         addq.w  #$1,$1a(a6)                     ; 074CE
         move.w  #$32,$7a(a6)                    ; 074D2
         moveq   #$c,d0                          ; 074D8
-        bra.w   sub_0BDC0                       ; 074DA
+        bra.w   PlaySong                        ; 074DA
 l_074DE:
         lea.l   (dat_183A8).l,a0                ; 074DE
-        bra.w   sub_056A8                       ; 074E4
+        bra.w   PlaySample                      ; 074E4
 l_074E8:
         rts                                     ; 074E8
 sub_074EA:
@@ -6828,7 +7095,7 @@ l_0754E:
         move.w  #$f,$38(a5)                     ; 0755E
         clr.w   $10(a5)                         ; 07564
         lea.l   (dat_183A8).l,a0                ; 07568
-        bra.w   sub_056A8                       ; 0756E
+        bra.w   PlaySample                      ; 0756E
 l_07572:
         clr.l   $18(a5)                         ; 07572
 l_07576:
@@ -6838,7 +7105,7 @@ sub_0757C:
         move.w  #$12c,$54(a6)                   ; 0757C
         st.b    $6a(a6)                         ; 07582
         moveq   #$8,d0                          ; 07586
-        bra.w   sub_0BDC0                       ; 07588
+        bra.w   PlaySong                        ; 07588
 sub_0758C:
         lea.l   (mem_643BA).l,a4                ; 0758C
         move.l  #sub_075C8,$18(a4)              ; 07592
@@ -6848,7 +7115,7 @@ sub_0758C:
         clr.w   $2a(a4)                         ; 075AA
         move.w  #$2,$20(a4)                     ; 075AE
         bsr.w   sub_0ABF8                       ; 075B4
-        move.l  #sub_0AC6E,(mem_6440C).l        ; 075B8
+        move.l  #l_0AC6E,(mem_6440C).l          ; 075B8
         rts                                     ; 075C2
 dat_075C4:
 	dc.b	$00,$01,$80,$00
@@ -6887,7 +7154,7 @@ l_0760C:
         clr.w   $6(a5)                          ; 07612
 l_07616:
         rts                                     ; 07616
-sub_07618:		; (no references found: found by the code sweep)
+sub_07618:
         move.w  $22(a5),d0                      ; 07618
         subi.w  #$10,d0                         ; 0761C
         cmp.w   #$10,d0                         ; 07620
@@ -6911,11 +7178,11 @@ sub_07654:
 sub_0765A:
         move.w  #$12,$64(a6)                    ; 0765A
         moveq   #$a,d0                          ; 07660
-        bra.w   sub_0BDC0                       ; 07662
+        bra.w   PlaySong                        ; 07662
 sub_07666:
         move.w  #$96,$68(a6)                    ; 07666
         moveq   #$b,d0                          ; 0766C
-        bra.w   sub_0BDC0                       ; 0766E
+        bra.w   PlaySong                        ; 0766E
 sub_07672:
         lea.l   dat_0991E(pc),a0                ; 07672
         lea.l   dat_07454(pc),a1                ; 07676
@@ -6926,7 +7193,7 @@ sub_07680:
         lea.l   dat_07436(pc),a1                ; 07684
         bra.b   l_0769C                         ; 07688
 sub_0768A:
-        lea.l   dat_098A4(pc),a0                ; 0768A
+        lea.l   l_098A4(pc),a0                  ; 0768A
         lea.l   dat_0AE2E(pc),a1                ; 0768E
         bra.b   l_0769C                         ; 07692
 sub_07694:
@@ -6938,7 +7205,7 @@ l_0769C:
         move.l  a1,$14(a4)                      ; 076A6
         clr.w   $22(a4)                         ; 076AA
         rts                                     ; 076AE
-sub_076B0:		; (no references found: found by the code sweep)
+sub_076B0:
         subq.w  #$3,$2(a5)                      ; 076B0
         subq.w  #$1,$38(a5)                     ; 076B4
         bne.b   l_076DE                         ; 076B8
@@ -6996,7 +7263,6 @@ sub_07746:		; (no references found: found by the code sweep)
         move.w  #$ffff,$1c(a5)                  ; 0775E
 sub_07764:
         rts                                     ; 07764
-sub_07766:		; (no references found: found by the code sweep)
         move.w  #$64,$2e(a5)                    ; 07766
         tst.w   $68(a6)                         ; 0776C
         bne.w   l_077E2                         ; 07770
@@ -7075,9 +7341,9 @@ sub_07816:
         move.w  #$1,$6(a4)                      ; 07874
         st.b    $52(a6)                         ; 0787A
         subq.w  #$1,$1a(a6)                     ; 0787E
-        bsr.w   sub_0BDCC                       ; 07882
+        bsr.w   StopSong                        ; 07882
         lea.l   (dat_1D398).l,a0                ; 07886
-        bra.w   sub_056A8                       ; 0788C
+        bra.w   PlaySample                      ; 0788C
 sub_07890:
         tst.w   $6(a5)                          ; 07890
         beq.b   l_078A4                         ; 07894
@@ -7093,44 +7359,49 @@ dat_078AE:
 dat_078B4:
 	dc.b	$00,$E3,$80,$00
 dat_078B8:
-	dc.b	$00,$E4,$00,$E5,$80,$00,$3B,$7C,$00,$64,$00,$2E,$61,$00,$EC,$6A
-	dc.b	$66,$00,$11,$7E,$70,$01,$72,$01,$60,$00,$14,$8A,$80,$28,$00,$04
-	dc.b	$00,$E6,$00,$E7,$80,$00,$61,$00,$EC,$50,$66,$00,$11,$64,$61,$00
-	dc.b	$EC,$04,$66,$00,$FA,$7E,$61,$00,$23,$EA,$67,$26,$42,$6D,$00,$10
-	dc.b	$2B,$7C,$00,$00,$7A,$36,$00,$14,$2B,$7C,$00,$00,$79,$28,$00,$18
-	dc.b	$3B,$7C,$00,$05,$00,$30,$61,$00,$12,$8A,$66,$04,$46,$2D,$00,$10
-	dc.b	$4E,$75,$0C,$6D,$00,$06,$00,$06,$6C,$04,$52,$6D,$00,$06,$4E,$75
-	dc.b	$61,$00,$EC,$06,$66,$00,$11,$1A,$61,$00,$EB,$BA,$66,$00,$FA,$34
-	dc.b	$53,$6D,$00,$30,$66,$E8,$61,$00,$3B,$62,$67,$3A,$39,$6D,$00,$10
-	dc.b	$00,$10,$70,$02,$4A,$6C,$00,$10,$67,$02,$44,$40,$39,$40,$00,$04
-	dc.b	$29,$7C,$00,$00,$7A,$20,$00,$14,$29,$7C,$00,$00,$79,$D6,$00,$18
-	dc.b	$39,$6D,$00,$1C,$00,$1C,$42,$6C,$00,$30,$42,$6C,$00,$22,$39,$7C
-	dc.b	$00,$01,$00,$20,$28,$95,$2B,$7C,$00,$00,$79,$8E,$00,$18,$3B,$7C
-	dc.b	$00,$96,$00,$30,$4E,$75,$61,$00,$EB,$A0,$66,$00,$10,$B4,$61,$00
-	dc.b	$EB,$54,$66,$00,$F9,$CE,$53,$6D,$00,$30,$66,$14,$2B,$7C,$00,$00
-	dc.b	$79,$B8,$00,$18,$2B,$7C,$00,$00,$7A,$40,$00,$14,$42,$6D,$00,$22
-	dc.b	$4E,$75,$42,$AD,$00,$04,$2B,$7C,$00,$00,$78,$DE,$00,$18,$42,$6D
-	dc.b	$00,$10,$61,$00,$11,$CE,$66,$04,$46,$2D,$00,$10,$4E,$75,$61,$00
-	dc.b	$23,$02,$67,$DE,$61,$00,$21,$FC,$67,$08,$44,$6D,$00,$04,$5B,$ED
-	dc.b	$00,$10,$61,$00,$EB,$44,$66,$00,$10,$58,$61,$00,$EA,$F8,$66,$00
-	dc.b	$F9,$72,$4A,$6D,$00,$30,$67,$B8,$2B,$7C,$00,$00,$7A,$36,$00,$14
-	dc.b	$2B,$7C,$00,$00,$79,$28,$00,$18,$3B,$7C,$00,$14,$00,$30,$42,$AD
-	dc.b	$00,$04,$4E,$75,$01,$1C,$80,$00,$80,$20,$00,$03,$01,$1A,$01,$1C
-	dc.b	$80,$24,$80,$44,$00,$30,$00,$01,$80,$1C,$00,$00,$7A,$36,$80,$28
-	dc.b	$00,$02,$01,$1A,$01,$1B,$80,$00,$01,$1D,$01,$1E,$80,$3C,$01,$1E
-	dc.b	$4A,$6D,$00,$04,$66,$1E,$61,$00,$11,$4A,$66,$08,$4A,$6D,$00,$10
-	dc.b	$57,$ED,$00,$10,$70,$03,$4A,$6D,$00,$10,$67,$02,$44,$40,$3B,$40
-	dc.b	$00,$04,$4E,$75,$61,$00,$EA,$7E,$67,$2A,$20,$2D,$00,$26,$67,$04
-	dc.b	$61,$00,$00,$3A,$2B,$7C,$00,$00,$80,$08,$00,$14,$2B,$7C,$00,$00
-	dc.b	$7A,$9A,$00,$18,$42,$6D,$00,$22,$41,$F9,$00,$01,$73,$1C,$60,$00
-	dc.b	$DC,$10,$4E,$75,$4A,$6D,$00,$26,$67,$28,$30,$39,$00,$06,$43,$BA
-	dc.b	$90,$55,$6A,$02,$44,$40,$B0,$7C,$00,$04,$6E,$16,$28,$6D,$00,$26
-	dc.b	$29,$7C,$00,$00,$7A,$D6,$00,$18,$42,$AD,$00,$26,$39,$7C,$00,$05
-	dc.b	$00,$20,$4E,$75,$61,$00,$EA,$62,$66,$00,$0E,$9E,$4E,$75,$61,$00
-	dc.b	$22,$02,$67,$16,$42,$AD,$00,$04,$2B,$7C,$00,$00,$80,$12,$00,$14
-	dc.b	$2B,$7C,$00,$00,$7B,$0C,$00,$18,$4E,$75,$61,$00,$15,$72,$66,$E4
-	dc.b	$61,$00,$EA,$36,$66,$00,$0E,$72,$0C,$6D,$00,$06,$00,$06,$6C,$04
-	dc.b	$52,$6D,$00,$06,$4E,$75
+	dc.b	$00,$E4,$00,$E5,$80,$00
+        move.w  #$64,$2e(a5)                    ; 078BE
+        bsr.w   sub_06530                       ; 078C4
+        bne.w   l_08A48                         ; 078C8
+        moveq   #$1,d0                          ; 078CC
+        moveq   #$1,d1                          ; 078CE
+        bra.w   sub_08D5C                       ; 078D0
+	dc.b	$80,$28,$00,$04,$00,$E6,$00,$E7,$80,$00,$61,$00,$EC,$50,$66,$00
+	dc.b	$11,$64,$61,$00,$EC,$04,$66,$00,$FA,$7E,$61,$00,$23,$EA,$67,$26
+	dc.b	$42,$6D,$00,$10,$2B,$7C,$00,$00,$7A,$36,$00,$14,$2B,$7C,$00,$00
+	dc.b	$79,$28,$00,$18,$3B,$7C,$00,$05,$00,$30,$61,$00,$12,$8A,$66,$04
+	dc.b	$46,$2D,$00,$10,$4E,$75,$0C,$6D,$00,$06,$00,$06,$6C,$04,$52,$6D
+	dc.b	$00,$06,$4E,$75,$61,$00,$EC,$06,$66,$00,$11,$1A,$61,$00,$EB,$BA
+	dc.b	$66,$00,$FA,$34,$53,$6D,$00,$30,$66,$E8,$61,$00,$3B,$62,$67,$3A
+	dc.b	$39,$6D,$00,$10,$00,$10,$70,$02,$4A,$6C,$00,$10,$67,$02,$44,$40
+	dc.b	$39,$40,$00,$04,$29,$7C,$00,$00,$7A,$20,$00,$14,$29,$7C,$00,$00
+	dc.b	$79,$D6,$00,$18,$39,$6D,$00,$1C,$00,$1C,$42,$6C,$00,$30,$42,$6C
+	dc.b	$00,$22,$39,$7C,$00,$01,$00,$20,$28,$95,$2B,$7C,$00,$00,$79,$8E
+	dc.b	$00,$18,$3B,$7C,$00,$96,$00,$30,$4E,$75,$61,$00,$EB,$A0,$66,$00
+	dc.b	$10,$B4,$61,$00,$EB,$54,$66,$00,$F9,$CE,$53,$6D,$00,$30,$66,$14
+	dc.b	$2B,$7C,$00,$00,$79,$B8,$00,$18,$2B,$7C,$00,$00,$7A,$40,$00,$14
+	dc.b	$42,$6D,$00,$22,$4E,$75,$42,$AD,$00,$04,$2B,$7C,$00,$00,$78,$DE
+	dc.b	$00,$18,$42,$6D,$00,$10,$61,$00,$11,$CE,$66,$04,$46,$2D,$00,$10
+	dc.b	$4E,$75,$61,$00,$23,$02,$67,$DE,$61,$00,$21,$FC,$67,$08,$44,$6D
+	dc.b	$00,$04,$5B,$ED,$00,$10,$61,$00,$EB,$44,$66,$00,$10,$58,$61,$00
+	dc.b	$EA,$F8,$66,$00,$F9,$72,$4A,$6D,$00,$30,$67,$B8,$2B,$7C,$00,$00
+	dc.b	$7A,$36,$00,$14,$2B,$7C,$00,$00,$79,$28,$00,$18,$3B,$7C,$00,$14
+	dc.b	$00,$30,$42,$AD,$00,$04,$4E,$75,$01,$1C,$80,$00,$80,$20,$00,$03
+	dc.b	$01,$1A,$01,$1C,$80,$24,$80,$44,$00,$30,$00,$01,$80,$1C,$00,$00
+	dc.b	$7A,$36,$80,$28,$00,$02,$01,$1A,$01,$1B,$80,$00,$01,$1D,$01,$1E
+	dc.b	$80,$3C,$01,$1E,$4A,$6D,$00,$04,$66,$1E,$61,$00,$11,$4A,$66,$08
+	dc.b	$4A,$6D,$00,$10,$57,$ED,$00,$10,$70,$03,$4A,$6D,$00,$10,$67,$02
+	dc.b	$44,$40,$3B,$40,$00,$04,$4E,$75,$61,$00,$EA,$7E,$67,$2A,$20,$2D
+	dc.b	$00,$26,$67,$04,$61,$00,$00,$3A,$2B,$7C,$00,$00,$80,$08,$00,$14
+	dc.b	$2B,$7C,$00,$00,$7A,$9A,$00,$18,$42,$6D,$00,$22,$41,$F9,$00,$01
+	dc.b	$73,$1C,$60,$00,$DC,$10,$4E,$75,$4A,$6D,$00,$26,$67,$28,$30,$39
+	dc.b	$00,$06,$43,$BA,$90,$55,$6A,$02,$44,$40,$B0,$7C,$00,$04,$6E,$16
+	dc.b	$28,$6D,$00,$26,$29,$7C,$00,$00,$7A,$D6,$00,$18,$42,$AD,$00,$26
+	dc.b	$39,$7C,$00,$05,$00,$20,$4E,$75,$61,$00,$EA,$62,$66,$00,$0E,$9E
+	dc.b	$4E,$75,$61,$00,$22,$02,$67,$16,$42,$AD,$00,$04,$2B,$7C,$00,$00
+	dc.b	$80,$12,$00,$14,$2B,$7C,$00,$00,$7B,$0C,$00,$18,$4E,$75,$61,$00
+	dc.b	$15,$72,$66,$E4,$61,$00,$EA,$36,$66,$00,$0E,$72,$0C,$6D,$00,$06
+	dc.b	$00,$06,$6C,$04,$52,$6D,$00,$06,$4E,$75
 sub_07B0E:
         tst.w   $68(a6)                         ; 07B0E
         bne.b   l_07B16                         ; 07B12
@@ -7307,22 +7578,32 @@ dat_07D0A:
 	dc.b	$FF,$FF,$00,$1C,$4E,$75,$01,$00,$01,$01,$80,$00,$01,$02,$80,$00
 	dc.b	$01,$03,$01,$04,$80,$48,$00,$00,$00,$F1,$00,$F3,$00,$F2,$80,$00
 dat_07E68:
-	dc.b	$00,$F4,$00,$F5,$80,$3C,$80,$28,$00,$03,$80,$44,$00,$30,$00,$00
-	dc.b	$80,$20,$00,$04,$00,$F7,$00,$F6,$00,$F8,$00,$F6,$80,$24,$80,$28
-	dc.b	$00,$04,$80,$44,$00,$30,$00,$01,$80,$20,$00,$04,$00,$F6,$80,$40
-	dc.b	$80,$24,$80,$44,$00,$30,$00,$02,$00,$F6,$80,$28,$00,$02,$80,$00
-	dc.b	$00,$F7,$80,$00,$00,$F6,$00,$F7,$80,$44,$00,$30,$00,$01,$00,$F6
-	dc.b	$80,$1C,$00,$00,$7E,$6E,$00,$FA,$80,$00,$80,$48,$00,$00,$80,$20
-	dc.b	$00,$04,$00,$FB,$00,$FC,$80,$24,$80,$48,$00,$FD,$00,$F9,$80,$00
-	dc.b	$00,$FE,$00,$FF,$80,$00,$01,$05,$01,$06,$80,$00,$01,$07,$80,$00
-	dc.b	$80,$48,$00,$00,$80,$28,$00,$02,$80,$20,$00,$1E,$01,$08,$80,$24
-	dc.b	$80,$44,$00,$30,$00,$01,$80,$04,$00,$00,$80,$28,$00,$0A,$01,$09
-	dc.b	$80,$28,$00,$02,$01,$0A,$01,$0B,$01,$0C,$80,$44,$00,$32,$00,$01
-	dc.b	$80,$20,$00,$0A,$01,$0D,$80,$24,$80,$44,$00,$32,$00,$00,$01,$09
-	dc.b	$80,$44,$00,$30,$00,$00,$80,$00,$01,$0E,$80,$48,$01,$0F,$80,$20
-	dc.b	$00,$08,$01,$10,$80,$24,$80,$08,$00,$00,$01,$11,$01,$13,$01,$14
-	dc.b	$80,$3C,$01,$11,$80,$48,$00,$00,$00,$00,$01,$12,$80,$00,$80,$28
-	dc.b	$00,$02,$80,$44,$00,$32,$00,$01,$80,$20,$00,$0A,$01,$16,$80,$24
+	dc.b	$00,$F4,$00,$F5,$80,$3C
+dat_07E6E:
+	dc.b	$80,$28,$00,$03,$80,$44,$00,$30,$00,$00,$80,$20,$00,$04,$00,$F7
+	dc.b	$00,$F6,$00,$F8,$00,$F6,$80,$24,$80,$28,$00,$04,$80,$44,$00,$30
+	dc.b	$00,$01,$80,$20,$00,$04,$00,$F6,$80,$40,$80,$24,$80,$44,$00,$30
+	dc.b	$00,$02,$00,$F6,$80,$28,$00,$02,$80,$00
+dat_07EA8:
+	dc.b	$00,$F7,$80,$00
+dat_07EAC:
+	dc.b	$00,$F6,$00,$F7,$80,$44,$00,$30,$00,$01,$00,$F6,$80,$1C,$00,$00
+	dc.b	$7E,$6E
+dat_07EBE:
+	dc.b	$00,$FA,$80,$00,$80,$48,$00,$00
+dat_07EC6:
+	dc.b	$80,$20,$00,$04,$00,$FB,$00,$FC,$80,$24,$80,$48,$00,$FD
+dat_07ED4:
+	dc.b	$00,$F9,$80,$00,$00,$FE,$00,$FF,$80,$00,$01,$05,$01,$06,$80,$00
+	dc.b	$01,$07,$80,$00,$80,$48,$00,$00,$80,$28,$00,$02,$80,$20,$00,$1E
+	dc.b	$01,$08,$80,$24,$80,$44,$00,$30,$00,$01,$80,$04,$00,$00,$80,$28
+	dc.b	$00,$0A,$01,$09,$80,$28,$00,$02,$01,$0A,$01,$0B,$01,$0C,$80,$44
+	dc.b	$00,$32,$00,$01,$80,$20,$00,$0A,$01,$0D,$80,$24,$80,$44,$00,$32
+	dc.b	$00,$00,$01,$09,$80,$44,$00,$30,$00,$00,$80,$00,$01,$0E,$80,$48
+	dc.b	$01,$0F,$80,$20,$00,$08,$01,$10,$80,$24,$80,$08,$00,$00,$01,$11
+	dc.b	$01,$13,$01,$14,$80,$3C,$01,$11,$80,$48,$00,$00,$00,$00,$01,$12
+	dc.b	$80,$00,$80,$28,$00,$02,$80,$44,$00,$32,$00,$01,$80,$20,$00,$0A
+	dc.b	$01,$16,$80,$24
 dat_07F68:
 	dc.b	$80,$04,$00,$00,$80,$08,$00,$00,$80,$28,$00,$19,$01,$16,$80,$44
 	dc.b	$00,$32,$FF,$FF,$01,$16,$80,$1C,$00,$00,$7F,$56
@@ -7331,111 +7612,382 @@ dat_07F84:
 	dc.b	$00,$0A,$00,$6F,$00,$70,$00,$71,$00,$70,$80,$24,$80,$44,$00,$30
 	dc.b	$00,$01,$80,$04,$00,$00,$80,$28,$00,$0A,$00,$72,$00,$73,$80,$44
 	dc.b	$00,$32,$00,$01,$00,$72,$80,$44,$00,$32,$00,$00,$00,$71,$80,$44
-	dc.b	$00,$30,$00,$00,$80,$00,$80,$28,$00,$01,$00,$73,$00,$74,$80,$48
-	dc.b	$00,$75,$80,$48,$00,$ED,$00,$EE,$80,$48,$00,$EF,$80,$00
+	dc.b	$00,$30,$00,$00,$80,$00
+dat_07FCA:
+	dc.b	$80,$28,$00,$01,$00,$73,$00,$74,$80,$48,$00,$75,$80,$48,$00,$ED
+	dc.b	$00,$EE,$80,$48,$00,$EF,$80,$00
 dat_07FE2:
 	dc.b	$80,$28,$00,$46,$00,$F0,$80,$28,$00,$19,$80,$44,$00,$32,$00,$01
 	dc.b	$00,$F0,$80,$44,$00,$32,$00,$00,$80,$1C,$00,$00,$7F,$D6,$00,$9A
 	dc.b	$00,$9B,$00,$9C,$80,$00,$00,$9D,$00,$9E,$80,$3C,$00,$A0,$80,$00
 	dc.b	$80,$28,$00,$04,$00,$9F,$80,$3C,$00,$40,$00,$40,$00,$41,$00,$41
-	dc.b	$80,$00,$80,$28,$00,$04,$00,$42,$00,$42,$80,$44,$00,$32,$00,$01
-	dc.b	$00,$43,$80,$48,$00,$41,$80,$1C,$00,$00,$80,$1A,$00,$44,$80,$00
-	dc.b	$80,$48,$00,$00,$00,$45,$80,$00,$00,$4F,$80,$00,$80,$28,$00,$03
-	dc.b	$00,$4E,$80,$44,$00,$32,$00,$01,$00,$4E,$80,$48,$00,$4F,$80,$1C
-	dc.b	$00,$00,$80,$4A,$00,$50,$80,$00,$00,$51,$00,$52,$80,$48,$00,$00
-	dc.b	$00,$53,$00,$54,$80,$00,$80,$28,$00,$04,$00,$A7,$80,$00,$00,$A8
-	dc.b	$80,$44,$00,$32,$00,$01,$00,$A8,$80,$48,$00,$A9,$80,$1C,$00,$00
-	dc.b	$80,$78,$00,$AA,$80,$00,$00,$AB,$80,$48,$00,$00,$00,$AC,$00,$AD
-	dc.b	$00,$AE,$00,$AF,$80,$00,$80,$28,$00,$04,$00,$2B,$80,$00,$00,$2C
-	dc.b	$00,$2C,$00,$2C,$80,$44,$00,$32,$00,$01,$00,$2D,$80,$48,$00,$2B
-	dc.b	$80,$1C,$00,$00,$80,$A8,$00,$2E,$80,$00,$00,$35,$00,$36,$80,$48
-	dc.b	$00,$00,$00,$2F,$80,$00,$80,$28,$00,$04,$00,$94,$80,$00,$80,$28
-	dc.b	$00,$03,$00,$93,$80,$44,$00,$32,$00,$01,$00,$92,$80,$48,$00,$91
-	dc.b	$80,$28,$00,$0A,$00,$90,$80,$1C,$00,$00,$80,$D8,$00,$95,$80,$00
-	dc.b	$00,$96,$00,$97,$80,$48,$00,$00,$00,$98,$80,$00,$80,$1C,$00,$00
-	dc.b	$81,$14,$00,$99,$80,$00,$80,$28,$00,$04,$00,$48,$80,$00,$00,$47
-	dc.b	$80,$44,$00,$32,$00,$01,$00,$47,$80,$48,$00,$46,$80,$1C,$00,$00
-	dc.b	$81,$18,$00,$49,$80,$00,$00,$4A,$00,$4B,$80,$48,$00,$00,$00,$4C
-	dc.b	$80,$00,$80,$28,$00,$04,$00,$30,$00,$31,$80,$00,$00,$30,$00,$32
-	dc.b	$80,$44,$00,$32,$00,$01,$00,$33,$80,$48,$00,$30,$80,$1C,$00,$00
-	dc.b	$81,$44,$00,$34,$80,$00,$00,$35,$00,$36,$80,$48,$00,$00,$00,$37
-	dc.b	$80,$00,$80,$44,$00,$30,$00,$00,$80,$20,$00,$04,$00,$38,$00,$39
-	dc.b	$00,$38,$00,$3A,$80,$24,$80,$28,$00,$04,$80,$44,$00,$30,$00,$01
-	dc.b	$80,$20,$00,$04,$00,$38,$80,$40,$80,$24,$80,$44,$00,$30,$00,$02
-	dc.b	$00,$38,$80,$28,$00,$02,$80,$00,$00,$38,$00,$3B,$00,$3C,$80,$44
-	dc.b	$00,$30,$00,$01,$80,$44,$00,$36,$00,$01,$80,$48,$00,$38,$80,$1C
-	dc.b	$00,$00,$81,$74,$00,$3F,$80,$00,$80,$48,$00,$00,$00,$3D,$00,$3D
-	dc.b	$80,$1C,$00,$00,$81,$D8,$00,$3E,$80,$00,$00,$38,$80,$00,$80,$44
-	dc.b	$00,$30,$00,$00,$80,$20,$00,$03,$00,$82,$00,$83,$00,$82,$00,$84
-	dc.b	$80,$24,$80,$28,$00,$04,$80,$44,$00,$30,$00,$01,$80,$20,$00,$04
-	dc.b	$00,$82,$80,$40,$80,$24,$80,$44,$00,$30,$00,$02,$00,$82,$80,$28
-	dc.b	$00,$02,$80,$00,$00,$82,$00,$85,$00,$86,$80,$44,$00,$30,$00,$01
-	dc.b	$00,$87,$80,$48,$00,$88,$80,$1C,$00,$00,$81,$E0,$00,$89,$80,$00
-	dc.b	$80,$48,$00,$8A,$00,$8B,$80,$48,$00,$00,$00,$82,$80,$00,$00,$82
-	dc.b	$80,$00,$00,$8C,$00,$8D,$00,$8E,$00,$8F,$80,$00,$4A,$6D,$00,$30
-	dc.b	$6B,$00,$00,$90,$67,$62,$61,$00,$E2,$92,$66,$62,$61,$00,$0E,$06
-	dc.b	$B0,$3C,$00,$03,$6C,$58,$4A,$6D,$00,$32,$67,$4A,$4A,$6D,$00,$2C
-	dc.b	$67,$44,$61,$00
-	dc.b	'2,g>Bm'
-	dc.b	$00,$32,$20,$15,$D0,$6D,$00,$2A,$28,$80,$72,$03,$4A,$6D,$00,$10
-	dc.b	$67,$02,$44,$41,$39,$41,$00,$04,$42,$6C,$00,$06,$39,$6D,$00,$10
-	dc.b	$00,$10,$29,$7C,$00,$00,$8A,$FA,$00,$18,$29,$7C,$00,$00,$8A,$F2
-	dc.b	$00,$14,$42,$6C,$00,$22,$39,$7C,$00,$02,$00,$20,$4E,$75,$61,$00
-	dc.b	$E2,$30,$67,$2E,$2B,$7C,$00,$00,$7F,$CA,$00,$14,$42,$6D,$00,$22
-	dc.b	$50,$ED,$00,$30,$42,$AD,$00,$04,$3B,$7C,$FF,$FF,$00,$1C,$41,$F9
-	dc.b	$00,$01,$73,$1C,$60,$00,$D3,$C6,$4A,$6D,$00,$20,$67,$00,$F0,$8A
-	dc.b	$4E,$75,$70,$01,$72,$02,$60,$00,$0A,$68,$61,$00,$E1,$F4,$67,$28
-	dc.b	$3B,$7C,$FF,$FC,$00,$06,$2B,$7C,$00,$00,$81,$C6,$00,$14,$2B,$7C
-	dc.b	$00,$00,$73,$2A,$00,$18,$44,$6D,$00,$04,$42,$6D,$00,$22,$41,$F9
-	dc.b	$00,$01,$73,$1C,$60,$00,$D3,$86,$61,$00,$E2,$0A,$66,$00,$07,$1E
-	dc.b	$61,$00,$0D,$38,$B0,$3C,$00,$03,$6C,$C6,$4A,$6D,$00,$32,$66,$00
-	dc.b	$00,$5A,$30,$2D,$00,$30,$67,$00,$00,$B6,$42,$6D,$00,$04,$B0,$7C
-	dc.b	$00,$01,$67,$00,$00,$C2,$49,$F9,$00,$06,$43,$BA,$30,$2C,$00,$02
-	dc.b	$90,$6D,$00,$02,$B0,$7C,$FF,$F8,$6C,$74,$61,$00,$08,$32,$66,$04
-	dc.b	$46,$2D,$00,$10,$70,$03,$4A,$6D,$00,$10,$67,$02,$44,$40,$3B,$40
-	dc.b	$00,$04,$2B,$7C,$00,$00,$81,$CE,$00,$14,$3B,$7C,$00,$01,$00,$32
-	dc.b	$3B,$7C,$00,$10,$00,$34,$42,$6D,$00,$22,$6B,$00,$00,$56,$30,$2D
-	dc.b	$00,$34,$55,$40,$B0,$7C,$FF,$FA,$6C,$02,$70,$FA,$91,$6D,$00,$02
-	dc.b	$3B,$40,$00,$34,$61,$00,$18,$28,$67,$06,$30,$2D,$00,$04,$91,$55
-	dc.b	$4A,$6D,$00,$34,$6A,$50,$61,$00,$19,$16,$67,$4A,$2B,$7C,$00,$00
-	dc.b	$81,$74,$00,$14,$42,$6D,$00,$22,$42,$AD,$00,$30,$4E,$75,$4A,$6D
-	dc.b	$00,$36,$66,$F4,$4A,$6D,$00,$2C,$67,$EE,$42,$6D,$00,$22,$42,$6D
-	dc.b	$00,$30,$3B,$7C,$FF,$FF,$00,$32,$61,$00,$00,$36,$4E,$75,$4A,$6D
-	dc.b	$00,$38,$67,$00,$00,$24,$1B,$7C,$00,$05,$00,$25,$45,$FA,$FD,$D2
-	dc.b	$61,$00,$08,$EE,$67,$02,$4E,$75,$2B,$7C,$00,$00,$81,$74,$00,$14
-	dc.b	$42,$6D,$00,$22,$42,$6D,$00,$30,$70,$00,$72,$02,$60,$00,$09,$32
-	dc.b	$2B,$7C,$00,$00,$81,$AA,$00,$14,$4A,$6D,$00,$30,$67,$44,$61,$00
-	dc.b	$30,$66,$67,$40,$20,$15,$28,$80,$30,$3C,$00,$10,$39,$6D,$00,$10
-	dc.b	$00,$10,$67,$02,$44,$40,$D1,$54,$29,$7C,$00,$00,$82,$F6,$00,$18
-	dc.b	$29,$7C,$00,$00,$81,$74,$00,$14,$39,$6D,$00,$1C,$00,$1C,$39,$7C
-	dc.b	$00,$02,$00,$20,$3B,$7C,$00,$02,$00,$20,$42,$6C,$00,$22,$42,$AD
-	dc.b	$00,$30,$4E,$75,$42,$AD,$00,$30,$4E,$75,$61,$00,$E0,$64,$67,$28
-	dc.b	$3B,$7C,$FF,$FC,$00,$06,$2B,$7C,$00,$00,$7E,$BE,$00,$14,$2B,$7C
-	dc.b	$00,$00,$73,$2A,$00,$18,$44,$6D,$00,$04,$42,$6D,$00,$22,$41,$F9
-	dc.b	$00,$01,$73,$1C,$60,$00,$D1,$F6,$4A,$6D,$00,$32,$66,$00,$00,$5A
-	dc.b	$30,$2D,$00,$30,$67,$00,$00,$AA,$42,$6D,$00,$04,$B0,$7C,$00,$01
-	dc.b	$67,$00,$00,$B6,$49,$F9,$00,$06,$43,$BA,$30,$2C,$00,$02,$90,$6D
-	dc.b	$00,$02,$B0,$7C,$FF,$D0,$6C,$74,$61,$00,$06,$B4,$66,$04,$46,$2D
-	dc.b	$00,$10,$70,$03,$4A,$6D,$00,$10,$67,$02,$44,$40,$3B,$40,$00,$04
-	dc.b	$2B,$7C,$00,$00,$7E,$D4,$00,$14,$3B,$7C,$00,$01,$00,$32,$3B,$7C
-	dc.b	$00,$10,$00,$34,$42,$6D,$00,$22,$6B,$00,$00,$4A,$30,$2D,$00,$34
-	dc.b	$55,$40,$B0,$7C,$FF,$FA,$6C,$02,$70,$FA,$91,$6D,$00,$02,$3B,$40
-	dc.b	$00,$34,$61,$00,$16,$AA,$67,$06,$30,$2D,$00,$04,$91,$55,$4A,$6D
-	dc.b	$00,$34,$6A,$44,$61,$00,$17,$98,$67,$3E,$2B,$7C,$00,$00,$7E,$6E
-	dc.b	$00,$14,$42,$6D,$00,$22,$42,$AD,$00,$30,$4E,$75,$42,$6D,$00,$22
-	dc.b	$42,$6D,$00,$30,$3B,$7C,$FF,$FF,$00,$32,$61,$00,$00,$32,$4E,$75
-	dc.b	$4A,$6D,$00,$38,$67,$00,$00,$20,$1B,$7C,$00,$05,$00,$25,$45,$FA
-	dc.b	$F9,$2C,$61,$00,$07,$7C,$67,$02,$4E,$75,$2B,$7C,$00,$00,$7E,$6E
-	dc.b	$00,$14,$42,$6D,$00,$22,$70,$00,$72,$02,$60,$00,$07,$C4,$2B,$7C
-	dc.b	$00,$00,$7E,$AC,$00,$14,$42,$6D,$00,$22,$61,$00,$2E,$FA,$67,$34
-	dc.b	$20,$15,$04,$40,$00,$30,$28,$80,$39,$7C,$FF,$FC,$00,$06,$39,$6D
-	dc.b	$00,$10,$00,$10,$29,$7C,$00,$00,$85,$E6,$00,$18,$29,$7C,$00,$00
-	dc.b	$7E,$C6,$00,$14,$39,$7C,$00,$02,$00,$20,$3B,$7C,$00,$02,$00,$20
-	dc.b	$42,$6C,$00,$22,$42,$AD,$00,$30,$4E,$75,$4A,$6D,$00,$20,$66,$3A
-	dc.b	$61,$00,$37,$A4,$02,$40,$00,$78,$2B,$7B,$00,$32,$00,$18,$2B,$7B
-	dc.b	$00,$30,$00,$14,$42,$AD,$00,$04,$42,$AD,$00,$30,$42,$AD,$00,$34
-	dc.b	$42,$6D,$00,$38,$42,$AD,$00,$08,$42,$AD,$00,$0C,$3B,$7C,$00,$02
-	dc.b	$00,$20,$42,$6D,$00,$22,$42,$6D,$00,$24,$4E,$75,$00,$00,$82,$4E
+	dc.b	$80,$00
+dat_08024:
+	dc.b	$80,$28,$00,$04,$00,$42,$00,$42,$80,$44,$00,$32,$00,$01,$00,$43
+	dc.b	$80,$48,$00,$41,$80,$1C,$00,$00,$80,$1A,$00,$44,$80,$00,$80,$48
+	dc.b	$00,$00
+dat_08046:
+	dc.b	$00,$45,$80,$00,$00,$4F,$80,$00
+dat_0804E:
+	dc.b	$80,$28,$00,$03,$00,$4E,$80,$44,$00,$32,$00,$01,$00,$4E,$80,$48
+	dc.b	$00,$4F,$80,$1C,$00,$00,$80,$4A,$00,$50,$80,$00,$00,$51,$00,$52
+	dc.b	$80,$48,$00,$00
+dat_08072:
+	dc.b	$00,$53,$00,$54,$80,$00,$80,$28,$00,$04,$00,$A7,$80,$00
+dat_08080:
+	dc.b	$00,$A8,$80,$44,$00,$32,$00,$01,$00,$A8,$80,$48,$00,$A9,$80,$1C
+	dc.b	$00,$00,$80,$78,$00,$AA,$80,$00,$00,$AB,$80,$48,$00,$00
+dat_0809E:
+	dc.b	$00,$AC,$00,$AD,$00,$AE,$00,$AF,$80,$00,$80,$28,$00,$04,$00,$2B
+	dc.b	$80,$00
+dat_080B0:
+	dc.b	$00,$2C,$00,$2C,$00,$2C,$80,$44,$00,$32,$00,$01,$00,$2D,$80,$48
+	dc.b	$00,$2B,$80,$1C,$00,$00,$80,$A8,$00,$2E,$80,$00,$00,$35,$00,$36
+	dc.b	$80,$48,$00,$00
+dat_080D4:
+	dc.b	$00,$2F,$80,$00,$80,$28,$00,$04,$00,$94,$80,$00
+dat_080E0:
+	dc.b	$80,$28,$00,$03,$00,$93,$80,$44,$00,$32,$00,$01,$00,$92,$80,$48
+	dc.b	$00,$91,$80,$28,$00,$0A,$00,$90,$80,$1C,$00,$00,$80,$D8,$00,$95
+	dc.b	$80,$00,$00,$96,$00,$97,$80,$48,$00,$00
+dat_0810A:
+	dc.b	$00,$98,$80,$00,$80,$1C,$00,$00,$81,$14,$00,$99,$80,$00,$80,$28
+	dc.b	$00,$04,$00,$48,$80,$00
+dat_08120:
+	dc.b	$00,$47,$80,$44,$00,$32,$00,$01,$00,$47,$80,$48,$00,$46,$80,$1C
+	dc.b	$00,$00,$81,$18,$00,$49,$80,$00,$00,$4A,$00,$4B,$80,$48,$00,$00
+dat_08140:
+	dc.b	$00,$4C,$80,$00,$80,$28,$00,$04,$00,$30,$00,$31,$80,$00
+dat_0814E:
+	dc.b	$00,$30,$00,$32,$80,$44,$00,$32,$00,$01,$00,$33,$80,$48,$00,$30
+	dc.b	$80,$1C,$00,$00,$81,$44,$00,$34,$80,$00,$00,$35,$00,$36,$80,$48
+	dc.b	$00,$00
+dat_08170:
+	dc.b	$00,$37,$80,$00
+dat_08174:
+	dc.b	$80,$44,$00,$30,$00,$00,$80,$20,$00,$04,$00,$38,$00,$39,$00,$38
+	dc.b	$00,$3A,$80,$24,$80,$28,$00,$04,$80,$44,$00,$30,$00,$01,$80,$20
+	dc.b	$00,$04,$00,$38,$80,$40,$80,$24,$80,$44,$00,$30,$00,$02,$00,$38
+	dc.b	$80,$28,$00,$02,$80,$00
+dat_081AA:
+	dc.b	$00,$38,$00,$3B,$00,$3C,$80,$44,$00,$30,$00,$01,$80,$44,$00,$36
+	dc.b	$00,$01,$80,$48,$00,$38,$80,$1C,$00,$00,$81,$74
+dat_081C6:
+	dc.b	$00,$3F,$80,$00,$80,$48,$00,$00
+dat_081CE:
+	dc.b	$00,$3D,$00,$3D,$80,$1C,$00,$00,$81,$D8,$00,$3E,$80,$00
+dat_081DC:
+	dc.b	$00,$38,$80,$00
+dat_081E0:
+	dc.b	$80,$44,$00,$30,$00,$00,$80,$20,$00,$03,$00,$82,$00,$83,$00,$82
+	dc.b	$00,$84,$80,$24,$80,$28,$00,$04,$80,$44,$00,$30,$00,$01,$80,$20
+	dc.b	$00,$04,$00,$82,$80,$40,$80,$24,$80,$44,$00,$30,$00,$02,$00,$82
+	dc.b	$80,$28,$00,$02,$80,$00
+dat_08216:
+	dc.b	$00,$82,$00,$85,$00,$86,$80,$44,$00,$30,$00,$01,$00,$87,$80,$48
+	dc.b	$00,$88,$80,$1C,$00,$00,$81,$E0
+dat_0822E:
+	dc.b	$00,$89,$80,$00,$80,$48,$00,$8A,$00,$8B,$80,$48,$00,$00
+dat_0823C:
+	dc.b	$00,$82,$80,$00
+dat_08240:
+	dc.b	$00,$82,$80,$00
+dat_08244:
+	dc.b	$00,$8C,$00,$8D,$00,$8E,$00,$8F,$80,$00
+        tst.w   $30(a5)                         ; 0824E
+        bmi.w   l_082E4                         ; 08252
+        beq.b   l_082BA                         ; 08256
+        bsr.w   sub_064EC                       ; 08258
+        bne.b   l_082C0                         ; 0825C
+        bsr.w   sub_09066                       ; 0825E
+        cmp.b   #$3,d0                          ; 08262
+        bge.b   l_082C0                         ; 08266
+        tst.w   $32(a5)                         ; 08268
+        beq.b   l_082B8                         ; 0826C
+        tst.w   $2c(a5)                         ; 0826E
+        beq.b   l_082B8                         ; 08272
+        bsr.w   sub_0B4A2                       ; 08274
+        beq.b   l_082B8                         ; 08278
+        clr.w   $32(a5)                         ; 0827A
+        move.l  (a5),d0                         ; 0827E
+        add.w   $2a(a5),d0                      ; 08280
+        move.l  d0,(a4)                         ; 08284
+        moveq   #$3,d1                          ; 08286
+        tst.w   $10(a5)                         ; 08288
+        beq.b   l_08290                         ; 0828C
+        neg.w   d1                              ; 0828E
+l_08290:
+        move.w  d1,$4(a4)                       ; 08290
+        clr.w   $6(a4)                          ; 08294
+        move.w  $10(a5),$10(a4)                 ; 08298
+        move.l  #sub_08AFA,$18(a4)              ; 0829E
+        move.l  #dat_08AF2,$14(a4)              ; 082A6
+        clr.w   $22(a4)                         ; 082AE
+        move.w  #$2,$20(a4)                     ; 082B2
+l_082B8:
+        rts                                     ; 082B8
+l_082BA:
+        bsr.w   sub_064EC                       ; 082BA
+        beq.b   l_082EE                         ; 082BE
+l_082C0:
+        move.l  #dat_07FCA,$14(a5)              ; 082C0
+        clr.w   $22(a5)                         ; 082C8
+        st.b    $30(a5)                         ; 082CC
+        clr.l   $4(a5)                          ; 082D0
+        move.w  #$ffff,$1c(a5)                  ; 082D4
+        lea.l   (dat_1731C).l,a0                ; 082DA
+        bra.w   PlaySample                      ; 082E0
+l_082E4:
+        tst.w   $20(a5)                         ; 082E4
+        beq.w   l_07374                         ; 082E8
+        rts                                     ; 082EC
+l_082EE:
+        moveq   #$1,d0                          ; 082EE
+        moveq   #$2,d1                          ; 082F0
+        bra.w   sub_08D5C                       ; 082F2
+sub_082F6:
+        bsr.w   sub_064EC                       ; 082F6
+        beq.b   l_08324                         ; 082FA
+l_082FC:
+        move.w  #$fffc,$6(a5)                   ; 082FC
+        move.l  #dat_081C6,$14(a5)              ; 08302
+        move.l  #sub_0732A,$18(a5)              ; 0830A
+        neg.w   $4(a5)                          ; 08312
+        clr.w   $22(a5)                         ; 08316
+        lea.l   (dat_1731C).l,a0                ; 0831A
+        bra.w   PlaySample                      ; 08320
+l_08324:
+        bsr.w   sub_06530                       ; 08324
+        bne.w   l_08A48                         ; 08328
+        bsr.w   sub_09066                       ; 0832C
+        cmp.b   #$3,d0                          ; 08330
+        bge.b   l_082FC                         ; 08334
+        tst.w   $32(a5)                         ; 08336
+        bne.w   l_08396                         ; 0833A
+        move.w  $30(a5),d0                      ; 0833E
+        beq.w   l_083FA                         ; 08342
+        clr.w   $4(a5)                          ; 08346
+        cmp.w   #$1,d0                          ; 0834A
+        beq.w   l_08412                         ; 0834E
+        lea.l   (mem_643BA).l,a4                ; 08352
+        move.w  $2(a4),d0                       ; 08358
+        sub.w   $2(a5),d0                       ; 0835C
+        cmp.w   #$fff8,d0                       ; 08360
+        bge.b   l_083DA                         ; 08364
+        bsr.w   sub_08B9A                       ; 08366
+        bne.b   l_08370                         ; 0836A
+        not.b   $10(a5)                         ; 0836C
+l_08370:
+        moveq   #$3,d0                          ; 08370
+        tst.w   $10(a5)                         ; 08372
+        beq.b   l_0837A                         ; 08376
+        neg.w   d0                              ; 08378
+l_0837A:
+        move.w  d0,$4(a5)                       ; 0837A
+        move.l  #dat_081CE,$14(a5)              ; 0837E
+        move.w  #$1,$32(a5)                     ; 08386
+        move.w  #$10,$34(a5)                    ; 0838C
+        clr.w   $22(a5)                         ; 08392
+l_08396:
+        bmi.w   l_083EE                         ; 08396
+        move.w  $34(a5),d0                      ; 0839A
+        subq.w  #$2,d0                          ; 0839E
+        cmp.w   #$fffa,d0                       ; 083A0
+        bge.b   l_083A8                         ; 083A4
+        moveq   #-6,d0                          ; 083A6
+l_083A8:
+        sub.w   d0,$2(a5)                       ; 083A8
+        move.w  d0,$34(a5)                      ; 083AC
+        bsr.w   sub_09BDA                       ; 083B0
+        beq.b   l_083BC                         ; 083B4
+        move.w  $4(a5),d0                       ; 083B6
+        sub.w   d0,(a5)                         ; 083BA
+l_083BC:
+        tst.w   $34(a5)                         ; 083BC
+        bpl.b   l_08412                         ; 083C0
+        bsr.w   sub_09CDA                       ; 083C2
+        beq.b   l_08412                         ; 083C6
+        move.l  #dat_08174,$14(a5)              ; 083C8
+        clr.w   $22(a5)                         ; 083D0
+l_083D4:
+        clr.l   $30(a5)                         ; 083D4
+        rts                                     ; 083D8
+l_083DA:
+        tst.w   $36(a5)                         ; 083DA
+        bne.b   l_083D4                         ; 083DE
+        tst.w   $2c(a5)                         ; 083E0
+        beq.b   l_083D4                         ; 083E4
+        clr.w   $22(a5)                         ; 083E6
+        clr.w   $30(a5)                         ; 083EA
+l_083EE:
+        move.w  #$ffff,$32(a5)                  ; 083EE
+        bsr.w   sub_0842C                       ; 083F4
+        rts                                     ; 083F8
+l_083FA:
+        tst.w   $38(a5)                         ; 083FA
+        beq.w   l_08424                         ; 083FE
+        move.b  #$5,$25(a5)                     ; 08402
+        lea.l   dat_081DC(pc),a2                ; 08408
+        bsr.w   sub_08CFC                       ; 0840C
+        beq.b   l_08414                         ; 08410
+l_08412:
+        rts                                     ; 08412
+l_08414:
+        move.l  #dat_08174,$14(a5)              ; 08414
+        clr.w   $22(a5)                         ; 0841C
+        clr.w   $30(a5)                         ; 08420
+l_08424:
+        moveq   #$0,d0                          ; 08424
+        moveq   #$2,d1                          ; 08426
+        bra.w   sub_08D5C                       ; 08428
+sub_0842C:
+        move.l  #dat_081AA,$14(a5)              ; 0842C
+        tst.w   $30(a5)                         ; 08434
+        beq.b   l_0847E                         ; 08438
+        bsr.w   sub_0B4A2                       ; 0843A
+        beq.b   l_08480                         ; 0843E
+        move.l  (a5),d0                         ; 08440
+        move.l  d0,(a4)                         ; 08442
+        move.w  #$10,d0                         ; 08444
+        move.w  $10(a5),$10(a4)                 ; 08448
+        beq.b   l_08452                         ; 0844E
+        neg.w   d0                              ; 08450
+l_08452:
+        add.w   d0,(a4)                         ; 08452
+        move.l  #sub_082F6,$18(a4)              ; 08454
+        move.l  #dat_08174,$14(a4)              ; 0845C
+        move.w  $1c(a5),$1c(a4)                 ; 08464
+        move.w  #$2,$20(a4)                     ; 0846A
+        move.w  #$2,$20(a5)                     ; 08470
+        clr.w   $22(a4)                         ; 08476
+        clr.l   $30(a5)                         ; 0847A
+l_0847E:
+        rts                                     ; 0847E
+l_08480:
+        clr.l   $30(a5)                         ; 08480
+        rts                                     ; 08484
+sub_08486:		; (no references found: found by the code sweep)
+        bsr.w   sub_064EC                       ; 08486
+        beq.b   l_084B4                         ; 0848A
+        move.w  #$fffc,$6(a5)                   ; 0848C
+        move.l  #dat_07EBE,$14(a5)              ; 08492
+        move.l  #sub_0732A,$18(a5)              ; 0849A
+        neg.w   $4(a5)                          ; 084A2
+        clr.w   $22(a5)                         ; 084A6
+        lea.l   (dat_1731C).l,a0                ; 084AA
+        bra.w   PlaySample                      ; 084B0
+l_084B4:
+        tst.w   $32(a5)                         ; 084B4
+        bne.w   l_08514                         ; 084B8
+        move.w  $30(a5),d0                      ; 084BC
+        beq.w   l_0856C                         ; 084C0
+        clr.w   $4(a5)                          ; 084C4
+        cmp.w   #$1,d0                          ; 084C8
+        beq.w   l_08584                         ; 084CC
+        lea.l   (mem_643BA).l,a4                ; 084D0
+        move.w  $2(a4),d0                       ; 084D6
+        sub.w   $2(a5),d0                       ; 084DA
+        cmp.w   #$ffd0,d0                       ; 084DE
+        bge.b   l_08558                         ; 084E2
+        bsr.w   sub_08B9A                       ; 084E4
+        bne.b   l_084EE                         ; 084E8
+        not.b   $10(a5)                         ; 084EA
+l_084EE:
+        moveq   #$3,d0                          ; 084EE
+        tst.w   $10(a5)                         ; 084F0
+        beq.b   l_084F8                         ; 084F4
+        neg.w   d0                              ; 084F6
+l_084F8:
+        move.w  d0,$4(a5)                       ; 084F8
+        move.l  #dat_07ED4,$14(a5)              ; 084FC
+        move.w  #$1,$32(a5)                     ; 08504
+        move.w  #$10,$34(a5)                    ; 0850A
+        clr.w   $22(a5)                         ; 08510
+l_08514:
+        bmi.w   l_08560                         ; 08514
+        move.w  $34(a5),d0                      ; 08518
+        subq.w  #$2,d0                          ; 0851C
+        cmp.w   #$fffa,d0                       ; 0851E
+        bge.b   l_08526                         ; 08522
+        moveq   #-6,d0                          ; 08524
+l_08526:
+        sub.w   d0,$2(a5)                       ; 08526
+        move.w  d0,$34(a5)                      ; 0852A
+        bsr.w   sub_09BDA                       ; 0852E
+        beq.b   l_0853A                         ; 08532
+        move.w  $4(a5),d0                       ; 08534
+        sub.w   d0,(a5)                         ; 08538
+l_0853A:
+        tst.w   $34(a5)                         ; 0853A
+        bpl.b   l_08584                         ; 0853E
+        bsr.w   sub_09CDA                       ; 08540
+        beq.b   l_08584                         ; 08544
+        move.l  #dat_07E6E,$14(a5)              ; 08546
+        clr.w   $22(a5)                         ; 0854E
+        clr.l   $30(a5)                         ; 08552
+        rts                                     ; 08556
+l_08558:
+        clr.w   $22(a5)                         ; 08558
+        clr.w   $30(a5)                         ; 0855C
+l_08560:
+        move.w  #$ffff,$32(a5)                  ; 08560
+        bsr.w   sub_0859A                       ; 08566
+        rts                                     ; 0856A
+l_0856C:
+        tst.w   $38(a5)                         ; 0856C
+        beq.w   l_08592                         ; 08570
+        move.b  #$5,$25(a5)                     ; 08574
+        lea.l   dat_07EA8(pc),a2                ; 0857A
+        bsr.w   sub_08CFC                       ; 0857E
+        beq.b   l_08586                         ; 08582
+l_08584:
+        rts                                     ; 08584
+l_08586:
+        move.l  #dat_07E6E,$14(a5)              ; 08586
+        clr.w   $22(a5)                         ; 0858E
+l_08592:
+        moveq   #$0,d0                          ; 08592
+        moveq   #$2,d1                          ; 08594
+        bra.w   sub_08D5C                       ; 08596
+sub_0859A:
+        move.l  #dat_07EAC,$14(a5)              ; 0859A
+        clr.w   $22(a5)                         ; 085A2
+        bsr.w   sub_0B4A2                       ; 085A6
+        beq.b   l_085E0                         ; 085AA
+        move.l  (a5),d0                         ; 085AC
+        subi.w  #$30,d0                         ; 085AE
+        move.l  d0,(a4)                         ; 085B2
+        move.w  #$fffc,$6(a4)                   ; 085B4
+        move.w  $10(a5),$10(a4)                 ; 085BA
+        move.l  #sub_085E6,$18(a4)              ; 085C0
+        move.l  #dat_07EC6,$14(a4)              ; 085C8
+        move.w  #$2,$20(a4)                     ; 085D0
+        move.w  #$2,$20(a5)                     ; 085D6
+        clr.w   $22(a4)                         ; 085DC
+l_085E0:
+        clr.l   $30(a5)                         ; 085E0
+        rts                                     ; 085E4
+sub_085E6:
+        tst.w   $20(a5)                         ; 085E6
+        bne.b   l_08626                         ; 085EA
+        bsr.w   sub_0BD92                       ; 085EC
+        andi.w  #$78,d0                         ; 085F0
+        move.l  dat_08628(pc,d0.w),$18(a5)      ; 085F4
+        move.l  dat_0862C(pc,d0.w),$14(a5)      ; 085FA
+        clr.l   $4(a5)                          ; 08600
+        clr.l   $30(a5)                         ; 08604
+        clr.l   $34(a5)                         ; 08608
+        clr.w   $38(a5)                         ; 0860C
+        clr.l   $8(a5)                          ; 08610
+        clr.l   $c(a5)                          ; 08614
+        move.w  #$2,$20(a5)                     ; 08618
+        clr.w   $22(a5)                         ; 0861E
+        clr.w   $24(a5)                         ; 08622
+l_08626:
+        rts                                     ; 08626
+dat_08628:
+	dc.b	$00,$00,$82,$4E
+dat_0862C:
 	dc.b	$00,$00,$7F,$8E,$00,$00,$82,$4E,$00,$00,$7F,$8E,$00,$00,$8B,$C0
 	dc.b	$00,$00,$8C,$8E,$00,$00,$8B,$C0,$00,$00,$8C,$8E,$00,$00,$82,$F6
 	dc.b	$00,$00,$81,$E0,$00,$00,$86,$A8,$00,$00,$81,$E0,$00,$00,$7B,$1A
@@ -7443,40 +7995,171 @@ dat_07FE2:
 	dc.b	$00,$00,$7A,$1C,$00,$00,$82,$F6,$00,$00,$7F,$8E,$00,$00,$7D,$D4
 	dc.b	$00,$00,$7E,$60,$00,$00,$8B,$C0,$00,$00,$8C,$8E,$00,$00,$82,$F6
 	dc.b	$00,$00,$7E,$EC,$00,$00,$86,$A8,$00,$00,$81,$E0,$00,$00,$86,$A8
-	dc.b	$00,$00,$81,$E0,$00,$00,$86,$A8,$00,$00,$81,$E0,$61,$00,$DE,$42
-	dc.b	$67,$28,$3B,$7C,$FF,$FC,$00,$06,$2B,$7C,$00,$00,$82,$2E,$00,$14
-	dc.b	$2B,$7C,$00,$00,$73,$2A,$00,$18,$44,$6D,$00,$04,$42,$6D,$00,$22
-	dc.b	$41,$F9,$00,$01,$73,$1C,$60,$00,$CF,$D4,$61,$00,$09,$8E,$B0,$3C
-	dc.b	$00,$03,$6C,$CE,$4A,$6D,$00,$32,$66,$00,$00,$68,$30,$2D,$00,$30
-	dc.b	$67,$00,$00,$B8,$42,$6D,$00,$04,$B0,$7C,$00,$01,$67,$00,$00,$C4
-	dc.b	$49,$F9,$00,$06,$43,$BA,$30,$14,$90,$55,$6A,$02,$44,$40,$B0,$7C
-	dc.b	$00,$64,$6C,$0E,$30,$2C,$00,$02,$90,$6D,$00,$02,$B0,$7C,$FF,$F8
-	dc.b	$6C,$74,$61,$00,$04,$7A,$66,$04,$46,$2D,$00,$10,$70,$04,$4A,$6D
-	dc.b	$00,$10,$67,$02,$44,$40,$3B,$40,$00,$04,$2B,$7C,$00,$00,$82,$3C
-	dc.b	$00,$14,$3B,$7C,$00,$01,$00,$32,$3B,$7C,$00,$10,$00,$34,$42,$6D
-	dc.b	$00,$22,$6B,$00,$00,$4A,$30,$2D,$00,$34,$55,$40,$B0,$7C,$FF,$FA
-	dc.b	$6C,$02,$70,$FA,$91,$6D,$00,$02,$3B,$40,$00,$34,$61,$00,$14,$70
-	dc.b	$67,$06,$30,$2D,$00,$04,$91,$55,$4A,$6D,$00,$34,$6A,$44,$61,$00
-	dc.b	$15,$5E,$67,$3E,$2B,$7C,$00,$00,$81,$E0,$00,$14,$42,$6D,$00,$22
-	dc.b	$42,$AD,$00,$30,$4E,$75,$42,$6D,$00,$22,$42,$6D,$00,$30,$3B,$7C
-	dc.b	$FF,$FF,$00,$32,$61,$00,$00,$32,$4E,$75,$4A,$6D,$00,$38,$67,$00
-	dc.b	$00,$20,$1B,$7C,$00,$05,$00,$25,$45,$FA,$FA,$8A,$61,$00,$05,$42
-	dc.b	$67,$02,$4E,$75,$2B,$7C,$00,$00,$81,$E0,$00,$14,$42,$6D,$00,$22
-	dc.b	$70,$00,$72,$02,$60,$00,$05,$8A,$2B,$7C,$00,$00,$82,$16,$00,$14
-	dc.b	$4A,$6D,$00,$30,$67,$52,$61,$00,$2C,$BE,$67,$4E,$20,$15,$04,$40
-	dc.b	$00,$0A,$28,$80,$70,$0A,$72,$FF,$39,$6D,$00,$10,$00,$10,$67,$04
-	dc.b	'D@DA9@'
-	dc.b	$00,$04,$39,$41,$00,$36,$39,$54,$00,$34,$D1,$54,$29,$7C,$00,$00
-	dc.b	$88,$3C,$00,$18,$29,$7C,$00,$00,$82,$44,$00,$14,$39,$7C,$00,$01
-	dc.b	$00,$20,$42,$6D,$00,$20,$42,$6C,$00,$22,$42,$6D,$00,$30,$29,$4D
-	dc.b	$00,$30,$4E,$75,$42,$AD,$00,$30,$4E,$75,$53,$6D,$00,$38,$6A,$1E
-	dc.b	$3B,$7C,$00,$01,$00,$38,$30,$2D,$00,$36,$D0,$6D,$00,$04,$32,$00
-	dc.b	$6A,$02,$44,$41,$B2,$7C,$00,$0A,$6E,$04,$3B,$40,$00,$04,$30,$15
-	dc.b	$4A,$6D,$00,$36,$6A,$08,$B0,$6D,$00,$34,$6F,$08,$60,$34,$B0,$6D
-	dc.b	$00,$34,$6F,$2E,$28,$6D,$00,$30,$0C,$AC,$00,$00,$86,$A8,$00,$18
-	dc.b	$66,$16,$42,$6C,$00,$30,$39,$7C,$00,$01,$00,$20,$39,$7C,$00,$0F
-	dc.b	$00,$32,$42,$AD,$00,$18,$4E,$75,$2B,$7C,$00,$00,$72,$70,$00,$18
-	dc.b	$4E,$75,$60,$00,$E9,$CA
+	dc.b	$00,$00,$81,$E0,$00,$00,$86,$A8,$00,$00,$81,$E0
+sub_086A8:
+        bsr.w   sub_064EC                       ; 086A8
+        beq.b   l_086D6                         ; 086AC
+l_086AE:
+        move.w  #$fffc,$6(a5)                   ; 086AE
+        move.l  #dat_0822E,$14(a5)              ; 086B4
+        move.l  #sub_0732A,$18(a5)              ; 086BC
+        neg.w   $4(a5)                          ; 086C4
+        clr.w   $22(a5)                         ; 086C8
+        lea.l   (dat_1731C).l,a0                ; 086CC
+        bra.w   PlaySample                      ; 086D2
+l_086D6:
+        bsr.w   sub_09066                       ; 086D6
+        cmp.b   #$3,d0                          ; 086DA
+        bge.b   l_086AE                         ; 086DE
+        tst.w   $32(a5)                         ; 086E0
+        bne.w   l_0874E                         ; 086E4
+        move.w  $30(a5),d0                      ; 086E8
+        beq.w   l_087A6                         ; 086EC
+        clr.w   $4(a5)                          ; 086F0
+        cmp.w   #$1,d0                          ; 086F4
+        beq.w   l_087BE                         ; 086F8
+        lea.l   (mem_643BA).l,a4                ; 086FC
+        move.w  (a4),d0                         ; 08702
+        sub.w   (a5),d0                         ; 08704
+        bpl.b   l_0870A                         ; 08706
+        neg.w   d0                              ; 08708
+l_0870A:
+        cmp.w   #$64,d0                         ; 0870A
+        bge.b   l_0871E                         ; 0870E
+        move.w  $2(a4),d0                       ; 08710
+        sub.w   $2(a5),d0                       ; 08714
+        cmp.w   #$fff8,d0                       ; 08718
+        bge.b   l_08792                         ; 0871C
+l_0871E:
+        bsr.w   sub_08B9A                       ; 0871E
+        bne.b   l_08728                         ; 08722
+        not.b   $10(a5)                         ; 08724
+l_08728:
+        moveq   #$4,d0                          ; 08728
+        tst.w   $10(a5)                         ; 0872A
+        beq.b   l_08732                         ; 0872E
+        neg.w   d0                              ; 08730
+l_08732:
+        move.w  d0,$4(a5)                       ; 08732
+        move.l  #dat_0823C,$14(a5)              ; 08736
+        move.w  #$1,$32(a5)                     ; 0873E
+        move.w  #$10,$34(a5)                    ; 08744
+        clr.w   $22(a5)                         ; 0874A
+l_0874E:
+        bmi.w   l_0879A                         ; 0874E
+        move.w  $34(a5),d0                      ; 08752
+        subq.w  #$2,d0                          ; 08756
+        cmp.w   #$fffa,d0                       ; 08758
+        bge.b   l_08760                         ; 0875C
+        moveq   #-6,d0                          ; 0875E
+l_08760:
+        sub.w   d0,$2(a5)                       ; 08760
+        move.w  d0,$34(a5)                      ; 08764
+        bsr.w   sub_09BDA                       ; 08768
+        beq.b   l_08774                         ; 0876C
+        move.w  $4(a5),d0                       ; 0876E
+        sub.w   d0,(a5)                         ; 08772
+l_08774:
+        tst.w   $34(a5)                         ; 08774
+        bpl.b   l_087BE                         ; 08778
+        bsr.w   sub_09CDA                       ; 0877A
+        beq.b   l_087BE                         ; 0877E
+        move.l  #dat_081E0,$14(a5)              ; 08780
+        clr.w   $22(a5)                         ; 08788
+        clr.l   $30(a5)                         ; 0878C
+        rts                                     ; 08790
+l_08792:
+        clr.w   $22(a5)                         ; 08792
+        clr.w   $30(a5)                         ; 08796
+l_0879A:
+        move.w  #$ffff,$32(a5)                  ; 0879A
+        bsr.w   sub_087D4                       ; 087A0
+        rts                                     ; 087A4
+l_087A6:
+        tst.w   $38(a5)                         ; 087A6
+        beq.w   l_087CC                         ; 087AA
+        move.b  #$5,$25(a5)                     ; 087AE
+        lea.l   dat_08240(pc),a2                ; 087B4
+        bsr.w   sub_08CFC                       ; 087B8
+        beq.b   l_087C0                         ; 087BC
+l_087BE:
+        rts                                     ; 087BE
+l_087C0:
+        move.l  #dat_081E0,$14(a5)              ; 087C0
+        clr.w   $22(a5)                         ; 087C8
+l_087CC:
+        moveq   #$0,d0                          ; 087CC
+        moveq   #$2,d1                          ; 087CE
+        bra.w   sub_08D5C                       ; 087D0
+sub_087D4:
+        move.l  #dat_08216,$14(a5)              ; 087D4
+        tst.w   $30(a5)                         ; 087DC
+        beq.b   l_08834                         ; 087E0
+        bsr.w   sub_0B4A2                       ; 087E2
+        beq.b   l_08836                         ; 087E6
+        move.l  (a5),d0                         ; 087E8
+        subi.w  #$a,d0                          ; 087EA
+        move.l  d0,(a4)                         ; 087EE
+        moveq   #$a,d0                          ; 087F0
+        moveq   #-1,d1                          ; 087F2
+        move.w  $10(a5),$10(a4)                 ; 087F4
+        beq.b   l_08800                         ; 087FA
+        neg.w   d0                              ; 087FC
+        neg.w   d1                              ; 087FE
+l_08800:
+        move.w  d0,$4(a4)                       ; 08800
+        move.w  d1,$36(a4)                      ; 08804
+        move.w  (a4),$34(a4)                    ; 08808
+        add.w   d0,(a4)                         ; 0880C
+        move.l  #sub_0883C,$18(a4)              ; 0880E
+        move.l  #dat_08244,$14(a4)              ; 08816
+        move.w  #$1,$20(a4)                     ; 0881E
+        clr.w   $20(a5)                         ; 08824
+        clr.w   $22(a4)                         ; 08828
+        clr.w   $30(a5)                         ; 0882C
+        move.l  a5,$30(a4)                      ; 08830
+l_08834:
+        rts                                     ; 08834
+l_08836:
+        clr.l   $30(a5)                         ; 08836
+        rts                                     ; 0883A
+sub_0883C:
+        subq.w  #$1,$38(a5)                     ; 0883C
+        bpl.b   l_08860                         ; 08840
+        move.w  #$1,$38(a5)                     ; 08842
+        move.w  $36(a5),d0                      ; 08848
+        add.w   $4(a5),d0                       ; 0884C
+        move.w  d0,d1                           ; 08850
+        bpl.b   l_08856                         ; 08852
+        neg.w   d1                              ; 08854
+l_08856:
+        cmp.w   #$a,d1                          ; 08856
+        bgt.b   l_08860                         ; 0885A
+        move.w  d0,$4(a5)                       ; 0885C
+l_08860:
+        move.w  (a5),d0                         ; 08860
+        tst.w   $36(a5)                         ; 08862
+        bpl.b   l_08870                         ; 08866
+        cmp.w   $34(a5),d0                      ; 08868
+        ble.b   l_08876                         ; 0886C
+        bra.b   l_088A4                         ; 0886E
+l_08870:
+        cmp.w   $34(a5),d0                      ; 08870
+        ble.b   l_088A4                         ; 08874
+l_08876:
+        movea.l $30(a5),a4                      ; 08876
+        cmpi.l  #sub_086A8,$18(a4)              ; 0887A
+        bne.b   l_0889A                         ; 08882
+        clr.w   $30(a4)                         ; 08884
+        move.w  #$1,$20(a4)                     ; 08888
+        move.w  #$f,$32(a4)                     ; 0888E
+        clr.l   $18(a5)                         ; 08894
+        rts                                     ; 08898
+l_0889A:
+        move.l  #sub_07270,$18(a5)              ; 0889A
+        rts                                     ; 088A2
+l_088A4:
+        bra.w   sub_07270                       ; 088A4
 sub_088A8:
         exg.l   a4,a5                           ; 088A8
         tst.w   $20(a4)                         ; 088AA
@@ -7515,10 +8198,10 @@ l_088EE:
         st.b    $80(a6)                         ; 08924
 l_08928:
         subq.w  #$1,$1a(a6)                     ; 08928
-        bsr.w   sub_0BDCC                       ; 0892C
+        bsr.w   StopSong                        ; 0892C
         bsr.w   sub_08A36                       ; 08930
         lea.l   (dat_1D398).l,a0                ; 08934
-        bra.w   sub_056A8                       ; 0893A
+        bra.w   PlaySample                      ; 0893A
 	dc.b	$4E,$75
 sub_08940:
         move.l  $26(a5),d0                      ; 08940
@@ -7567,9 +8250,9 @@ l_08990:
         st.b    $80(a6)                         ; 089E0
 l_089E4:
         subq.w  #$1,$1a(a6)                     ; 089E4
-        bsr.w   sub_0BDCC                       ; 089E8
+        bsr.w   StopSong                        ; 089E8
         lea.l   (dat_1D398).l,a0                ; 089EC
-        bra.w   sub_056A8                       ; 089F2
+        bra.w   PlaySample                      ; 089F2
 l_089F6:
         tst.w   $54(a6)                         ; 089F6
         bne.b   l_08A34                         ; 089FA
@@ -7624,9 +8307,9 @@ l_08A64:
         st.b    $80(a6)                         ; 08AA0
 l_08AA4:
         subq.w  #$1,$1a(a6)                     ; 08AA4
-        bsr.w   sub_0BDCC                       ; 08AA8
+        bsr.w   StopSong                        ; 08AA8
         lea.l   (dat_1D398).l,a0                ; 08AAC
-        bra.w   sub_056A8                       ; 08AB2
+        bra.w   PlaySample                      ; 08AB2
 l_08AB6:
         tst.w   $54(a6)                         ; 08AB6
         bne.b   l_08AF0                         ; 08ABA
@@ -7647,9 +8330,9 @@ l_08AE0:
         clr.l   $26(a4)                         ; 08AEC
 l_08AF0:
         rts                                     ; 08AF0
-sub_08AF2:		; (no references found: found by the code sweep)
-        ori.w   #$77,$78(a6,d0.w)               ; 08AF2
-        or.b    d0,d0                           ; 08AF8
+dat_08AF2:
+	dc.b	$00,$76,$00,$77,$00,$78,$80,$00
+sub_08AFA:
         bsr.w   sub_06530                       ; 08AFA
         bne.w   l_08970                         ; 08AFE
         bsr.w   sub_064EC                       ; 08B02
@@ -7725,7 +8408,6 @@ l_08BB6:
 l_08BBA:
         move.w  #$0,ccr                         ; 08BBA
         rts                                     ; 08BBE
-sub_08BC0:		; (no references found: found by the code sweep)
         tst.w   $30(a5)                         ; 08BC0
         bmi.w   l_08C56                         ; 08BC4
         beq.b   l_08C2C                         ; 08BC8
@@ -7768,7 +8450,7 @@ l_08C32:
         st.b    $30(a5)                         ; 08C44
         clr.l   $4(a5)                          ; 08C48
         lea.l   (dat_1731C).l,a0                ; 08C4C
-        bra.w   sub_056A8                       ; 08C52
+        bra.w   PlaySample                      ; 08C52
 l_08C56:
         tst.w   $20(a5)                         ; 08C56
         beq.w   l_07374                         ; 08C5A
@@ -8347,7 +9029,7 @@ l_092BC:
         move.l  #sub_0933E,$18(a5)              ; 092D4
         move.w  $2(a5),$38(a6)                  ; 092DC
         lea.l   (dat_16800).l,a0                ; 092E2
-        bsr.w   sub_056A8                       ; 092E8
+        bsr.w   PlaySample                      ; 092E8
         bsr.w   sub_09BDA                       ; 092EC
         beq.b   l_09336                         ; 092F0
         move.w  $4(a5),d0                       ; 092F2
@@ -8528,7 +9210,7 @@ l_09528:
         addq.w  #$8,$2(a5)                      ; 09528
 l_0952C:
         lea.l   (dat_1A096).l,a0                ; 0952C
-        bra.w   sub_056A8                       ; 09532
+        bra.w   PlaySample                      ; 09532
 l_09536:
         rts                                     ; 09536
 l_09538:
@@ -8700,7 +9382,7 @@ l_09744:
         clr.l   $4(a5)                          ; 09756
         bsr.w   sub_09648                       ; 0975A
         lea.l   (dat_1D5D0).l,a0                ; 0975E
-        bra.w   sub_056A8                       ; 09764
+        bra.w   PlaySample                      ; 09764
 l_09768:
         rts                                     ; 09768
 sub_0976A:
@@ -8721,10 +9403,10 @@ l_0977C:
         move.l  (a5),$7c(a6)                    ; 097AA
         move.w  #$1,$80(a6)                     ; 097AE
         subq.w  #$1,$1a(a6)                     ; 097B4
-        bsr.w   sub_0BDCC                       ; 097B8
+        bsr.w   StopSong                        ; 097B8
         bsr.w   sub_08A36                       ; 097BC
         moveq   #$9,d0                          ; 097C0
-        bsr.w   sub_0BDC0                       ; 097C2
+        bsr.w   PlaySong                        ; 097C2
 l_097C6:
         tst.w   $6a(a6)                         ; 097C6
         bne.b   l_097D2                         ; 097CA
@@ -8780,7 +9462,7 @@ l_0985C:
         move.b  d0,$10(a5)                      ; 0985C
 l_09860:
         rts                                     ; 09860
-sub_09862:		; (no references found: found by the code sweep)
+sub_09862:
         lea.l   (mem_643BA).l,a3                ; 09862
         move.l  (a3),(a5)                       ; 09868
         move.b  $10(a3),$10(a5)                 ; 0986A
@@ -8798,15 +9480,44 @@ l_0989C:
         addq.l  #$4,a7                          ; 0989C
         clr.w   $22(a5)                         ; 0989E
         rts                                     ; 098A2
-dat_098A4:
-	dc.b	$61,$BC,$61,$00,$1B,$F0,$67,$6C,$20,$15,$D0,$6D,$00,$2A,$28,$80
-	dc.b	$10,$2B,$00,$10,$32,$3C,$FF,$FC,$19,$40,$00,$10,$66,$04,$32,$3C
-	dc.b	$00,$04,$C3,$FC,$00,$05,$E2,$41,$39,$41,$00,$04,$42,$6C,$00,$06
-	dc.b	$29,$7C,$00,$00,$9B,$7C,$00,$18,$29,$7C,$00,$00,$AE,$34,$00,$14
-	dc.b	$39,$7C,$00,$30,$00,$1C,$42,$6C,$00,$22,$39,$7C,$00,$02,$00,$20
-	dc.b	$43,$EE,$00,$C6,$70,$1F,$4A,$99,$57,$C8,$FF,$FC,$66,$12,$23,$0C
-	dc.b	$29,$49,$00,$30,$41,$F9,$00,$01,$7F,$84,$61,$00,$BD,$98,$4E,$75
-	dc.b	$42,$AC,$00,$18,$42,$6D,$00,$22,$4E,$75
+l_098A4:
+        bsr.b   sub_09862                       ; 098A4
+        bsr.w   sub_0B498                       ; 098A6
+        beq.b   l_09918                         ; 098AA
+        move.l  (a5),d0                         ; 098AC
+        add.w   $2a(a5),d0                      ; 098AE
+        move.l  d0,(a4)                         ; 098B2
+        move.b  $10(a3),d0                      ; 098B4
+        move.w  #$fffc,d1                       ; 098B8
+        move.b  d0,$10(a4)                      ; 098BC
+        bne.b   l_098C6                         ; 098C0
+        move.w  #$4,d1                          ; 098C2
+l_098C6:
+        muls.w  #$5,d1                          ; 098C6
+        asr.w   #$1,d1                          ; 098CA
+        move.w  d1,$4(a4)                       ; 098CC
+        clr.w   $6(a4)                          ; 098D0
+        move.l  #sub_09B7C,$18(a4)              ; 098D4
+        move.l  #dat_0AE34,$14(a4)              ; 098DC
+        move.w  #$30,$1c(a4)                    ; 098E4
+        clr.w   $22(a4)                         ; 098EA
+        move.w  #$2,$20(a4)                     ; 098EE
+        lea.l   $c6(a6),a1                      ; 098F4
+        moveq   #$1f,d0                         ; 098F8
+l_098FA:
+        tst.l   (a1)+                           ; 098FA
+        dbeq    d0,l_098FA                      ; 098FC
+        bne.b   l_09914                         ; 09900
+        move.l  a4,-(a1)                        ; 09902
+        move.l  a1,$30(a4)                      ; 09904
+        lea.l   (dat_17F84).l,a0                ; 09908
+        bsr.w   PlaySample                      ; 0990E
+        rts                                     ; 09912
+l_09914:
+        clr.l   $18(a4)                         ; 09914
+l_09918:
+        clr.w   $22(a5)                         ; 09918
+        rts                                     ; 0991C
 dat_0991E:
 	dc.b	$61,$00,$FF,$42,$0C,$6E,$00,$02,$00,$60,$6C,$00,$00,$88,$61,$00
 	dc.b	$1B,$6A,$67,$00,$00,$80,$4A,$2E,$00,$47,$66,$00,$00,$66,$20,$15
@@ -8849,9 +9560,21 @@ dat_09A8A:
 	dc.b	$00,$1E,$42,$AD,$00,$04,$42,$6D,$00,$10,$41,$F9,$00,$02,$06,$76
 	dc.b	$60,$00,$BB,$4C,$42,$AD,$00,$18,$28,$6D,$00,$30,$42,$94,$4E,$75
 	dc.b	$4A,$6D,$00,$20,$66,$0A,$42,$AD,$00,$18,$28,$6D,$00,$30,$42,$94
-	dc.b	$4E,$75,$4A,$AD,$00,$0C,$67,$1A,$4A,$6D,$00,$2C,$67,$0A,$61,$00
-	dc.b	$F4,$DC,$67,$0E,$52,$6E,$00,$48,$42,$AD,$00,$18,$28,$6D,$00,$30
-	dc.b	$42,$94,$4E,$75
+	dc.b	$4E,$75
+sub_09B7C:
+        tst.l   $c(a5)                          ; 09B7C
+        beq.b   l_09B9C                         ; 09B80
+        tst.w   $2c(a5)                         ; 09B82
+        beq.b   l_09B92                         ; 09B86
+        bsr.w   sub_09066                       ; 09B88
+        beq.b   l_09B9C                         ; 09B8C
+        addq.w  #$1,$48(a6)                     ; 09B8E
+l_09B92:
+        clr.l   $18(a5)                         ; 09B92
+        movea.l $30(a5),a4                      ; 09B96
+        clr.l   (a4)                            ; 09B9A
+l_09B9C:
+        rts                                     ; 09B9C
 dat_09B9E:
 	dc.b	$4A,$AD,$00,$30,$66,$1E,$41,$EE,$00,$C6,$70,$1F,$4A,$98,$57,$C8
 	dc.b	$FF,$FC,$66,$0E,$21,$0D,$2B,$48,$00,$30,$2B,$7C,$00,$00,$9B,$C2
@@ -9249,7 +9972,7 @@ sub_0A496:
         bsr.w   sub_064EC                       ; 0A496
         beq.b   l_0A4B2                         ; 0A49A
         lea.l   (dat_1D398).l,a0                ; 0A49C
-        bsr.w   sub_056A8                       ; 0A4A2
+        bsr.w   PlaySample                      ; 0A4A2
         st.b    $72(a6)                         ; 0A4A6
         subq.w  #$1,$32(a5)                     ; 0A4AA
         beq.w   l_0A558                         ; 0A4AE
@@ -9276,7 +9999,7 @@ sub_0A4EC:
         bsr.w   sub_064EC                       ; 0A4EC
         beq.b   l_0A506                         ; 0A4F0
         lea.l   (dat_1D398).l,a0                ; 0A4F2
-        bsr.w   sub_056A8                       ; 0A4F8
+        bsr.w   PlaySample                      ; 0A4F8
         st.b    $72(a6)                         ; 0A4FC
         subq.w  #$1,$32(a5)                     ; 0A500
         beq.b   l_0A558                         ; 0A504
@@ -9321,7 +10044,7 @@ l_0A57E:
         move.w  #$4e20,d0                       ; 0A58A
         bsr.w   sub_053E0                       ; 0A58E
         lea.l   (dat_1BD06).l,a0                ; 0A592
-        bra.w   sub_056A8                       ; 0A598
+        bra.w   PlaySample                      ; 0A598
 sub_0A59C:
         bsr.w   sub_064EC                       ; 0A59C
         bne.b   l_0A5E4                         ; 0A5A0
@@ -9506,7 +10229,7 @@ dat_0A954:
 	dc.b	$00,$18,$41,$E8,$00,$3A,$51,$CF,$FF,$D4,$61,$00,$00,$0A,$30,$3C
 	dc.b	$27,$10,$60,$00,$AA,$48
 sub_0A99A:
-        move.l  #sub_0AC6E,(mem_6440C).l        ; 0A99A
+        move.l  #l_0AC6E,(mem_6440C).l          ; 0A99A
         move.l  #dat_0AD44,(mem_64408).l        ; 0A9A4
         move.w  #$2,(mem_64414).l               ; 0A9AE
         st.b    (mem_64422).l                   ; 0A9B6
@@ -9587,7 +10310,7 @@ sub_0AC2A:		; (no references found: found by the code sweep)
         cmpi.w  #$f0,$8(a6)                     ; 0AC3C
         beq.b   l_0AC4A                         ; 0AC42
         moveq   #$5,d0                          ; 0AC44
-        bsr.w   sub_0BDC0                       ; 0AC46
+        bsr.w   PlaySong                        ; 0AC46
 l_0AC4A:
         move.w  $8(a6),d0                       ; 0AC4A
         asr.w   #$4,d0                          ; 0AC4E
@@ -9600,7 +10323,7 @@ sub_0AC5C:		; (no references found: found by the code sweep)
 	dc.b	$60,$00,$F1,$A4,$60,$00,$99,$66,$60,$00,$F4,$A0
 l_0AC6C:
         rts                                     ; 0AC6C
-sub_0AC6E:		; (no references found: found by the code sweep)
+l_0AC6E:
         move.w  #$64,$2e(a5)                    ; 0AC6E
         tst.w   $20(a5)                         ; 0AC74
         bne.b   l_0AC96                         ; 0AC78
@@ -9610,7 +10333,7 @@ sub_0AC6E:		; (no references found: found by the code sweep)
         clr.w   $30(a5)                         ; 0AC84
         move.w  #$1,$20(a5)                     ; 0AC88
         moveq   #$7,d0                          ; 0AC8E
-        bra.w   sub_0BDC0                       ; 0AC90
+        bra.w   PlaySong                        ; 0AC90
 l_0AC94:
         rts                                     ; 0AC94
 l_0AC96:
@@ -9689,7 +10412,9 @@ dat_0ADB2:
 	dc.b	$00,$04,$00,$05,$80,$00
 dat_0ADB8:
 	dc.b	$00,$12,$00,$12,$00,$14,$00,$14,$00,$13,$00,$13,$00,$14,$00,$14
-	dc.b	$80,$00,$70,$09,$60,$00,$0F,$F2
+	dc.b	$80,$00
+        moveq   #$9,d0                          ; 0ADCA
+        bra.w   PlaySong                        ; 0ADCC
 dat_0ADD0:
 	dc.b	$80,$28,$00,$01,$00,$10,$00,$0F,$00,$0F,$00,$10,$00,$1F,$00,$1E
 	dc.b	$80,$4C,$00,$00,$AD,$CA,$80,$20,$00,$03,$00,$10,$00,$0F,$00,$0F
@@ -9704,8 +10429,9 @@ dat_0AE1A:
 dat_0AE1E:
 	dc.b	$80,$28,$00,$07,$00,$0E,$80,$28,$00,$03,$80,$1C,$00,$00,$AE,$06
 dat_0AE2E:
-	dc.b	$00,$00,$00,$15,$80,$00,$00,$16,$80,$00,$00,$5F,$80,$00,$00,$68
-	dc.b	$80,$00,$00,$6E,$80,$00
+	dc.b	$00,$00,$00,$15,$80,$00
+dat_0AE34:
+	dc.b	$00,$16,$80,$00,$00,$5F,$80,$00,$00,$68,$80,$00,$00,$6E,$80,$00
 dat_0AE44:
 	dc.b	$00,$5E,$00,$6C,$00,$6D,$80,$48,$80,$44,$00,$30,$00,$01,$00,$00
 	dc.b	$00,$58,$00,$60,$00,$60,$00,$61,$00,$61,$80,$48,$00,$59,$00,$60
@@ -9922,7 +10648,7 @@ l_0B170:
         tst.w   $54(a6)                         ; 0B180
         bne.b   l_0B198                         ; 0B184
 l_0B186:
-        bsr.w   sub_0B6C4                       ; 0B186
+        bsr.w   BlitBob                         ; 0B186
 l_0B18A:
         movem.l (a7)+,d7/a5                     ; 0B18A
 l_0B18E:
@@ -10359,13 +11085,13 @@ sub_0B69A:
         move.w  #$c8,$8e(a6)                    ; 0B6AA
         subq.w  #$1,d1                          ; 0B6B0
         lea.l   dat_0DA2C(pc),a5                ; 0B6B2
-        bsr.w   sub_0B6C4                       ; 0B6B6
+        bsr.w   BlitBob                         ; 0B6B6
         move.w  (a7)+,$36(a6)                   ; 0B6BA
         move.w  (a7)+,$8e(a6)                   ; 0B6BE
         rts                                     ; 0B6C2
-sub_0B6C4:
-        lea.l   (dat_22AA6).l,a0                ; 0B6C4
-        lea.l   (dat_39AA6).l,a1                ; 0B6CA
+BlitBob:
+        lea.l   (BobData).l,a0                  ; 0B6C4
+        lea.l   (BobDirectory).l,a1             ; 0B6CA
         clr.w   $2c(a5)                         ; 0B6D0
         move.w  d1,d4                           ; 0B6D4
         asl.w   #$4,d1                          ; 0B6D6
@@ -10643,7 +11369,7 @@ l_0B9F4:
         cmp.b   (a5),d0                         ; 0BA08
         bne.b   l_0BA42                         ; 0BA0A
         lea.l   (dat_1E94C).l,a0                ; 0BA0C
-        bsr.w   sub_056A8                       ; 0BA12
+        bsr.w   PlaySample                      ; 0BA12
         move.w  #$1e,(a6)                       ; 0BA16
 l_0BA1A:
         moveq   #$0,d0                          ; 0BA1A
@@ -10658,7 +11384,7 @@ l_0BA1A:
         bne.b   l_0B9F4                         ; 0BA32
         move.w  #$3e8,(l_04F46+2).l             ; 0BA34
         moveq   #$a,d0                          ; 0BA3C
-        bsr.w   sub_0BDC0                       ; 0BA3E
+        bsr.w   PlaySong                        ; 0BA3E
 l_0BA42:
         lea.l   dat_045B4(pc),a5                ; 0BA42
         bra.b   l_0B9F4                         ; 0BA46
@@ -10745,7 +11471,7 @@ l_0BB3E:
         rts                                     ; 0BB48
 sub_0BB4A:
         lea.l   (dat_0C18A).l,a0                ; 0BB4A
-        bsr.w   sub_0BEFE                       ; 0BB50
+        bsr.w   SetPalette                      ; 0BB50
         bsr.w   sub_0BCDA                       ; 0BB54
         move.w  #$b0,d0                         ; 0BB58
         move.w  d0,$8e(a6)                      ; 0BB5C
@@ -10759,7 +11485,7 @@ l_0BB6E:
 sub_0BB76:
         movem.l d0-d1/a0-a2,-(a7)               ; 0BB76
         lea.l   dat_0C18A(pc),a0                ; 0BB7A
-        bsr.w   sub_0BEFE                       ; 0BB7E
+        bsr.w   SetPalette                      ; 0BB7E
         bsr.w   sub_0BC80                       ; 0BB82
         moveq   #$0,d1                          ; 0BB86
         lea.l   (LoadScreenData).l,a0           ; 0BB88
@@ -10877,7 +11603,7 @@ sub_0BCDA:
         move.l  #dat_0C29A,(mem_63DDC).l        ; 0BCE2
         clr.b   (mem_63DDA).l                   ; 0BCEC
         lea.l   (dat_0C29A).l,a0                ; 0BCF2
-        lea.l   (dat_0C2BA).l,a1                ; 0BCF8
+        lea.l   (CopperList).l,a1               ; 0BCF8
         move.l  (a0)+,(a1)+                     ; 0BCFE
         move.l  (a0)+,(a1)+                     ; 0BD00
         move.l  (a0)+,(a1)+                     ; 0BD02
@@ -10901,8 +11627,8 @@ sub_0BCDA:
         move.w  #$0,BPL1MOD(a0)                 ; 0BD46
         move.w  #$0,BPL2MOD(a0)                 ; 0BD4C
         clr.w   COPCON(a0)                      ; 0BD52
-        move.l  #dat_0C2BA,COP1LCH(a0)          ; 0BD56
-        move.l  #dat_0C2BA,(dat_00418).l        ; 0BD5E
+        move.l  #CopperList,COP1LCH(a0)         ; 0BD56
+        move.l  #CopperList,(dat_00418).l       ; 0BD5E
         move.w  d0,COPJMP1(a0)                  ; 0BD68
         move.w  #$83e0,DMACON(a0)               ; 0BD6C
 sub_0BD72:
@@ -10928,14 +11654,20 @@ l_0BDA8:
         moveq   #$0,d0                          ; 0BDB6
         move.w  (dat_0DD68).l,d0                ; 0BDB8
         rts                                     ; 0BDBE
-sub_0BDC0:
+
+;-------------------------------------------------------------------------------
+; PlaySong - d0 = song 1-12 (Music_Start). 1 the level start, 2 the main tune, 6 game over,
+; 9 a life lost, 12 an extra life (EXTEND), 10 the cheat; the others timed tunes and jingles
+; (docs/SOUND.md).
+;-------------------------------------------------------------------------------
+PlaySong:
         move.l  a6,-(a7)                        ; 0BDC0
-        jsr     (sub_0E808).l                   ; 0BDC2
+        jsr     (Music_Start).l                 ; 0BDC2
         movea.l (a7)+,a6                        ; 0BDC8
         rts                                     ; 0BDCA
-sub_0BDCC:
+StopSong:
         move.l  a6,-(a7)                        ; 0BDCC
-        jsr     (sub_0E804).l                   ; 0BDCE
+        jsr     (Music_Stop).l                  ; 0BDCE
         movea.l (a7)+,a6                        ; 0BDD4
         rts                                     ; 0BDD6
 Level3_VBL:
@@ -10971,7 +11703,7 @@ l_0BE1A:
         bmi.b   l_0BE62                         ; 0BE5C
         move.w  d0,$64(a6)                      ; 0BE5E
 l_0BE62:
-        jsr     (sub_0E80C).l                   ; 0BE62
+        jsr     (Music_Play).l                  ; 0BE62
         move.w  #$20,(CUSTOM+INTREQ).l          ; 0BE68
         movem.l (a7)+,d0-d7/a0-a6               ; 0BE70
         rte                                     ; 0BE74
@@ -10995,7 +11727,7 @@ l_0BEA6:
         tst.b   (mem_63DDA).l                   ; 0BEAC
         beq.b   l_0BEE0                         ; 0BEB2
         movea.l (mem_63DDC).l,a0                ; 0BEB4
-        movea.l #dat_0C2BA,a1                   ; 0BEBA
+        movea.l #CopperList,a1                  ; 0BEBA
         move.l  (a0)+,(a1)+                     ; 0BEC0
         move.l  (a0)+,(a1)+                     ; 0BEC2
         move.l  (a0)+,(a1)+                     ; 0BEC4
@@ -11016,7 +11748,7 @@ sub_0BEEE:		; (no references found: found by the code sweep)
         clr.l   $1c(a6)                         ; 0BEF2
         lea.l   (dat_0C374).l,a1                ; 0BEF6
         bra.b   l_0BF0C                         ; 0BEFC
-sub_0BEFE:
+SetPalette:
         movem.l a0-a1,-(a7)                     ; 0BEFE
         move.l  a0,$16(a6)                      ; 0BF02
         lea.l   (dat_0C328).l,a1                ; 0BF06
@@ -11194,7 +11926,7 @@ dat_0C16A:
 	dcb.b	32,$FF
 dat_0C18A:
 	dcb.b	32,$00
-dat_0C1AA:
+GamePalette:
 	dc.b	$00,$00,$03,$07,$01,$11,$05,$21,$06,$40,$04,$30,$00,$30,$05,$55
 	dc.b	$03,$00,$00,$07,$07,$00,$01,$57,$07,$40,$06,$62,$00,$70,$07,$77
 	dc.b	$00,$00,$00,$03,$03,$00,$03,$03,$00,$30,$00,$33,$03,$30,$03,$33
@@ -11210,7 +11942,7 @@ dat_0C27A:
 dat_0C29A:
 	dc.b	$00,$E0,$00,$07,$00,$E2,$80,$00,$00,$E4,$00,$07,$00,$E6,$A0,$00
 	dc.b	$00,$E8,$00,$07,$00,$EA,$C0,$00,$00,$EC,$00,$07,$00,$EE,$E0,$00
-dat_0C2BA:
+CopperList:
 	dc.b	$00,$E0,$00,$07,$00,$E2,$00,$00,$00,$E4,$00,$07,$00,$E6,$20,$00
 	dc.b	$00,$E8,$00,$07,$00,$EA,$40,$00,$00,$EC,$00,$07,$00,$EE,$60,$00
 	dc.b	$01,$02
@@ -11236,7 +11968,7 @@ dat_0C374:
 	dc.b	$00,$00,$01,$9A,$00,$00,$01,$9C,$00,$00,$01,$9E,$00,$00,$FF,$FF
 	dc.b	$FF,$FE
 sub_0C3B6:
-        jsr     (sub_0E800).l                   ; 0C3B6
+        jsr     (Music_Init).l                  ; 0C3B6
         lea.l   (mem_641B8).l,a6                ; 0C3BC
         movea.l a6,a0                           ; 0C3C2
         move.w  #$71,d0                         ; 0C3C4
@@ -11303,13 +12035,13 @@ l_0C4B6:
         move.l  a0,$84(a6)                      ; 0C4C0
         lea.l   -$20(a0),a0                     ; 0C4C4
         movea.l (a0),a1                         ; 0C4C8
-        adda.l  #dat_22AA6,a1                   ; 0C4CA
+        adda.l  #BobData,a1                     ; 0C4CA
         move.w  (a1)+,d0                        ; 0C4D0
         move.w  (a1)+,d1                        ; 0C4D2
         mulu.w  d1,d0                           ; 0C4D4
         mulu.w  #$a,d0                          ; 0C4D6
         adda.l  d0,a1                           ; 0C4DA
-        lea.l   (dat_22AA6).l,a1                ; 0C4DC
+        lea.l   (BobData).l,a1                  ; 0C4DC
         move.l  (a1)+,d7                        ; 0C4E2
         subi.l  #$10001,d7                      ; 0C4E4
 l_0C4EA:
@@ -11327,11 +12059,11 @@ l_0C4EE:
         dbra    d6,l_0C4EE                      ; 0C50A
         swap    d7                              ; 0C50E
         dbra    d7,l_0C4EA                      ; 0C510
-        lea.l   (dat_39AA6).l,a0                ; 0C514
+        lea.l   (BobDirectory).l,a0             ; 0C514
         move.w  $88(a6),d7                      ; 0C51A
         subq.w  #$2,d7                          ; 0C51E
-        lea.l   (dat_22AA6).l,a2                ; 0C520
-        bsr.w   sub_04E92                       ; 0C526
+        lea.l   (BobData).l,a2                  ; 0C520
+        bsr.w   DeinterleaveBobs                ; 0C526
 l_0C52A:
         rts                                     ; 0C52A
 sub_0C52C:
@@ -11340,15 +12072,15 @@ sub_0C52C:
         movea.l $84(a6),a3                      ; 0C536
         move.w  #$122,d7                        ; 0C53A
         lea.l   (dat_4A2A6).l,a5                ; 0C53E
-        lea.l   (dat_39AA6).l,a4                ; 0C544
+        lea.l   (BobDirectory).l,a4             ; 0C544
         subq.w  #$2,d7                          ; 0C54A
 l_0C54C:
         move.w  d7,-(a7)                        ; 0C54C
         movea.l a1,a2                           ; 0C54E
-        suba.l  #dat_22AA6,a2                   ; 0C550
+        suba.l  #BobData,a2                     ; 0C550
         move.l  a2,(a3)+                        ; 0C556
         movea.l (a4),a0                         ; 0C558
-        adda.l  #dat_22AA6,a0                   ; 0C55A
+        adda.l  #BobData,a0                     ; 0C55A
         move.l  $4(a4),(a3)+                    ; 0C560
         move.l  $4(a4),$c(a4)                   ; 0C564
         move.l  $8(a4),(a3)+                    ; 0C56A
@@ -12066,15 +12798,21 @@ dat_0DD68:
 	dc.b	$59,$26,$00,$00,$00,$00,$62,$D6,$8C,$00,$00,$00,$00,$00,$38,$44
 	dc.b	$BA,$A2,$BA,$44,$38,$00,$31,$41,$59,$26
 	dcb.b	2686,$00
-sub_0E800:
-        bra.w   l_0F10E                         ; 0E800
-sub_0E804:
+
+;-------------------------------------------------------------------------------
+; Jonathan Dunn's music driver: a jump table - init, stop, start song d0 (1-12), play one
+; frame (called from the vertical blank). Three voices on channels 0-2, their records $56
+; bytes each (Music_Voice0-2). The data format is in tools/assets/sound.py and docs/SOUND.md.
+;-------------------------------------------------------------------------------
+Music_Init:
+        bra.w   Music_InitInstruments           ; 0E800
+Music_Stop:
         bra.w   l_0E9D6                         ; 0E804
-sub_0E808:
-        bra.w   l_0EA3E                         ; 0E808
-sub_0E80C:
-        bra.w   l_0EB02                         ; 0E80C
-dat_0E810:
+Music_Start:
+        bra.w   Music_StartSong                 ; 0E808
+Music_Play:
+        bra.w   Music_Frame                     ; 0E80C
+Music_Voices:
 	dc.b	$00,$00
 dat_0E812:
 	dc.b	$01
@@ -12091,16 +12829,16 @@ dat_0E816:
 dat_0E824:
 	dc.b	$00
 	dc.b	$00
-dat_0E826:
+Music_Trigger:
 	dc.b	$00
 	dc.b	$00
-dat_0E828:
+Music_Voice0:
 	dcb.b	85,$00
 	dc.b	$01
-dat_0E87E:
+Music_Voice1:
 	dcb.b	85,$00
 	dc.b	$02
-dat_0E8D4:
+Music_Voice2:
 	dcb.b	85,$00
 	dc.b	$04
 dat_0E92A:
@@ -12110,13 +12848,13 @@ sub_0E980:
         movem.l d0/a0-a1,-(a7)                  ; 0E980
         move.b  #$0,(dat_0E812).l               ; 0E984
         move.b  #$0,(dat_0E813).l               ; 0E98C
-        lea.l   (dat_0E828).l,a0                ; 0E994
+        lea.l   (Music_Voice0).l,a0             ; 0E994
         lea.l   (CUSTOM+AUD0VOL).l,a1           ; 0E99A
         bsr.b   sub_0E9B6                       ; 0E9A0
         bsr.b   sub_0E9B6                       ; 0E9A2
         bsr.b   sub_0E9B6                       ; 0E9A4
         bsr.b   sub_0E9B6                       ; 0E9A6
-        move.w  #$0,(dat_0E810).l               ; 0E9A8
+        move.w  #$0,(Music_Voices).l            ; 0E9A8
         movem.l (a7)+,d0/a0-a1                  ; 0E9B0
         rts                                     ; 0E9B4
 sub_0E9B6:
@@ -12137,10 +12875,10 @@ l_0E9E4:
         bsr.w   sub_0E980                       ; 0E9E4
         bra.b   l_0EA16                         ; 0E9E8
 l_0E9EA:
-        lea.l   (dat_157D0).l,a2                ; 0E9EA
+        lea.l   (Music_Songs).l,a2              ; 0E9EA
         asl.w   #$3,d0                          ; 0E9F0
         adda.w  d0,a2                           ; 0E9F2
-        lea.l   (dat_0E828).l,a0                ; 0E9F4
+        lea.l   (Music_Voice0).l,a0             ; 0E9F4
         lea.l   (CUSTOM+AUD0VOL).l,a1           ; 0E9FA
         moveq   #$2,d7                          ; 0EA00
 l_0EA02:
@@ -12156,7 +12894,7 @@ l_0EA12:
 l_0EA16:
         movem.l (a7)+,d0/d7/a0-a2               ; 0EA16
         rts                                     ; 0EA1A
-sub_0EA1C:		; (no references found: found by the code sweep)
+Music_StartLow:		; (no references found: found by the code sweep)
         tst.w   (dat_0E92A).l                   ; 0EA1C
         beq.b   l_0EA2C                         ; 0EA22
         cmp.b   (dat_0E813).l,d0                ; 0EA24
@@ -12168,7 +12906,7 @@ l_0EA2C:
         bra.b   l_0EA4C                         ; 0EA3A
 l_0EA3C:
         rts                                     ; 0EA3C
-l_0EA3E:
+Music_StartSong:
         movem.l d0/d7/a0-a2,-(a7)               ; 0EA3E
         move.w  #$8000,d1                       ; 0EA42
         move.b  d0,(dat_0E812).l                ; 0EA46
@@ -12182,10 +12920,10 @@ l_0EA5C:
         bsr.w   sub_0E980                       ; 0EA5C
         bra.w   l_0EAFC                         ; 0EA60
 l_0EA64:
-        lea.l   (dat_157D0).l,a0                ; 0EA64
+        lea.l   (Music_Songs).l,a0              ; 0EA64
         asl.w   #$3,d0                          ; 0EA6A
         adda.w  d0,a0                           ; 0EA6C
-        lea.l   (dat_0E828).l,a1                ; 0EA6E
+        lea.l   (Music_Voice0).l,a1             ; 0EA6E
         moveq   #$2,d7                          ; 0EA74
 l_0EA76:
         move.w  (a0)+,d0                        ; 0EA76
@@ -12225,7 +12963,7 @@ l_0EAC8:
         bra.b   l_0EA9A                         ; 0EAD0
 l_0EAD2:
         move.l  a2,$6(a1)                       ; 0EAD2
-        lea.l   (dat_15830).l,a2                ; 0EAD6
+        lea.l   (Music_Patterns).l,a2           ; 0EAD6
         ext.w   d0                              ; 0EADC
         add.w   d0,d0                           ; 0EADE
         adda.w  d0,a2                           ; 0EAE0
@@ -12235,42 +12973,42 @@ l_0EAD2:
 l_0EAEE:
         lea.l   $56(a1),a1                      ; 0EAEE
         dbra    d7,l_0EA76                      ; 0EAF2
-        or.w    d1,(dat_0E810).l                ; 0EAF6
+        or.w    d1,(Music_Voices).l             ; 0EAF6
 l_0EAFC:
         movem.l (a7)+,d0/d7/a0-a2               ; 0EAFC
         rts                                     ; 0EB00
-l_0EB02:
+Music_Frame:
         lea.l   CUSTOM,a6                       ; 0EB02
-        lea.l   (dat_0F36E).l,a5                ; 0EB08
-        clr.w   (dat_0E826).l                   ; 0EB0E
-        tst.w   (dat_0E810).l                   ; 0EB14
+        lea.l   (Music_Periods).l,a5            ; 0EB08
+        clr.w   (Music_Trigger).l               ; 0EB0E
+        tst.w   (Music_Voices).l                ; 0EB14
         beq.b   l_0EB6A                         ; 0EB1A
         addq.w  #$1,(dat_0E824).l               ; 0EB1C
-        lea.l   (dat_0E828).l,a4                ; 0EB22
+        lea.l   (Music_Voice0).l,a4             ; 0EB22
         move.w  $0(a4),d7                       ; 0EB28
         beq.b   l_0EB3A                         ; 0EB2C
-        bsr.b   sub_0EB78                       ; 0EB2E
+        bsr.b   Music_Voice                     ; 0EB2E
         move.w  d7,$0(a4)                       ; 0EB30
-        move.w  d7,(dat_0E810).l                ; 0EB34
+        move.w  d7,(Music_Voices).l             ; 0EB34
 l_0EB3A:
-        lea.l   (dat_0E87E).l,a4                ; 0EB3A
+        lea.l   (Music_Voice1).l,a4             ; 0EB3A
         move.w  $0(a4),d7                       ; 0EB40
         beq.b   l_0EB52                         ; 0EB44
-        bsr.b   sub_0EB78                       ; 0EB46
+        bsr.b   Music_Voice                     ; 0EB46
         move.w  d7,$0(a4)                       ; 0EB48
-        or.w    d7,(dat_0E810).l                ; 0EB4C
+        or.w    d7,(Music_Voices).l             ; 0EB4C
 l_0EB52:
-        lea.l   (dat_0E8D4).l,a4                ; 0EB52
+        lea.l   (Music_Voice2).l,a4             ; 0EB52
         move.w  $0(a4),d7                       ; 0EB58
         beq.b   l_0EB6A                         ; 0EB5C
-        bsr.b   sub_0EB78                       ; 0EB5E
+        bsr.b   Music_Voice                     ; 0EB5E
         move.w  d7,$0(a4)                       ; 0EB60
-        or.w    d7,(dat_0E810).l                ; 0EB64
+        or.w    d7,(Music_Voices).l             ; 0EB64
 l_0EB6A:
-        andi.w  #$c000,(dat_0E810).l            ; 0EB6A
-        bsr.w   sub_0EFBC                       ; 0EB72
+        andi.w  #$c000,(Music_Voices).l         ; 0EB6A
+        bsr.w   Music_Output                    ; 0EB72
         rts                                     ; 0EB76
-sub_0EB78:
+Music_Voice:
         subq.w  #$1,$52(a4)                     ; 0EB78
         bne.w   l_0EE60                         ; 0EB7C
         movea.l $e(a4),a3                       ; 0EB80
@@ -12361,7 +13099,7 @@ l_0EC4C:
         bra.b   l_0EC14                         ; 0EC54
 l_0EC56:
         move.l  a3,$6(a4)                       ; 0EC56
-        lea.l   (dat_15830).l,a3                ; 0EC5A
+        lea.l   (Music_Patterns).l,a3           ; 0EC5A
         ext.w   d0                              ; 0EC60
         add.w   d0,d0                           ; 0EC62
         adda.w  d0,a3                           ; 0EC64
@@ -12406,7 +13144,7 @@ sub_0ECCE:
 sub_0ECD6:
         andi.w  #$fff8,d7                       ; 0ECD6
         bset    #$1,d7                          ; 0ECDA
-        lea.l   (dat_15794).l,a0                ; 0ECDE
+        lea.l   (Music_Arpeggios).l,a0          ; 0ECDE
         moveq   #$0,d0                          ; 0ECE4
         move.b  (a3)+,d0                        ; 0ECE6
         add.w   d0,d0                           ; 0ECE8
@@ -12430,7 +13168,7 @@ sub_0ED1E:
         bclr    #$2,d7                          ; 0ED1E
         bra.w   l_0EB88                         ; 0ED22
 sub_0ED26:
-        lea.l   (dat_157A2).l,a0                ; 0ED26
+        lea.l   (Music_Envelopes).l,a0          ; 0ED26
         moveq   #$0,d0                          ; 0ED2C
         move.b  (a3)+,d0                        ; 0ED2E
         add.w   d0,d0                           ; 0ED30
@@ -12439,7 +13177,7 @@ sub_0ED26:
         move.l  a0,$14(a4)                      ; 0ED36
         bra.w   l_0EB88                         ; 0ED3A
 sub_0ED3E:
-        lea.l   (dat_0F39E).l,a0                ; 0ED3E
+        lea.l   (Music_Instruments).l,a0        ; 0ED3E
         moveq   #$0,d0                          ; 0ED44
         move.b  (a3)+,d0                        ; 0ED46
         asl.w   #$4,d0                          ; 0ED48
@@ -12519,7 +13257,7 @@ l_0EE2C:
         move.w  #$1,$1e(a4)                     ; 0EE36
         clr.w   $4c(a4)                         ; 0EE3C
         move.w  $54(a4),d0                      ; 0EE40
-        or.w    d0,(dat_0E826).l                ; 0EE44
+        or.w    d0,(Music_Trigger).l            ; 0EE44
 l_0EE4A:
         moveq   #$0,d0                          ; 0EE4A
         move.b  $51(a4),d0                      ; 0EE4C
@@ -12644,8 +13382,15 @@ l_0EFA4:
         add.w   d0,$4c(a4)                      ; 0EFB6
 l_0EFBA:
         rts                                     ; 0EFBA
-sub_0EFBC:
-        move.w  (dat_0E826).l,d0                ; 0EFBC
+
+;-------------------------------------------------------------------------------
+; Music_Output - write the three voices to Paula: the voices that start a note this frame
+; (Music_Trigger) are stopped, given a period of 1 so their DMA ends at once, then waited for
+; (their audio interrupt bits) and 3 lines more; then each voice's volume, period and sample
+; (the start for a new note, the repeat otherwise) and the DMA switched on again.
+;-------------------------------------------------------------------------------
+Music_Output:
+        move.w  (Music_Trigger).l,d0            ; 0EFBC
         beq.b   l_0F028                         ; 0EFC2
         bclr    #$3,d0                          ; 0EFC4
         move.w  d0,$96(a6)                      ; 0EFC8
@@ -12686,7 +13431,7 @@ l_0F016:
 l_0F028:
         move.w  (dat_0E814).l,d1                ; 0F028
         move.w  (dat_0E816).l,d2                ; 0F02E
-        lea.l   (dat_0E828).l,a0                ; 0F034
+        lea.l   (Music_Voice0).l,a0             ; 0F034
         move.w  d1,d3                           ; 0F03A
         btst    #$6,$0(a0)                      ; 0F03C
         beq.b   l_0F046                         ; 0F042
@@ -12705,7 +13450,7 @@ l_0F06A:
         move.w  $48(a0),$a4(a6)                 ; 0F06A
         move.l  $44(a0),$a0(a6)                 ; 0F070
 l_0F076:
-        lea.l   (dat_0E87E).l,a0                ; 0F076
+        lea.l   (Music_Voice1).l,a0             ; 0F076
         move.w  d1,d3                           ; 0F07C
         btst    #$6,$0(a0)                      ; 0F07E
         beq.b   l_0F088                         ; 0F084
@@ -12724,7 +13469,7 @@ l_0F0AC:
         move.w  $48(a0),$b4(a6)                 ; 0F0AC
         move.l  $44(a0),$b0(a6)                 ; 0F0B2
 l_0F0B8:
-        lea.l   (dat_0E8D4).l,a0                ; 0F0B8
+        lea.l   (Music_Voice2).l,a0             ; 0F0B8
         move.w  d1,d3                           ; 0F0BE
         btst    #$6,$0(a0)                      ; 0F0C0
         beq.b   l_0F0CA                         ; 0F0C6
@@ -12746,11 +13491,11 @@ l_0F0FA:
         ori.w   #$8000,d0                       ; 0F0FA
         bclr    #$3,d0                          ; 0F0FE
         move.w  d0,$96(a6)                      ; 0F102
-        clr.w   (dat_0E826).l                   ; 0F106
+        clr.w   (Music_Trigger).l               ; 0F106
         rts                                     ; 0F10C
-l_0F10E:
+Music_InitInstruments:
         bsr.w   sub_0E980                       ; 0F10E
-        lea.l   (dat_0F406).l,a0                ; 0F112
+        lea.l   (Music_SampleList).l,a0         ; 0F112
         lea.l   (dat_0F3AE).l,a1                ; 0F118
 l_0F11E:
         move.w  (a0)+,d0                        ; 0F11E
@@ -12945,11 +13690,11 @@ l_0F328:
 	dc.b	$05,$98,$05,$47,$04,$FC,$04,$B4,$04,$70,$04,$31,$03,$F4,$03,$BC
 	dc.b	$03,$86,$03,$53,$03,$24,$02,$F6,$02,$CC,$02,$A4,$02,$7E,$02,$5A
 	dc.b	$02,$38,$02,$18,$01,$FA,$01,$DE,$01,$C3,$01,$AA,$01,$92,$01,$7B
-dat_0F36E:
+Music_Periods:
 	dc.b	$01,$66,$01,$52,$01,$3F,$01,$2D,$01,$1C,$01,$0C,$00,$FD,$00,$EF
 	dc.b	$00,$E1,$00,$D5,$00,$C9,$00,$BE,$00,$B3,$00,$A9,$00,$9F,$00,$97
 	dc.b	$00,$8E,$00,$86,$00,$7F,$00,$77,$00,$71,$00,$6A,$00,$64,$00,$5F
-dat_0F39E:
+Music_Instruments:
 	dc.b	$00,$21,$00,$00,$F3,$F0,$00,$0B,$00,$00,$F3,$F0,$00,$0B
 	dc.b	$00
 	dc.b	$00
@@ -12958,7 +13703,7 @@ dat_0F3AE:
 dat_0F3EE:
 	dc.b	$00,$00,$00,$74,$60,$DC,$82,$BB,$45,$7E,$24,$A0,$8C,$00,$74,$60
 	dc.b	$DC,$82,$BB,$45,$7E,$24,$A0,$8C
-dat_0F406:
+Music_SampleList:
 	dc.b	$00,$26,$00,$3C,$00,$00,$1A,$6C,$00,$48,$00,$00,$2F,$1E,$00,$18
 	dc.b	$00,$00,$3E,$58,$00,$48,$00,$00,$59,$36,$00,$30,$00,$00,$5A,$5E
 	dc.b	$00,$48,$00,$00,$00,$00,$46,$4F,$52,$4D,$00,$00,$1A
@@ -14740,20 +15485,20 @@ dat_10001:
 	dc.b	$00,$00,$FF,$00,$01,$01,$00,$00,$01,$03,$02,$00,$00,$01,$02,$01
 	dc.b	$00,$00,$00,$FF,$FE,$FE,$00,$00,$00,$FF,$FE,$FF,$00,$01,$03,$03
 	dc.b	$01,$00,$00,$00,$00,$FF,$FE,$FF,$00,$01
-dat_15794:
+Music_Arpeggios:
 	dc.b	$00,$04,$00,$07,$01,$03,$00,$03,$07,$03,$02,$00,$F4,$00
-dat_157A2:
+Music_Envelopes:
 	dc.b	$00,$0C,$00,$11,$00,$13,$00,$15,$00,$1A,$00,$1E,$01,$3E,$0F,$FE
 	dc.b	$00,$08,$FC,$01,$28,$00,$00,$01,$3E,$00,$00,$01,$3E,$0A,$FE,$00
 	dc.b	$05,$FC,$01,$3E,$3E,$FF,$00,$00,$01,$3E,$0F,$FC,$00,$00
-dat_157D0:
+Music_Songs:
 	dc.b	$00,$AA,$00,$AA,$00,$AA,$00,$00,$01,$B9,$01,$B3,$01,$AD,$00,$00
 	dc.b	$02,$E7,$02,$EB,$02,$DD,$00,$00,$04,$AD,$04,$B1,$04,$B3,$00,$00
 	dc.b	$05,$80,$05,$7B,$05,$76,$00,$00,$06,$3E,$06,$3A,$06,$36,$00,$00
 	dc.b	$06,$6E,$06,$6A,$06,$66,$00,$00,$06,$AA,$06,$A6,$06,$A1,$00,$00
 	dc.b	$07,$06,$07,$02,$06,$FE,$00,$00,$07,$18,$07,$12,$07,$0E,$00,$00
 	dc.b	$07,$27,$07,$28,$07,$29,$00,$00,$07,$43,$07,$43,$07,$45,$00,$00
-dat_15830:
+Music_Patterns:
 	dc.b	$00,$50,$00,$51,$00,$89,$00,$C7,$01,$5D,$01,$AF,$02,$15,$02,$23
 	dc.b	$01,$B7,$01,$61,$02,$8E,$02,$A5,$02,$E5,$02,$F9,$03,$39,$03,$5E
 	dc.b	$03,$83,$03,$C8,$04,$4D,$04,$5B,$04,$AC,$05,$19,$05,$81,$05,$BB
@@ -15277,7 +16022,9 @@ dat_1731C:
 	dc.b	$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03
 	dc.b	$03,$03,$03,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$03,$FF,$FF,$FF,$FF
 	dc.b	$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-	dc.b	$FF,$FF,$FF,$FF,$FF,$FF,$46,$4F,$52,$4D,$00,$00,$04,$1C
+	dc.b	$FF,$FF,$FF,$FF,$FF,$FF
+dat_17F84:
+	dc.b	$46,$4F,$52,$4D,$00,$00,$04,$1C
 	dc.b	'8SVXVHDR'
 	dc.b	$00,$00,$00,$14,$00,$00,$03,$BC,$00,$00,$00,$00,$00,$00,$00,$20
 	dc.b	$20,$AB,$01,$00,$00,$01,$00,$00,$4E,$41,$4D,$45,$00,$00,$00,$14
@@ -18031,7 +18778,7 @@ dat_218D4:
 	dc.b	$FF,$FA,$00,$FF,$FA,$00,$FF,$FA,$00,$FF,$FA,$00,$FF,$FA,$00,$FF
 	dc.b	$FA,$00,$FF,$FA,$00,$FF,$FA,$00,$FF,$FA,$00,$FF,$FA,$00,$FF,$FA
 	dc.b	$00,$A4
-dat_22AA6:
+BobData:
 	dc.b	$00,$01,$00,$16,$01,$E6,$00,$00,$00,$00,$00,$00,$00,$00,$07,$F8
 	dc.b	$01,$E0,$00,$00,$01,$E0,$01,$E0,$0F,$FF,$03,$F8,$00,$00,$07,$F8
 	dc.b	$07,$F8,$1F,$FE,$03,$F4,$00,$00,$0F,$F4,$0F,$F4,$1F,$FE,$07,$FC
@@ -23902,7 +24649,7 @@ dat_22AA6:
 	dc.b	$00,$E0,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$07,$C0,$00
 	dc.b	$00,$07,$C0
 	dcb.b	512,$00
-dat_39AA6:
+BobDirectory:
 	dc.b	$00,$00,$00,$00,$FF,$F9,$FF,$EA,$00,$10,$00,$16,$00,$00,$00,$00
 dat_39AB6:
 	dc.b	$00,$00,$00,$E0,$FF,$F9,$FF,$E9,$00,$10,$00,$17,$00,$00,$00,$00

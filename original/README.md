@@ -21,6 +21,9 @@ Conversion by Choice Software: code C. Gordon, graphics S. Connor.
 | `bin/` | `main.bin` (the unpacked program the source reproduces), `protection_payload_60000.bin` |
 | `disk/` | Every file read from the disk (`disk/files/`), what each is and its format (`disk/FILES.md`), the track map (`disk/DISKMAP.md`) |
 | `docs/BOOT.md` | **How the disk boots and the copy protection**, stage by stage, and why the game does not need it |
+| `docs/SOUND.md` | **The sound**: the effects and instruments (IFF 8SVX files from Audio Master), Jonathan Dunn's music driver and its data format, the 12 songs |
+| `docs/GRAPHICS.md` | The screen, palettes and the BOB format |
+| `assets/` | The extracted assets: samples (`.iff`, `.wav`), the songs decoded and rendered (`.ogg`), every BOB frame (`.png`) - `tools/assets/make_assets.sh` |
 | `render/out/` | `loadscreen.png` |
 | `tools/` | below |
 
@@ -48,6 +51,8 @@ python3 tools/disk/pack.py pack main.bin main_packed.bin         ; sha1 068da711
 | `tools/disk/ipf_extract.py`, `build_dump.sh`, `dump.cpp`, `ados.py`, `mfm.py` | Read the original IPF (via capsimg): the protection loader and the Copylock track |
 | `tools/disk/pack.py` | The main program's packer / unpacker, byte-identical to the original's |
 | `tools/disk/game_tracks.py` | The tracks the game reads while it runs (level data), from its tables |
+| `tools/nzsemu/` | A minimal Amiga (Musashi) that runs the main program for study: VBL, CIAs, blitter, audio interrupts, joystick and keyboard; the disk answered from the extracted tracks; scripted (`emu.c` header), with snapshots, coverage and audio register logs. `build.sh`; `coverage.py --run` replays the sessions behind `tools/disasm/main_coverage.txt`; `show.py` draws a snapshot |
+| `tools/assets/` | The asset extractors: `make_assets.sh` runs `sound.py` (samples, music data), `bobs.py` (BOB frames) and `music.py` + `paula.py` (renders the songs through the driver in nzsemu and a Paula model) |
 | `tools/screen.py` | Renders the display from a memory image by following the copper list |
 | `tools/dis.py` | A quick capstone listing of any address range |
 
@@ -64,7 +69,9 @@ reassembles to its own bytes; they are marked `; (no references found: found by 
 sweep)`, to be confirmed. About 33 KB of code is identified so far below `$F340` (the sound
 samples follow), the rest written as data: some code is still only reached through the animation
 scripts (object field `$14`, whose commands embed code pointers - the `jsr (a0)` at `$B490`) and
-other indirect jumps listed by the tracer.
+other indirect jumps listed by the tracer. Code the emulator saw executing
+(`tools/disasm/main_coverage.txt`, `COVERAGE` in the config) is traced from as well: 10,116
+instructions (36 KB) are identified, and none of it conflicts with the trace.
 
 ## How the program runs
 
@@ -82,8 +89,9 @@ other indirect jumps listed by the tracer.
 4. The game is interrupt driven: level 3 (vertical blank, `Level3_VBL`, `$BDD8`) resets CIA-B's
    TOD each frame, reads the joystick through the jump table and calls the frame code (`$E80C`);
    level 6 (CIA-B, `Level6_CIAB`, `$BE8A`) times a mid-screen change with the TOD alarm and
-   counts down timer B; level 2 (`Level2_Ports`, `$12D8`) is the keyboard. The sound driver is
-   around `$EFD0` (it uses the audio interrupts), with sample data around `$F500` and `$12500`.
+   counts down timer B; level 2 (`Level2_Ports`, `$12D8`) is the keyboard; level 4
+   (`Level4_Sample`, `$5778`) the sound effects' channel. The music driver is at `$E800`
+   (`docs/SOUND.md`).
 5. At the start of each level `LoadTracks` (`$55BA`) reads the level's tracks through the jump
    table's `TrackRead` - always from DF0, at fixed track numbers (`disk/DISKMAP.md`) - and
    `UnpackLevel` unpacks them in place; a disk that fails 5 times gives the "fatal disk error"
@@ -91,6 +99,8 @@ other indirect jumps listed by the tracer.
 
 ## Open items
 
+* The music: confirm what songs 4, 5, 7, 8, 10 and 11 are for.
+* The graphics still to extract: the per-level BOBs, the level tiles and maps, the pictures and the font.
 * The level data's format (`UnpackLevel`, what the single track and the 2-track blocks hold).
 * Annotating the game: objects (slots of `$3A` bytes at `$64380`; fields `$14` animation script,
   `$18` timed callback with countdown `$2E`), the animation script commands, levels, the a6

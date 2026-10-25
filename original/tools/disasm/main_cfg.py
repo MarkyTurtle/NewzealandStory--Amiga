@@ -17,6 +17,8 @@ ENTRIES = [
     0x4000,                                   # the game (default for the monitor's G command)
 ]
 
+COVERAGE = "main_coverage.txt"   # addresses seen executing (tools/nzsemu): traced from
+
 SWEEP = True            # look for unreferenced code after each rts/bra/jmp (marked in the source)
 SWEEP_LIMIT = 0xF340    # code ends before the sound samples
 
@@ -99,6 +101,42 @@ NAMES = {
     0x564C: 'UnpackLevel',
     0x5DBA: 'LevelTable',
     0x418C: 'ExtraTracks',
+    # graphics
+    0x4E92: 'DeinterleaveBobs',
+    0xB6C4: 'BlitBob',
+    0xBEFE: 'SetPalette',
+    0xC1AA: 'GamePalette',
+    0xC2BA: 'CopperList',
+    0x22AA6: 'BobData',
+    0x39AA6: 'BobDirectory',
+    # sound effects (channel 3) and the music driver
+    0x5692: 'StopSample',
+    0x56A8: 'PlaySample',
+    0x5778: 'Level4_Sample',
+    0xBDC0: 'PlaySong',
+    0xBDCC: 'StopSong',
+    0xE800: 'Music_Init',
+    0xE804: 'Music_Stop',
+    0xE808: 'Music_Start',
+    0xE80C: 'Music_Play',
+    0xE810: 'Music_Voices',
+    0xE826: 'Music_Trigger',
+    0xE828: 'Music_Voice0',
+    0xE87E: 'Music_Voice1',
+    0xE8D4: 'Music_Voice2',
+    0xEA1C: 'Music_StartLow',
+    0xEA3E: 'Music_StartSong',
+    0xEB02: 'Music_Frame',
+    0xEB78: 'Music_Voice',
+    0xEFBC: 'Music_Output',
+    0xF10E: 'Music_InitInstruments',
+    0xF36E: 'Music_Periods',
+    0xF39E: 'Music_Instruments',
+    0xF406: 'Music_SampleList',
+    0x15794: 'Music_Arpeggios',
+    0x157A2: 'Music_Envelopes',
+    0x157D0: 'Music_Songs',
+    0x15830: 'Music_Patterns',
 }
 LABELS = []
 COMMENTS = {
@@ -119,6 +157,22 @@ HEADERS = {
 "fatal disk error" screen. Called at the start of each level (5 tracks of packed level data,
 1 more track, and on some levels 2 more) and at the end of the game (track 144). On the
 AmigaDOS disk, TrackRead is replaced by enhanced/src/diskload.s.''',
+    0x56A8: '''PlaySample - play a sound effect: a0 = an IFF 8SVX file (FORM). Finds VHDR and BODY,
+period = 3579546 / samples per second, and plays it on channel 3; the level 4 interrupt
+(Level4_Sample) sets the repeat. The effects are IFF 8SVX files saved with Audio Master
+(tools/assets/sound.py extracts them).''',
+    0xBDC0: '''PlaySong - d0 = song 1-12 (Music_Start). 1 the level start, 2 the main tune, 6 game over,
+9 a life lost, 12 an extra life (EXTEND), 10 the cheat; the others timed tunes and jingles
+(docs/SOUND.md).''',
+    0xE800: '''Jonathan Dunn's music driver: a jump table - init, stop, start song d0 (1-12), play one
+frame (called from the vertical blank). Three voices on channels 0-2, their records $56
+bytes each (Music_Voice0-2). The data format is in tools/assets/sound.py and docs/SOUND.md.''',
+    0xEFBC: '''Music_Output - write the three voices to Paula: the voices that start a note this frame
+(Music_Trigger) are stopped, given a period of 1 so their DMA ends at once, then waited for
+(their audio interrupt bits) and 3 lines more; then each voice's volume, period and sample
+(the start for a new note, the repeat otherwise) and the DMA switched on again.''',
+    0x4E92: '''DeinterleaveBobs - rearrange each BOB frame in place from the stored form (per line, per
+16-pixel column: mask, planes 0-3) into mask + 4 separate planes (docs/GRAPHICS.md).''',
     0x5DBA: '''LevelTable - 20 levels, 16 bytes each (indexed by $8(a6), level x 16): pointers, then +$C the
 first of the 5 tracks of the level's packed data, +$E its single track.''',
 }

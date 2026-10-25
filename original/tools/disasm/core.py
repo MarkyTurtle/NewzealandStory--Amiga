@@ -113,6 +113,9 @@ class Program:
             self.labels[e] = 'entry'
             work.append(e)
         self._follow(work)
+        # addresses seen executing (tools/nzsemu coverage): traced from, without labels
+        self.hints = sorted(self.load_hints())
+        self._follow([h for h in self.hints if h not in self.ins])
         if getattr(cfg, 'SWEEP', False):
             self.sweep()
         self._refs()
@@ -180,6 +183,21 @@ class Program:
                     break
                 self.came_from.setdefault(a + i.size, a)
                 a += i.size
+
+    def load_hints(self):
+        fn = getattr(self.cfg, 'COVERAGE', None)
+        if not fn:
+            return []
+        path = os.path.join(os.path.dirname(os.path.abspath(self.cfg.__file__)), fn)
+        out = []
+        for ln in open(path):
+            ln = ln.split('#')[0].strip()
+            out += [int(x, 16) for x in ln.split()]
+        return [a for a in out if self.inside(a)]
+
+    def coverage_conflicts(self):
+        """executed addresses that the trace has inside an instruction, or not as code at all"""
+        return [a for a in self.hints if a in self.within or a not in self.ins]
 
     def sweep(self):
         """Find code nothing traced reaches: try each gap that starts right after an instruction
@@ -631,6 +649,12 @@ class Program:
               f'{len(self.refs)} data refs; {len(self.bad)} encoded as dc.w; {len(self.swept)} routines found by the sweep')
         if self.vectors:
             print('  vectors: ' + ', '.join(f'${k:X}->' + '/'.join(f'${x:X}' for x in sorted(v)) for k, v in sorted(self.vectors.items())))
+        if getattr(self, 'hints', None):
+            conf = self.coverage_conflicts()
+            print(f'  coverage: {len(self.hints)} executed addresses, {len(conf)} in conflict with the trace'
+                  + (': ' + ' '.join(f'${a:X}' for a in conf[:20]) if conf else ''))
+            sw = set(getattr(self, 'swept', []))
+            print(f'  sweep: {sum(1 for a in sw if a in set(self.hints))} of {len(sw)} routines found by the sweep seen executing')
         if self.bad_paths:
             print(f'  {len(self.bad_paths)} paths ran into non-68000 code (data?):')
             for a, f, t in self.bad_paths:
