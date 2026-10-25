@@ -88,4 +88,4 @@ so every annotation made to the original carries over.
 ## Next
 
 This is the first step: the original game, unprotected. Improvements go here, each on its own
-branch, built and tested in WinUAE before merging.
+branch, built and tested in WinUAE before merging. The list is in [`TODO.md`](TODO.md).
