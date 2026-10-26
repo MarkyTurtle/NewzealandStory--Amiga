@@ -1,12 +1,11 @@
 ;==============================================================================
-; ext.i - the enhanced game's extension module (src/ext.s): where it lives, its entry points
-; and the machine description. Included by the bootblock (boot_4489.s), the game's disk
-; reading (diskload.s, so by the game) and the module itself.
+; ext.i - the boot's extension module (src/ext.s): where it lives, its entry point, the
+; machine description and where the game keeps it. Included by the bootblock (boot_4489.s),
+; the module and the game (nzs_game.s).
 ;
-; The module is a file of its own (FID_EXT), loaded by the bootblock to EXT_BASE: memory that the
-; original game never touches, between its object slots (which end at $65396) and the disk /
-; deinterleave buffer at $68000 (no absolute reference into it in original/nzs_main.s, and no
-; write to it in tools/nzsemu over 12 games and all 20 levels started in turn).
+; The module is a file of its own (FID_EXT), loaded by the bootblock to EXT_BASE, which does the
+; part of the boot the bootblock has no room for. It is needed only while booting: the game
+; uses that memory afterwards (the scroller's buffers).
 ;==============================================================================
 
 EXT_BASE        equ     $65400
@@ -16,13 +15,15 @@ EXT_LIMIT       equ     $68000                  ; the module must end below this
 EXT_MAGIC       equ     0                       ; 'NZSX'
 EXT_VERSION     equ     4                       ; .w
 EXT_BOOT        equ     8                       ; jmp: the rest of the boot (from the bootblock)
-EXT_TITLETEXT   equ     14                      ; jmp: the title's text (the game, $404C)
-EXT_CACHEGET    equ     20                      ; jmp: a track from the cache (TrackRead)
-EXT_CACHEPUT    equ     26                      ; jmp: a track into the cache (TrackRead)
-EXT_MACHINE     equ     32                      ; the machine description (MI_SIZE bytes)
+
+; the game's header (nzs_game.s: EnhHeader), where the module leaves the machine description and
+; the boot drive for the game: a run address (block 1 is stored 4 bytes higher until Relocate)
+GAME_HEADER     equ     $426                    ; 'NZSE'
+GAME_BOOTDRIVE  equ     GAME_HEADER+4           ; .l
+GAME_MACHINE    equ     GAME_HEADER+8           ; MI_SIZE bytes
 
 ; the machine description: written by the bootblock (MemDetect) while Kickstart is still
-; running, from exec's memory list; copied into the module's header (EXT_MACHINE). The layout
+; running, from exec's memory list; copied into the game's header (GAME_MACHINE). The layout
 ; of the Ghosts'n Goblins enhanced game's MACHINE_INFO, with its own magic.
 MI_MAGIC        equ     0                       ; 'NZSM'
 MI_VERSION      equ     4                       ; .b (1)

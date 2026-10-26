@@ -1,25 +1,15 @@
 ;==============================================================================
-; ext.s - The New Zealand Story, the enhanced game's extension module: code the enhanced game
-; adds to the original, in memory the original never uses (EXT_BASE, ext.i). A file of its own
-; on the disk (FID_EXT), loaded by the bootblock (boot_4489.s), assembled at EXT_BASE by
-; build_disk.py.
+; ext.s - The New Zealand Story: the boot's extension module, the part of the boot the
+; bootblock (boot_4489.s) has no room for. A file of its own on the disk (FID_EXT), loaded by
+; the bootblock to EXT_BASE (ext.i) and entered at ExtBoot; assembled at EXT_BASE by
+; build_disk.py. Needed only while booting: the game uses that memory afterwards.
 ;
-;   ExtBoot      the rest of the boot, entered from the bootblock: the loading screen, the
-;                program, the track cache set up for the machine, the title's text, the game
-;   ExtTitleText the title's text: the original's, then the machine's memory and what the
-;                game uses (the game calls it at $404C in place of the text printer, sub_0C6A8)
-;   ExtCacheGet  \ the track cache, for the game's TrackRead (diskload.s): the level tracks
-;   ExtCachePut  / read from the disk are kept in memory the game does not otherwise use
-;
-; The machine (the bootblock's description, ext.i, copied to ExtMachine):
-;   chip RAM above 512K (A500+, A600, A1200, an A500 with a 1MB Agnus)  \  the largest one
-;   slow RAM ($C00000-$DBFFFF: an A500's trapdoor expansion)             >  holds the track
-;   fast RAM (any other: a CPU card, an A1200's expansion)               /  cache
-; With none of them, the game runs as the original, reading every level from the disk.
+;   ExtBoot      the loading screen, the program loaded and unpacked, the machine description
+;                and the drive booted from left in the game's header (GAME_HEADER), the game
+;                entered as the original's track 90 loader entered it
 ;==============================================================================
 
 	include	"ext.i"
-	include	"tracks.i"                      ; TRACKS_STORED (build_disk.py)
 
 CUSTOM          equ     $DFF000
 PROGRAM         equ     $400
@@ -27,14 +17,7 @@ SCREEN_FILE     equ     $70000                  ; where the track 90 loader read
 SCREEN          equ     $78000                  ; 4 planes, $2000 apart
 FID_MAIN        equ     0                       ; (build_disk.py's file ids)
 FID_SCREEN      equ     1
-TRACK_BYTES     equ     11*512
-CHIP_512K       equ     $80000
 
-; in the game (these addresses are the original's: build_disk.py checks that the game is the
-; original program but for the parts it lists)
-GAME_BOOTDRIVE  equ     $A08+4                  ; BootDrive (diskload.s), before Relocate moves
-                                                ; block 1 down 4 bytes
-GAME_PRINT      equ     $C6A8                   ; sub_0C6A8: print text (x.b, y.b, then text; $FF ends)
 
 	org	EXT_BASE
 
@@ -42,22 +25,6 @@ ExtHeader:      dc.b    'NZSX'                  ; EXT_MAGIC
         dc.w    1                               ; EXT_VERSION
         dc.w    0
         jmp     ExtBoot                         ; EXT_BOOT
-        jmp     ExtTitleText                    ; EXT_TITLETEXT
-        jmp     ExtCacheGet                     ; EXT_CACHEGET
-        jmp     ExtCachePut                     ; EXT_CACHEPUT
-ExtMachine:     dcb.b   MI_SIZE,0               ; EXT_MACHINE: the machine description
-
-	ifne	ExtMachine-ExtHeader-EXT_MACHINE
-	fail	ext.s: the header does not match ext.i
-	endc
-
-; the track cache: where, how many tracks it holds, how many it holds now, and for each of the
-; original disk's 160 tracks its slot + 1 (0: not in the cache)
-CacheBase:      dc.l    0
-CacheSlots:     dc.w    0
-CacheUsed:      dc.w    0
-CacheKind:      dc.w    0                       ; 0 none, 1 chip, 2 slow, 3 fast
-CacheMap:       dcb.b   160,0
 
 ;------------------------------------------------------------------------------
 ; ExtBoot - from the bootblock's loader, with a0 = CUSTOM, a1 = the machine description,
@@ -67,10 +34,7 @@ CacheMap:       dcb.b   160,0
 ; machine description kept, the drive booted from written into the game, the track cache set
 ; up and the title's memory lines made.
 ExtBoot:
-        lea     ExtMachine(pc),a3               ; keep the machine description
-        moveq   #MI_SIZE/4-1,d0
-.mi:            move.l  (a1)+,(a3)+
-        dbra    d0,.mi
+        movea.l a1,a3                           ; (the machine description)
         movea.l a2,a4                           ; (the file table)
 ; the display as the track 90 loader set it up ($76ACE): black, the screen cleared, 4 planes
         lea     $180(a0),a1                     ; all 32 colours black
@@ -116,256 +80,18 @@ ExtBoot:
         jsr     (a5)
         lea     PROGRAM,a0
         bsr.w   Unpack
-        move.l  ExtMachine+MI_DRIVE(pc),GAME_BOOTDRIVE
-        bsr.w   CacheInit
-        bsr.w   MakeTitleText
-        move.l  #PROGRAM,d0                     ; as the track 90 loader left them
+; the machine description and the drive booted from, into the game's header (still 4 bytes
+; above where it will run: Relocate moves block 1 down when the game starts)
+        cmpi.l  #'NZSE',GAME_HEADER+4           ; (the game this module was built with)
+        bne.b   .nohdr
+        lea     GAME_MACHINE+4,a1
+        moveq   #MI_SIZE/4-1,d0
+.mi:            move.l  (a3)+,(a1)+
+        dbra    d0,.mi
+        move.l  GAME_MACHINE+4+MI_DRIVE,GAME_BOOTDRIVE+4
+.nohdr:         move.l  #PROGRAM,d0                     ; as the track 90 loader left them
         movea.l d0,a0
         jmp     (a0)
-
-;------------------------------------------------------------------------------
-; CacheInit - choose the track cache's memory: the largest of the chip RAM above 512K, the slow
-; RAM region and the fast RAM region; as many whole tracks as fit (at most the tracks on the
-; disk). Nothing else in the game uses that memory.
-CacheInit:
-        lea     ExtMachine(pc),a1
-        moveq   #0,d4                           ; the best: size
-        moveq   #0,d5                           ;           base
-        moveq   #0,d6                           ;           kind
-        move.l  MI_CHIP+4(a1),d1                ; chip RAM above 512K
-        move.l  #CHIP_512K,d0
-        moveq   #1,d2
-        bsr.b   .consider
-        movem.l MI_SLOW(a1),d0-d1               ; slow RAM
-        moveq   #2,d2
-        bsr.b   .consider
-        movem.l MI_FAST(a1),d0-d1               ; fast RAM
-        moveq   #3,d2
-        bsr.b   .consider
-        move.w  d6,CacheKind
-        move.l  d5,CacheBase
-        divu    #TRACK_BYTES,d4                 ; (d4 < 64K tracks)
-        cmp.w   #TRACKS_STORED,d4
-        bls.b   .n
-        move.w  #TRACKS_STORED,d4
-.n:             move.w  d4,CacheSlots
-        clr.w   CacheUsed
-        lea     CacheMap(pc),a0
-        moveq   #160/4-1,d0
-.clr:           clr.l   (a0)+
-        dbra    d0,.clr
-        rts
-; d0 = lower, d1 = upper, d2 = kind: the best so far if larger (from a long boundary)
-.consider:      addq.l  #3,d0
-        andi.w  #$fffc,d0
-        sub.l   d0,d1
-        bls.b   .no
-        cmp.l   #TRACK_BYTES*$ffff,d1           ; (at most 64K tracks: divu)
-        bls.b   .size
-        move.l  #TRACK_BYTES*$ffff,d1
-.size:          cmp.l   d4,d1
-        bls.b   .no
-        move.l  d1,d4
-        move.l  d0,d5
-        move.w  d2,d6
-.no:            rts
-
-;------------------------------------------------------------------------------
-; ExtCacheGet - d0.w = the original disk's track, a0 = where it goes -> d7.l = 0 if the track
-; was in the cache (copied to a0), -1 if not. Keeps every other register.
-ExtCacheGet:
-        moveq   #-1,d7
-        movem.l d0-d1/a0-a1,-(a7)
-        bsr.b   CacheSlot
-        beq.b   .out                            ; not in the cache
-        exg     a0,a1                           ; from the cache to a0
-        bsr.b   CopyTrack
-        moveq   #0,d7
-.out:           movem.l (a7)+,d0-d1/a0-a1
-        rts
-
-; ExtCachePut - d0.w = the original disk's track, just read to a0: kept in the cache if there is
-; a free slot and it is not there already. Keeps every register.
-ExtCachePut:
-        movem.l d0-d1/a0-a1,-(a7)
-        bsr.b   CacheSlot
-        bne.b   .out                            ; there already
-        move.w  CacheUsed(pc),d1
-        cmp.w   CacheSlots(pc),d1
-        bcc.b   .out                            ; full (or no cache)
-        addq.w  #1,d1
-        move.w  d1,CacheUsed
-        lea     CacheMap(pc),a1
-        move.b  d1,(a1,d0.w)
-        bsr.b   CacheSlot                       ; a1 = the slot
-        bsr.b   CopyTrack                       ; a0 -> the slot
-.out:           movem.l (a7)+,d0-d1/a0-a1
-        rts
-
-; CacheSlot - d0.w = track -> d1 = its slot + 1 (Z set: not in the cache), a1 = the slot's memory
-CacheSlot:      andi.l  #$ff,d0
-        lea     CacheMap(pc),a1
-        moveq   #0,d1
-        move.b  (a1,d0.w),d1
-        beq.b   .no
-        move.w  d1,-(a7)
-        subq.w  #1,d1
-        mulu    #TRACK_BYTES,d1
-        movea.l CacheBase(pc),a1
-        adda.l  d1,a1
-        move.w  (a7)+,d1                        ; (sets Z: not zero)
-.no:            rts
-
-; CopyTrack - a track from a0 to a1 (even addresses; the CPU reaches any memory)
-CopyTrack:      move.w  #TRACK_BYTES/16-1,d1
-.copy:          move.l  (a0)+,(a1)+
-        move.l  (a0)+,(a1)+
-        move.l  (a0)+,(a1)+
-        move.l  (a0)+,(a1)+
-        dbra    d1,.copy
-        rts
-
-;------------------------------------------------------------------------------
-; ExtTitleText - a0 = the title's text (dat_0C0A2): printed by the game's printer, then the
-; machine's lines (MakeTitleText) under the kiwi, above the credits. Keeps a0 as the printer.
-ExtTitleText:
-        jsr     GAME_PRINT
-        move.l  a0,-(a7)
-        lea     TitleText(pc),a0
-        jsr     GAME_PRINT
-        movea.l (a7)+,a0
-        rts
-
-; MakeTitleText - the title's two memory lines, in the printer's form: x (character column),
-; y (pixel line), then $02,colour and the characters, $00 then the next line's x, y; $FF ends.
-;   CHIP 512K  SLOW 512K  FAST 0K
-;   TRACK CACHE 93 OF 96 IN SLOW RAM   /   NO TRACK CACHE
-MakeTitleText:
-        lea     LineBuf(pc),a0                  ; line 1: the memory
-        lea     .chip(pc),a1
-        bsr.w   PutStr
-        move.l  ExtMachine+MI_CHIP+4(pc),d0
-        bsr.w   PutK
-        lea     .slow(pc),a1
-        bsr.w   PutStr
-        movem.l ExtMachine+MI_SLOW(pc),d1-d2
-        move.l  d2,d0
-        sub.l   d1,d0
-        bsr.w   PutK
-        lea     .fast(pc),a1
-        bsr.w   PutStr
-        movem.l ExtMachine+MI_FAST(pc),d1-d2
-        move.l  d2,d0
-        sub.l   d1,d0
-        bsr.w   PutK
-        lea     TitleText(pc),a2
-        move.w  #TITLE_Y1,d2
-        moveq   #TITLE_COL1,d3
-        bsr.w   PutLine
-        lea     LineBuf(pc),a0                  ; line 2: the track cache
-        move.w  CacheSlots(pc),d0
-        bne.b   .cache
-        lea     .none(pc),a1
-        bsr.w   PutStr
-        bra.b   .line2
-.cache:         lea     .tc(pc),a1
-        bsr.w   PutStr
-        moveq   #0,d0
-        move.w  CacheSlots(pc),d0
-        bsr.w   PutDec
-        lea     .of(pc),a1
-        bsr.w   PutStr
-        moveq   #TRACKS_STORED,d0
-        bsr.w   PutDec
-        lea     .in(pc),a1
-        bsr.w   PutStr
-        move.w  CacheKind(pc),d0
-        add.w   d0,d0
-        move.w  .kinds-2(pc,d0.w),d0
-        lea     .kinds(pc,d0.w),a1
-        bsr.w   PutStr
-        lea     .ram(pc),a1
-        bsr.w   PutStr
-.line2:         move.w  #TITLE_Y2,d2
-        moveq   #TITLE_COL2,d3
-        bsr.w   PutLine
-        st.b    -1(a2)                          ; the end: $FF in place of the last $00
-        rts
-.kinds:         dc.w    .kchip-.kinds,.kslow-.kinds,.kfast-.kinds
-.kchip:         dc.b    'CHIP',0
-.kslow:         dc.b    'SLOW',0
-.kfast:         dc.b    'FAST',0
-.chip:          dc.b    'CHIP ',0
-.slow:          dc.b    '  SLOW ',0
-.fast:          dc.b    '  FAST ',0
-.none:          dc.b    'NO TRACK CACHE',0
-.tc:            dc.b    'TRACK CACHE ',0
-.of:            dc.b    ' OF ',0
-.in:            dc.b    ' IN ',0
-.ram:           dc.b    ' RAM',0
-	even
-
-TITLE_Y1        equ     $7E                     ; under the kiwi, above 'CONVERSION' ($A0)
-TITLE_Y2        equ     $8A
-TITLE_COL1      equ     $01                     ; the colours (the printer's $02 command)
-TITLE_COL2      equ     $07
-
-; PutStr - the string at a1 (0 ends) to a0
-PutStr:         move.b  (a1)+,(a0)+
-        bne.b   PutStr
-        subq.l  #1,a0
-        rts
-
-; PutK - d0.l = bytes -> to a0 in K, rounded up to 64K ('512K'; 0 -> '0K'). Exec lists Kickstart
-; 1.3's 1MB of chip RAM as ending at $FE800, and a region's lower end is past its header.
-PutK:           add.l   #$ffff,d0
-        clr.w   d0
-        lsr.l   #6,d0                           ; (in K: whole 64K)
-        lsr.l   #4,d0
-        bsr.w   PutDec
-        move.b  #'K',(a0)+
-        rts
-
-; PutDec - d0.l (below 655360) to a0 in decimal
-PutDec:         movem.l d0-d2,-(a7)
-        moveq   #0,d2                           ; digits pushed
-.div:           divu    #10,d0                  ; (d0 / 10 < 65536)
-        swap    d0
-        move.w  d0,-(a7)
-        clr.w   d0
-        swap    d0
-        addq.w  #1,d2
-        tst.l   d0
-        bne.b   .div
-        subq.w  #1,d2
-.put:           move.w  (a7)+,d0
-        add.b   #'0',d0
-        move.b  d0,(a0)+
-        dbra    d2,.put
-        movem.l (a7)+,d0-d2
-        rts
-
-; PutLine - the line in LineBuf (ending at a0) to a2 in the printer's form, centred on the 40
-; columns, at y = d2, colour d3; a2 left at its end
-PutLine:        move.l  a0,d0
-        lea     LineBuf(pc),a1
-        sub.l   a1,d0                           ; its length
-        moveq   #40,d1
-        sub.w   d0,d1
-        lsr.w   #1,d1
-        move.b  d1,(a2)+                        ; x
-        move.b  d2,(a2)+                        ; y
-        move.b  #2,(a2)+                        ; the colour
-        move.b  d3,(a2)+
-        subq.w  #1,d0
-.copy:          move.b  (a1)+,(a2)+
-        dbra    d0,.copy
-        clr.b   (a2)+                           ; (a $00: another line follows, or $FF ends)
-        rts
-
-LineBuf:        dcb.b   40,0
-TitleText:      dcb.b   2*(4+40+1)+1,$ff
-	even
 
 ;------------------------------------------------------------------------------
 ; Unpack - the program at a0 (packed: unpacked length - 1, packed length - 1 counting this

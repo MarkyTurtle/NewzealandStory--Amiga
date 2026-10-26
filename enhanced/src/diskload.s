@@ -1,8 +1,6 @@
 ;==============================================================================
-; diskload.s - the game's disk reading on the AmigaDOS disk: replaces TrackWrite ($A04) and
-; TrackRead ($C24) of the original (block 1), in exactly their space ($A04-$D87), so that
-; nothing else in the program moves. Included in place of those two routines by
-; enhanced/tools/make_game.py when it makes the enhanced game's source from original/nzs_main.s.
+; diskload.s - the game's disk reading on the AmigaDOS disk: replaces the original's TrackWrite
+; ($A04) and TrackRead ($C24) in block 1 of nzs_game.s (included there).
 ;
 ; The game reads the original disk's tracks by number - at the start of each level 5 tracks of
 ; packed level data and 1 more, on some levels 2 more, and 5 at the end - through the jump table
@@ -10,11 +8,12 @@
 ; always asks for DF0). On the new disk those tracks are stored one after another from
 ; TRACKS_OFFSET (only the ones the game reads), and TrackMap gives each original track's place
 ; there; TrackRead reads them with the 4489_byteloader from the drive booted from (BootDrive,
-; set by the bootblock), into the MFM buffer at $68000 where the original read its tracks.
+; in the game's header, set while booting), into the MFM buffer at $68000 where the original
+; read its tracks.
 ;
-; With the extension module (ext.s), each track is first looked for in the track cache
-; (ExtCacheGet), and a track read from the disk is offered to it (ExtCachePut): on a machine
-; with memory beyond the original's 512K of chip RAM a level read once is not read again.
+; Each track is first looked for in the track cache (CacheGet, enhanced.s), and a track read
+; from the disk is offered to it (CachePut): on a machine with memory beyond the original's 512K
+; of chip RAM a level read once is not read again.
 ;
 ; As the original: d0 = 0 when it worked, negative when not (also stored at $420.w and $3186,
 ; as the original's error exit did), the motor left off. The byteloader leaves the interrupts,
@@ -22,15 +21,12 @@
 ; every register is kept (the interrupt handlers load a6 themselves anyway).
 ;==============================================================================
 
-	include	"ext.i"
-
 TRACK_BYTES     equ     11*512
 TL_MFM_BUF      equ     $68000                  ; where the original's TrackRead read (to $6B32C)
 
-TrackWrite:                                     ; $A04: writing the disk is not supported (the
-        moveq   #-1,d0                          ; monitor's W command)
+TrackWrite:                                     ; writing the disk is not supported (only the
+        moveq   #-1,d0                          ; debug monitor's W command wrote)
         rts
-BootDrive:      dc.l    0                       ; $A08: the drive booted from (the bootblock)
 
 ; the 4489_byteloader (byteloader.i): d0 = offset on the disk, d1 = length, d2 = drive,
 ; a0 = destination, a1 = MFM buffer -> d0 = 0 if it worked; uses every register
@@ -38,15 +34,11 @@ BootDrive:      dc.l    0                       ; $A08: the drive booted from (t
 TL_ByteLoader:
 	include	"byteloader.i"
 
-	ifgt	*-$C24
-	fail	diskload.s: the byteloader runs into TrackRead ($C24)
-	endc
-	dcb.b	$C24-*,0
-
 ;------------------------------------------------------------------------------
-; TrackRead ($C24) - d0.w = the original disk's track, d1.w = tracks, a0 = destination,
+; TrackRead - d0.w = the original disk's track, d1.w = tracks, a0 = destination,
 ; (d2 = drive: ignored, the drive booted from is used) -> d0.l = 0 if read, -1 if not
 TrackRead:
+        bsr.w   ScrLeave                        ; (the disk buffer is in the scroller's buffers)
         movem.l d1-d7/a0-a6,-(a7)
         andi.l  #$ffff,d0
         subq.w  #1,d1
@@ -57,7 +49,7 @@ TrackRead:
         cmp.b   #$ff,d3
         beq.b   .error                          ; a track the disk does not have
         movem.l d0-d1/a0,-(a7)
-        jsr     EXT_BASE+EXT_CACHEGET           ; d7 = 0: it was in the cache (now at a0)
+        bsr.w   CacheGet                        ; d7 = 0: it was in the cache (now at a0)
         tst.l   d7
         beq.b   .got
         mulu    #TRACK_BYTES,d3
@@ -70,7 +62,7 @@ TrackRead:
         move.l  d0,d7
         bne.b   .got                            ; (not read)
         movem.l (a7),d0-d1/a0
-        jsr     EXT_BASE+EXT_CACHEPUT           ; kept, if the cache has room
+        bsr.w   CachePut                        ; kept, if the cache has room
         moveq   #0,d7
 .got:           movem.l (a7)+,d0-d1/a0
         tst.l   d7
@@ -81,8 +73,8 @@ TrackRead:
 .done:          moveq   #0,d0
         bra.b   .out
 .error:         moveq   #-1,d0
-        move.w  d0,($420).w                     ; (as the original's error exit)
-        move.l  d0,($3186).w
+        move.w  d0,(dat_00420).l                ; (as the original's error exit)
+        move.l  d0,(dat_03186).l
 .out:           movem.l (a7)+,d1-d7/a0-a6
         rts
 
@@ -91,12 +83,5 @@ TrackRead:
 ; build_disk.py)
 TrackMap:
 	include	"trackmap.i"
+	even
 
-	ifgt	*-$D88
-	fail	diskload.s: TrackRead runs past the end of the original's ($D88)
-	endc
-	dcb.b	$D88-*,0
-
-	ifne	BootDrive-$A08
-	fail	diskload.s: BootDrive must be at $A08 (the bootblock writes it there)
-	endc

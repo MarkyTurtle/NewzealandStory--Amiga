@@ -31,11 +31,14 @@ pillow unicorn`. On Windows, WSL is the simplest way; WinUAE on Windows opens th
 ```
 python3 enhanced/tools/build_disk.py       # -> enhanced/build/nzs.adf
 python3 enhanced/tools/test_boot.py        # boots it in the emulator harness: every check "ok"
+original/tools/nzsemu/build.sh             # (once) the study emulator, for the next test
+python3 enhanced/tools/test_scroller.py    # the display against the original's (a few minutes)
 ```
 
-`build_disk.py` assembles the game (`original/nzs_main.s` with `enhanced/src/diskload.s`, made by
-`enhanced/tools/make_game.py`) and the bootblock, packs the game and writes the disk with the
-loading screen and the level tracks from `original/disk/files/`. Open `nzs.adf` in DF0 of an
+`build_disk.py` assembles the game (`enhanced/src/nzs_game.s`, the enhanced game's own source,
+with `diskload.s`, `enhanced.s` and `scroller.s`), the extension module and the bootblock,
+packs the game and writes the disk with the loading screen and the level tracks from
+`original/disk/files/`. Open `nzs.adf` in DF0 of an
 A500 (Kickstart 2.0 and later can also boot it from DF1-DF3) or write it to a floppy.
 
 ## The original
