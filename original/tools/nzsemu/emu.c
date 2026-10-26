@@ -38,7 +38,8 @@
  *                         ADDR) in that pass; then the frame finished
  *   trace ADDR            log (to the log file) the frame, line, d0, d1, a0, the words at a6+4, a6+6, a5
  *                         and its object's type ($1C), mirror flag ($10) and script ($14), and the level
- *                         ($641C0), each time the PC reaches ADDR
+ *                         ($641C0), and the blitter's memory cycles so far (blitc: about one a channel a
+ *                         word, at least 2; 280 ns each), each time the PC reaches ADDR
  *   watchpc LO HI         log (to the log file) each instruction's first write to each 256-byte block of
  *                         LO-HI
  *   watch LO HI           log (to the log file) the first write to each 256-byte block of LO-HI,
@@ -68,7 +69,7 @@ static unsigned pass_pc = 0xFFFFFFFF, pass_snap_pc = 0xFFFFFFFF; static long pas
 static int pass_done; static char pass_prefix[400];
 static void snapshot(const char *prefix);
 static unsigned rnd(void);
-static int blits, blit_line; static long blit_words;
+static int blits, blit_line; static long blit_words, blit_cycles;
 static FILE *audf;
 static unsigned watch_lo = 1, watch_hi = 0; static uint8_t watched[RAM / 256];
 static int watch_pcs; static unsigned seen_n, seen[8192];   /* watchpc: (block << 20 | pc) seen */
@@ -129,6 +130,10 @@ static void blit(uint16_t size) {
     int h = size >> 6 ? size >> 6 : 1024, w = size & 63 ? size & 63 : 64;
     blit_words += (long)h * w;
     int use = con0 >> 8 & 15, ash = con0 >> 12, bsh = con1 >> 12, mt = con0 & 0xFF, desc = con1 & 2;
+    {   /* the blitter's memory cycles (280 ns each): about one a channel a word, at least 2 */
+        int n = (use & 8 ? 1 : 0) + (use & 4 ? 1 : 0) + (use & 2 ? 1 : 0) + (use & 1 ? 1 : 0);
+        blit_cycles += (long)h * w * (n < 2 ? 2 : n);
+    }
     uint16_t fwm = cust[0x44 / 2], lwm = cust[0x46 / 2];
     uint32_t pa = ptr(0x50), pb = ptr(0x4C), pc = ptr(0x48), pd = ptr(0x54);
     int16_t ma = cust[0x64 / 2], mb = cust[0x62 / 2], mc = cust[0x60 / 2], md = cust[0x66 / 2];
@@ -334,11 +339,11 @@ void instr_hook(unsigned int pc) {
         unsigned a6 = m68k_get_reg(NULL, M68K_REG_A6);
         unsigned a5 = m68k_get_reg(NULL, M68K_REG_A5);
         fprintf(logf, "frame %lu line %lu: pc $%X d0 $%X d1 $%X a0 $%X a6+4: $%04X $%04X a5 $%X type $%04X mirror $%02X"
-                " script $%X level $%04X\n",
+                " script $%X level $%04X blitc %ld\n",
                 frame, line_no, pc, m68k_get_reg(NULL, M68K_REG_D0), m68k_get_reg(NULL, M68K_REG_D1),
                 m68k_get_reg(NULL, M68K_REG_A0), m68k_read_memory_16(a6 + 4), m68k_read_memory_16(a6 + 6), a5,
                 a5 < RAM - 0x40 ? m68k_read_memory_16(a5 + 0x1C) : 0, a5 < RAM - 0x40 ? m68k_read_memory_8(a5 + 0x10) : 0,
-                a5 < RAM - 0x40 ? m68k_read_memory_32(a5 + 0x14) : 0, m68k_read_memory_16(0x641C0));
+                a5 < RAM - 0x40 ? m68k_read_memory_32(a5 + 0x14) : 0, m68k_read_memory_16(0x641C0), blit_cycles);
     }
     if (pc == TRACKREAD) {
         int ok = track_read();
