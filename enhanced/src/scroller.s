@@ -80,6 +80,7 @@ ScrActive:      dc.b    0                       ; the scroller's display is on
 ScrSkipWait:    dc.b    0
 ScrFrames:      dc.w    0                       ; vertical blanks (EnhVBL)
 ScrLoopFrame:   dc.w    0                       ; ScrFrames when the last pass began drawing
+ScrTakeFrame:   dc.w    0                       ; ScrFrames when the last frame was taken (EnhL6)
 ScrCopNext:     dc.l    0                       ; the copper list for the level 6 interrupt
 ; per buffer (0 pristine, 1 A, 2 B): the window it holds (tile column, tile row), valid
 ScrWinC:        dc.w    0,0,0
@@ -171,6 +172,8 @@ EnhDIW:         move.w  d1,(CUSTOM+DIWSTRT).l
 ; EnhL6 - the level 6 interrupt's movea.l (mem_63DDC).l,a0 (Level6_CIAB): when a new frame is
 ; ready, the scroller's copper list for it (taken at the next vertical blank)
 EnhL6:          movea.l (mem_63DDC).l,a0
+        move.w  ScrFrames(pc),ScrTakeFrame      ; (smooth.s: the frame it was taken in)
+        bsr.w   SmoothTaken
         tst.b   ScrActive
         beq.b   .o
         move.l  ScrCopNext(pc),(CUSTOM+COP1LCH).l
@@ -181,7 +184,15 @@ EnhL6:          movea.l (mem_63DDC).l,a0
 EnhWaitFlip:
 .wait:          tst.b   (mem_63DDA).l
         bne.b   .wait
-        move.l  d0,-(a7)
+        tst.b   SmoothOn                        ; smooth.s: in the game loop (called from $42DA)
+        beq.b   .old                            ;   the frames are paced at the flips (EnhFlip),
+        tst.b   ScrActive                       ;   then the in-between frame
+        beq.b   .old
+        cmpi.l  #$42de,(a7)
+        bne.b   .old
+        move.w  ScrFrames(pc),ScrLoopFrame
+        bra.w   SmoothMid
+.old:           move.l  d0,-(a7)
 .pace:          move.w  ScrFrames(pc),d0
         sub.w   ScrLoopFrame(pc),d0
         cmp.w   #SCR_MIN_FRAMES,d0
@@ -610,12 +621,24 @@ ScrBob:         movem.l d0/d2-d6/a0-a6,-(a7)
         sub.w   2(a5),d1
         moveq   #SCR_PLINE/4,d2                 ; planes 40 apart
         bsr.w   ScrBobBlit
+        tst.b   SmoothOn                        ; smooth.s: in both buffers' panels
+        beq.b   .next
+        move.w  d7,-(a7)
+        moveq   #3,d0
+        sub.w   d7,d0
+        move.w  d0,d7
+        bsr.w   ScrAddr
+        move.w  #SCR_PLINE,d1
+        sub.w   2(a5),d1
+        sub.w   2(a5),d1
+        bsr.w   ScrBobBlit
+        move.w  (a7)+,d7
 .next:          add.w   d3,d4                   ; the next part
         move.w  d3,d0
         mulu    16(a5),d0
         add.l   d0,12(a5)
         sub.w   d3,d6
-        bne.b   .part
+        bne.w   .part
         movem.l (a7)+,d0/d2-d6/a0-a6
         move.w  BobMinterm,d1                   ; d7 as the original leaves it
         or.w    ScrBobVars(pc),d1
@@ -691,6 +714,8 @@ ScrEnter:       movem.l d0-d7/a0-a2,-(a7)
         move.w  $30(a6),(a0)+
         move.w  $30(a6),(a0)
         move.w  ScrFrames(pc),ScrLoopFrame
+        sf.b    SmoothValid                     ; (smooth.s: no last frame to move from,
+        sf.b    SmoothSValid                    ;   nor a frame taken to pace from)
         st.b    ScrActive
         movem.l (a7)+,d0-d7/a0-a2
         rts
@@ -713,6 +738,7 @@ ScrLeave:       tst.b   ScrActive
         beq.b   .out
         movem.l d0-d1/a0,-(a7)
         sf.b    ScrActive
+        sf.b    SmoothValid
         lea     (mem_63E94).l,a0
         moveq   #0,d0
         move.w  #199,d1
@@ -736,6 +762,7 @@ EnhFlip:        tst.b   ScrActive
         move.w  d0,d7
         bsr.w   ScrCopper
         move.l  a0,ScrCopNext
+        bsr.w   SmoothPace                      ; (smooth.s: not before its frame)
         movem.l (a7)+,d0-d7/a0-a3
 .o:             st.b    (mem_63DDA).l
         rts

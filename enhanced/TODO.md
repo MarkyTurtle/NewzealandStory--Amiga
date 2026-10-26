@@ -15,6 +15,9 @@ then merged.
   vertical ring, double-buffered with a pristine buffer (`README.md`, *The scroller*): a tile is
   one blit, a new column or row is drawn once and copied, BOBs are restored from the pristine
   buffer. Identical to the original's display in the emulator; to try in WinUAE.
+* **50 frames a second** (branch `feature/50hz`): the logic still once a pass (25 a second), an
+  in-between frame drawn each pass with the camera and every object half-way; a busy pass drops
+  to 25 Hz for that pass, never slower (`README.md`, *50 frames a second*). To try in WinUAE.
 * **Mirrored frames on demand** (branch `feature/mirror-cache`): on a 512K machine the mirrored
   BOB frames are built when first drawn into a 48 KB ring cache, a level's known ones built as it
   starts; 43 KB of chip RAM freed (`$563A6-$611B0`), no cost in play in the emulator
@@ -67,10 +70,10 @@ memory is for the pre-masked BOBs (*BOBs in one blit*, above).
 
 ### Frame rate
 
-The original's logic runs once a pass of its game loop, which takes 2 frames, so the enhanced
-game holds the passes to 2 frames (`SCR_MIN_FRAMES`). 50 frames a second would need the logic
-run twice in a pass's worth of time - every movement and timer in the game is per pass - or
-frames drawn in between: a project of its own.
+Done (branch `feature/50hz`): 50 frames a second by drawing an in-between frame each pass
+(`README.md`, *50 frames a second*). Left: the passes busy enough to drop to 25 Hz (about 1 in
+30 on an A500, more on the busiest levels) - drawing the BOBs in one blit (above) is the way to
+fewer.
 
 ## Loading
 
