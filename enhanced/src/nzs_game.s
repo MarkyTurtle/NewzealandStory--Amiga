@@ -27236,3 +27236,8 @@ dat_4CCC8:
 	dc.b	$07,$00,$0B,$00,$0F,$00,$01,$00,$01,$00,$01,$00,$01,$00,$80,$00
 	dc.b	$54,$00,$2A
 	dcb.b	2937,$00
+
+; enhanced (scroller.s): the game's copper list's block from BPLCON1 to the split, SCR_GAMEBLK MOVEs
+	ifne	(dat_0C366-CopperList-32)/4-SCR_GAMEBLK
+	fail	scroller.s: SCR_GAMEBLK is not the game's copper list's block
+	endc
