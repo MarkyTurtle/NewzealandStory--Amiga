@@ -38,6 +38,7 @@ TL_ByteLoader:
 ; TrackRead - d0.w = the original disk's track, d1.w = tracks, a0 = destination,
 ; (d2 = drive: ignored, the drive booted from is used) -> d0.l = 0 if read, -1 if not
 TrackRead:
+        bsr.w   ScrLeave                        ; (the disk buffer is in the scroller's buffers)
         movem.l d1-d7/a0-a6,-(a7)
         andi.l  #$ffff,d0
         subq.w  #1,d1

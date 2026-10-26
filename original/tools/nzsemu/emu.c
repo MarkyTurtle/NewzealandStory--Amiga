@@ -27,6 +27,17 @@
  *   play ADDR N           N frames of: call ADDR, then the rest of the frame (a music player)
  *   audio FILE            log every write to the audio registers and DMACON: "cycle reg value"
  *   load FILE ADDR        copy a file into memory at ADDR
+ *   setd1 ADDR VALUE      set d1 whenever the PC reaches ADDR (the vertical blank's add.l d1 to the
+ *                         random seed at $BE04, then addq #1: with d1 = -1 the seed changes only when
+ *                         the game draws a number, not with the code or the frames; for comparing
+ *                         two builds)
+ *   passes N SEED ADDR EVERY PREFIX [SNAPADDR]
+ *                         N passes of the game loop (counted at ADDR) with a random joystick changed
+ *                         there (held 4-20 passes, and given to the game at once: its word at $63DB0);
+ *                         a snapshot PREFIX_nnnn every EVERY passes (0: none), at SNAPADDR (default
+ *                         ADDR) in that pass; then the frame finished
+ *   trace ADDR            log (to the log file) the frame, line, d0, d1, a0 and the words at a6+4, a6+6
+ *                         each time the PC reaches ADDR
  *   watchpc LO HI         log (to the log file) each instruction's first write to each 256-byte block of
  *                         LO-HI
  *   watch LO HI           log (to the log file) the first write to each 256-byte block of LO-HI,
@@ -48,7 +59,15 @@ static FILE *logf;
 static unsigned long frame, line_no;
 static unsigned joy;                  /* bits: 1 up 2 down 4 left 8 right 16 fire */
 static unsigned until_pc = 0xFFFFFFFF; static int until_hit;
-static int blits, blit_line;
+static unsigned trace_pc = 0xFFFFFFFF;
+static unsigned set_d1_pc = 0xFFFFFFFF, set_d1_val;
+/* passes: the joystick re-rolled per pass of the game loop (each arrival at pass_pc), snapshots
+ * every pass_every passes */
+static unsigned pass_pc = 0xFFFFFFFF, pass_snap_pc = 0xFFFFFFFF; static long pass_left, pass_count, pass_every, pass_hold;
+static int pass_done; static char pass_prefix[400];
+static void snapshot(const char *prefix);
+static unsigned rnd(void);
+static int blits, blit_line; static long blit_words;
 static FILE *audf;
 static unsigned watch_lo = 1, watch_hi = 0; static uint8_t watched[RAM / 256];
 static int watch_pcs; static unsigned seen_n, seen[8192];   /* watchpc: (block << 20 | pc) seen */
@@ -107,6 +126,7 @@ static void blit(uint16_t size) {
     blits++;
     if (con1 & 1) { blit_line++; goto done; }      /* line mode: not done */
     int h = size >> 6 ? size >> 6 : 1024, w = size & 63 ? size & 63 : 64;
+    blit_words += (long)h * w;
     int use = con0 >> 8 & 15, ash = con0 >> 12, bsh = con1 >> 12, mt = con0 & 0xFF, desc = con1 & 2;
     uint16_t fwm = cust[0x44 / 2], lwm = cust[0x46 / 2];
     uint32_t pa = ptr(0x50), pb = ptr(0x4C), pc = ptr(0x48), pd = ptr(0x54);
@@ -288,6 +308,33 @@ void instr_hook(unsigned int pc) {
     pc &= 0xFFFFFF;
     if (pc < RAM) cover[pc >> 3] |= 1 << (pc & 7);
     if (pc == until_pc) { until_hit = 1; m68k_end_timeslice(); }
+    if (pc == set_d1_pc) m68k_set_reg(M68K_REG_D1, set_d1_val);
+    if (pc == pass_pc && pass_every < 0) pass_every = -pass_every;
+    if (pc == pass_pc && pass_left > 0) {
+        pass_count++;
+        if (--pass_hold <= 0) {
+            joy = rnd() & 31; if ((joy & 3) == 3) joy &= ~2; if ((joy & 12) == 12) joy &= ~4;
+            pass_hold = 4 + rnd() % 17;
+        }
+        /* the game's own reading of it (ReadJoystick, kept at $63DB0 by the vertical blank), now:
+           the pass's logic sees it whatever the vertical blank's phase */
+        unsigned j = m68k_read_memory_16(0xDFF00C) & 0x303, d2 = (j >> 1) & 0x101;
+        j ^= d2; j = (j & 3) | (j >> 6); if (joy & 16) j |= 0x80;
+        m68k_write_memory_16(0x63DB0, j);
+        if (--pass_left == 0 && !(pass_every > 0 && pass_count % pass_every == 0)) pass_done = 1;
+    }
+    if (pc == pass_snap_pc && pass_every > 0 && pass_count && pass_count % pass_every == 0) {
+        char fn[480]; snprintf(fn, sizeof fn, "%s_%04ld", pass_prefix, pass_count / pass_every); snapshot(fn);
+        pass_every = -pass_every;                            /* (once a pass) */
+        if (pass_left == 0) pass_done = 1;
+    }
+
+    if (pc == trace_pc && logf) {
+        unsigned a6 = m68k_get_reg(NULL, M68K_REG_A6);
+        fprintf(logf, "frame %lu line %lu: pc $%X d0 $%X d1 $%X a0 $%X a6+4: $%04X $%04X\n", frame, line_no, pc,
+                m68k_get_reg(NULL, M68K_REG_D0), m68k_get_reg(NULL, M68K_REG_D1), m68k_get_reg(NULL, M68K_REG_A0),
+                m68k_read_memory_16(a6 + 4), m68k_read_memory_16(a6 + 6));
+    }
     if (pc == TRACKREAD) {
         int ok = track_read();
         unsigned sp = m68k_get_reg(NULL, M68K_REG_SP);
@@ -345,6 +392,11 @@ static void run_frame(void) {
 
 static uint32_t rng = 1;
 static unsigned rnd(void) { rng = rng * 1103515245 + 12345; return rng >> 16; }
+static void snapshot(const char *prefix) {
+    char fn[500]; snprintf(fn, sizeof fn, "%s.mem", prefix); FILE *o = fopen(fn, "wb"); fwrite(ram, 1, RAM, o); fclose(o);
+    snprintf(fn, sizeof fn, "%s.regs", prefix); o = fopen(fn, "wb");
+    for (int i = 0; i < 0x100; i++) { uint16_t v = cust[i]; fputc(v >> 8, o); fputc(v & 0xFF, o); } fclose(o);
+}
 
 int main(int argc, char **argv) {
     if (argc < 4) { fprintf(stderr, "usage: nzsemu MAIN.bin TRACKDIR SCRIPT\n"); return 2; }
@@ -375,11 +427,7 @@ int main(int argc, char **argv) {
             unsigned a = strtoul(a1, 0, 0), v = strtoul(a2, 0, 0);
             if (a3[0] == 'b') m68k_write_memory_8(a, v); else if (a3[0] == 'l') m68k_write_memory_32(a, v); else m68k_write_memory_16(a, v);
         }
-        else if (!strcmp(cmd, "snap")) {
-            char fn[300]; snprintf(fn, sizeof fn, "%s.mem", a1); FILE *o = fopen(fn, "wb"); fwrite(ram, 1, RAM, o); fclose(o);
-            snprintf(fn, sizeof fn, "%s.regs", a1); o = fopen(fn, "wb");
-            for (int i = 0; i < 0x100; i++) { uint16_t v = cust[i]; fputc(v >> 8, o); fputc(v & 0xFF, o); } fclose(o);
-        }
+        else if (!strcmp(cmd, "snap")) snapshot(a1);
         else if (!strcmp(cmd, "load")) {
             FILE *i = fopen(a1, "rb"); if (!i) { perror(a1); return 1; }
             unsigned a = strtoul(a2, 0, 0); fread(ram + a, 1, RAM - a, i); fclose(i);
@@ -401,6 +449,18 @@ int main(int argc, char **argv) {
             if (reps > 1) { while (line_no < 312) run_line(); line_no = 0; frame++; }
           }
         }
+        else if (!strcmp(cmd, "trace")) { trace_pc = strtoul(a1, 0, 0); }
+        else if (!strcmp(cmd, "setd1")) { set_d1_pc = strtoul(a1, 0, 0); set_d1_val = strtoul(a2, 0, 0); }
+        else if (!strcmp(cmd, "passes")) {
+            char b[6][400] = {{0}};
+            sscanf(ln, "%*s %399s %399s %399s %399s %399s %399s", b[0], b[1], b[2], b[3], b[4], b[5]);
+            pass_left = strtol(b[0], 0, 0); rng = strtoul(b[1], 0, 0); pass_pc = strtoul(b[2], 0, 0);
+            pass_every = strtol(b[3], 0, 0); snprintf(pass_prefix, sizeof pass_prefix, "%s", b[4]);
+            pass_snap_pc = b[5][0] ? strtoul(b[5], 0, 0) : pass_pc;
+            pass_count = 0; pass_hold = 0; pass_done = 0;
+            for (long n = 0; n < 500000 && !pass_done; n++) run_frame();
+            pass_pc = 0xFFFFFFFF; joy = 0;
+        }
         else if (!strcmp(cmd, "watchpc")) { watch_pcs = 1; watch_lo = strtoul(a1, 0, 0); watch_hi = strtoul(a2, 0, 0); seen_n = 0; }
         else if (!strcmp(cmd, "watch")) { watch_pcs = 0; watch_lo = strtoul(a1, 0, 0); watch_hi = strtoul(a2, 0, 0); memset(watched, 0, sizeof watched); }
         else if (!strcmp(cmd, "log")) { logf = fopen(a1, "a"); setvbuf(logf, 0, _IOLBF, 0); }
@@ -413,7 +473,7 @@ int main(int argc, char **argv) {
         else fprintf(stderr, "unknown command: %s\n", cmd);
     }
     unsigned ncov = 0; for (unsigned i = 0; i < sizeof cover; i++) ncov += __builtin_popcount(cover[i]);
-    printf("frames %lu, instructions at %u addresses, blits %d (%d line mode), pc $%X sr $%04X\n", frame, ncov, blits, blit_line,
+    printf("frames %lu, instructions at %u addresses, blits %d (%d line mode, %ld words), pc $%X sr $%04X\n", frame, ncov, blits, blit_line, blit_words,
            m68k_get_reg(NULL, M68K_REG_PC), m68k_get_reg(NULL, M68K_REG_SR));
     return 0;
 }

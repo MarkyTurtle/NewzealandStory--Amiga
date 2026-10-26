@@ -1429,8 +1429,9 @@ l_04C54:
         clr.w   $6a(a6)                         ; 04C72
         rts                                     ; 04C76
 sub_04C78:
-        movea.l a0,a1                           ; 04C78
-        adda.l  #$70000,a0                      ; 04C7A
+        jmp     EnhFill                         ; 04C78  enhanced: the scroller's display (ScrFill)
+        nop
+l_04C80:
         adda.l  #$78000,a1                      ; 04C80
         subq.w  #$1,d1                          ; 04C86
 l_04C88:
@@ -8319,8 +8320,8 @@ sub_0B55C:
         addi.w  #$8,d0                          ; 0B572
         andi.w  #$f,d0                          ; 0B576
         move.w  d0,$3a(a6)                      ; 0B57A
-        move.w  $30(a6),d0                      ; 0B57E
-        andi.w  #$fff0,d0                       ; 0B582
+        jmp     EnhScroll                       ; 0B57E  enhanced: the scroller (scroller.s)
+        nop                                     ;        (the original's full redraw follows, unused)
         asl.w   #$2,d0                          ; 0B586
         neg.w   d0                              ; 0B588
         add.w   $c(a6),d0                       ; 0B58A
@@ -8610,9 +8611,8 @@ l_0B8A4:
         bclr    #$0,$2(a6)                      ; 0B8AA
         beq.w   l_0B0E4                         ; 0B8B0
 sub_0B8B4:
-        move.l  a1,-(a7)                        ; 0B8B4
-        adda.w  d5,a1                           ; 0B8B6
-        adda.l  d4,a1                           ; 0B8B8
+        jmp     EnhBob                          ; 0B8B4  enhanced: the scroller's display (ScrBob)
+l_0B8BA:
         move.l  a1,d1                           ; 0B8BA
         add.l   d2,d1                           ; 0B8BC
         move.w  #$8400,$96(a2)                  ; 0B8BE
@@ -8622,6 +8622,7 @@ sub_0B8B4:
         move.w  d3,$66(a2)                      ; 0B8D0
         andi.w  #$f000,d7                       ; 0B8D4
         move.w  d7,$42(a2)                      ; 0B8D8
+BobMinterm_:
         ori.w   #$fca,d7                        ; 0B8DC
         move.w  d7,$40(a2)                      ; 0B8E0
         move.l  a1,$50(a2)                      ; 0B8E4
@@ -8823,8 +8824,9 @@ l_0BB6E:
         dbra    d0,l_0BB6E                      ; 0BB70
         rts                                     ; 0BB74
 sub_0BB76:
-        movem.l d0-d1/a0-a2,-(a7)               ; 0BB76
-        lea.l   dat_0C18A(pc),a0                ; 0BB7A
+        jmp     EnhClear                        ; 0BB76  enhanced: leave the scroller's display
+        nop
+l_0BB7E:
         bsr.w   SetPalette                      ; 0BB7E
         bsr.w   sub_0BC80                       ; 0BB82
         moveq   #$0,d1                          ; 0BB86
@@ -8932,14 +8934,16 @@ l_0BCB6:
         rol.w   #$4,d0                          ; 0BCC0
         or.w    d1,d0                           ; 0BCC2
         move.w  d0,$3c(a6)                      ; 0BCC4
-        st.b    (mem_63DDA).l                   ; 0BCC8
+        jmp     EnhFlip                         ; 0BCC8  enhanced: + the scroller's copper list
         rts                                     ; 0BCCE
 sub_0BCD0:
-        tst.b   (mem_63DDA).l                   ; 0BCD0
+        jmp     EnhWaitFlip                     ; 0BCD0  enhanced: + the frame pacing
         bne.b   sub_0BCD0                       ; 0BCD6
         rts                                     ; 0BCD8
 sub_0BCDA:
-        move.l  #$70000,$20(a6)                 ; 0BCDA
+        jmp     EnhDisplay                      ; 0BCDA  enhanced: leave the scroller's display
+        nop
+l_0BCE2:
         move.l  #dat_0C29A,(mem_63DDC).l        ; 0BCE2
         clr.b   (mem_63DDA).l                   ; 0BCEC
         lea.l   (dat_0C29A).l,a0                ; 0BCF2
@@ -9018,7 +9022,7 @@ Level3_VBL:
         clr.b   (CIAB_TODMID).l                 ; 0BDF0
         clr.b   (CIAB_TODLO).l                  ; 0BDF6
         bset    #$7,(CIAB_CRB).l                ; 0BDFC
-        add.l   d1,(dat_0DD66).l                ; 0BE04
+        jsr     EnhVBL                          ; 0BE04  enhanced: + the frame count
         addq.l  #$1,(dat_0DD66).l               ; 0BE0A
         tst.w   $24(a6)                         ; 0BE10
         beq.b   l_0BE1A                         ; 0BE14
@@ -9034,7 +9038,7 @@ l_0BE1A:
         move.b  dat_0BE76(pc,d0.w),d1           ; 0BE3A
         asl.w   #$8,d1                          ; 0BE3E
         move.b  #$89,d1                         ; 0BE40
-        move.w  d1,(CUSTOM+DIWSTRT).l           ; 0BE44
+        jsr     EnhDIW                          ; 0BE44  enhanced: + the copper lists' ring wraps
         move.b  dat_0BE77(pc,d0.w),d1           ; 0BE4A
         asl.w   #$8,d1                          ; 0BE4E
         move.b  #$b9,d1                         ; 0BE50
@@ -9066,7 +9070,7 @@ l_0BEA6:
         beq.b   l_0BEE0                         ; 0BEAA
         tst.b   (mem_63DDA).l                   ; 0BEAC
         beq.b   l_0BEE0                         ; 0BEB2
-        movea.l (mem_63DDC).l,a0                ; 0BEB4
+        jsr     EnhL6                           ; 0BEB4  enhanced: + the scroller's copper list
         movea.l #CopperList,a1                  ; 0BEBA
         move.l  (a0)+,(a1)+                     ; 0BEC0
         move.l  (a0)+,(a1)+                     ; 0BEC2
@@ -9600,8 +9604,9 @@ dat_0C73A:
 dat_0C73B:
 	dc.b	$FF,$00,$00,$00,$00,$00,$00,$00,$00
 sub_0C744:
-        movem.l d0-d3/d7/a0-a3,-(a7)            ; 0C744
-        move.w  $6(a6),d1                       ; 0C748
+        jmp     EnhPrintCol                     ; 0C744  enhanced: the scroller's display (ScrPrintCol)
+        nop
+l_0C74C:
         asl.w   #$2,d1                          ; 0C74C
         lea.l   (mem_63E94).l,a0                ; 0C74E
         movea.l (a0,d1.w),a1                    ; 0C754
@@ -9691,8 +9696,9 @@ l_0C842:
         bne.w   sub_0C84C                       ; 0C846
         rts                                     ; 0C84A
 sub_0C84C:
-        movem.l d0-d4/d7/a0-a3,-(a7)            ; 0C84C
-        andi.w  #$ff,d0                         ; 0C850
+        jmp     EnhPrintPix                     ; 0C84C  enhanced: the scroller's display (ScrPrintPix)
+        nop
+l_0C854:
         move.w  $6(a6),d1                       ; 0C854
         asl.w   #$2,d1                          ; 0C858
         lea.l   (mem_63E94).l,a0                ; 0C85A

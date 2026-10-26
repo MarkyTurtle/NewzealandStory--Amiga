@@ -274,3 +274,52 @@ PutLine:        move.l  a0,d0
 LineBuf:        dcb.b   40,0
 TitleText:      dcb.b   2*(4+40+1)+1,$ff
 	even
+
+;==============================================================================
+; The scroller (scroller.s) and the game's routines it takes over: each of these is entered
+; from a jmp put over the start of the game's routine (nzs_game.s, "enhanced:"), and in the
+; game's own display does what the instructions the jmp replaced did, then goes on there.
+;==============================================================================
+BobMinterm      equ     BobMinterm_+2           ; sub_0B8B4's ori.w #$fca,d7: BlitBob changes it
+
+	include	"scroller.s"
+
+; sub_0B8B4: a BOB's 4 blits
+EnhBob:         tst.b   ScrActive
+        bne.w   ScrBob
+        move.l  a1,-(a7)
+        adda.w  d5,a1
+        adda.l  d4,a1
+        jmp     l_0B8BA
+
+; sub_0C744: a character at a character column
+EnhPrintCol:    tst.b   ScrActive
+        bne.w   ScrPrintCol
+        movem.l d0-d3/d7/a0-a3,-(a7)
+        move.w  $6(a6),d1
+        jmp     l_0C74C
+
+; sub_0C84C: a character at a pixel
+EnhPrintPix:    tst.b   ScrActive
+        bne.w   ScrPrintPix
+        movem.l d0-d4/d7/a0-a3,-(a7)
+        andi.w  #$ff,d0
+        jmp     l_0C854
+
+; sub_04C78: a rectangle filled in both screens
+EnhFill:        tst.b   ScrActive
+        bne.w   ScrFill
+        movea.l a0,a1
+        adda.l  #$70000,a0
+        jmp     l_04C80
+
+; sub_0BB76: the screens cleared (black, then cleared at the next frame)
+EnhClear:       bsr.w   ScrLeave
+        movem.l d0-d1/a0-a2,-(a7)
+        lea     dat_0C18A,a0
+        jmp     l_0BB7E
+
+; sub_0BCDA: the game's display set up
+EnhDisplay:     bsr.w   ScrLeave
+        move.l  #$70000,$20(a6)
+        jmp     l_0BCE2
