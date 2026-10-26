@@ -3,6 +3,21 @@
 Each item gets its own branch, is tested in WinUAE (A500 512K, and 1 MB / A1200 configurations),
 then merged.
 
+## Done
+
+* **The machine's memory** (branch `feature/memory-config`): the bootblock's machine
+  description (chip / slow / fast RAM, PAL / NTSC, CPU), an extension module in memory the
+  original never uses, a track cache in the largest memory beyond 512K of chip RAM, and the
+  memory shown on the title screen (`README.md`, *The machine's memory*).
+
+## Memory: next uses
+
+* Chip RAM above 512K: the pre-masked interleaved BOBs (below), all of them at start-up.
+* Slow / fast RAM on an A500: move the program (code and tables) there, as the Ghosts'n Goblins
+  enhanced game does (`EnhRelocate`: assembled at two addresses to make a relocation table), and
+  use the chip RAM it frees for masks; the cache takes the rest of the region.
+* The extension module grows past its 11 KB: give it a home in the memory the program frees.
+
 ## Interleaved display
 
 Change the screen from separate bitplanes (`$2000` apart) to an interleaved screen: each line

@@ -12,11 +12,17 @@
 ; there; TrackRead reads them with the 4489_byteloader from the drive booted from (BootDrive,
 ; set by the bootblock), into the MFM buffer at $68000 where the original read its tracks.
 ;
+; With the extension module (ext.s), each track is first looked for in the track cache
+; (ExtCacheGet), and a track read from the disk is offered to it (ExtCachePut): on a machine
+; with memory beyond the original's 512K of chip RAM a level read once is not read again.
+;
 ; As the original: d0 = 0 when it worked, negative when not (also stored at $420.w and $3186,
 ; as the original's error exit did), the motor left off. The byteloader leaves the interrupts,
 ; CIA timers, blitter and copper alone, so the game's music and display go on while it loads;
 ; every register is kept (the interrupt handlers load a6 themselves anyway).
 ;==============================================================================
+
+	include	"ext.i"
 
 TRACK_BYTES     equ     11*512
 TL_MFM_BUF      equ     $68000                  ; where the original's TrackRead read (to $6B32C)
@@ -50,16 +56,23 @@ TrackRead:
         move.b  (a1,d0.w),d3                    ; its place among the stored tracks
         cmp.b   #$ff,d3
         beq.b   .error                          ; a track the disk does not have
+        movem.l d0-d1/a0,-(a7)
+        jsr     EXT_BASE+EXT_CACHEGET           ; d7 = 0: it was in the cache (now at a0)
+        tst.l   d7
+        beq.b   .got
         mulu    #TRACK_BYTES,d3
         add.l   #TRACKS_OFFSET,d3
-        movem.l d0-d1/a0,-(a7)
         move.l  d3,d0
         move.l  #TRACK_BYTES,d1
         move.l  BootDrive(pc),d2
         lea     TL_MFM_BUF,a1
         bsr.w   TL_ByteLoader
         move.l  d0,d7
-        movem.l (a7)+,d0-d1/a0
+        bne.b   .got                            ; (not read)
+        movem.l (a7),d0-d1/a0
+        jsr     EXT_BASE+EXT_CACHEPUT           ; kept, if the cache has room
+        moveq   #0,d7
+.got:           movem.l (a7)+,d0-d1/a0
         tst.l   d7
         bne.b   .error
         addq.w  #1,d0

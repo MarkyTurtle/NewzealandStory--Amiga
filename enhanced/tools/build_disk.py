@@ -20,6 +20,8 @@ The files (ids: FID_ in boot_4489.s):
      original/disk/files/tracks/, found by original/tools/disk/game_tracks.py), one after
      another; the game's TrackRead (diskload.s) finds each through TrackMap
      (enhanced/build/trackmap.i, written here)
+  3  the extension module (src/ext.s, assembled at EXT_BASE): the rest of the boot, the
+     machine's memory on the title, the track cache; loaded by the bootblock
 """
 import hashlib, os, struct, subprocess, sys
 
@@ -35,7 +37,8 @@ import make_game, pack, game_tracks                      # noqa: E402
 TRACK = 11 * 512
 DISK = 80 * 2 * TRACK
 FT_OFFSET, FILES_START, FT_ENTRIES = 0x400, 0x600, 16
-DISK_ORDER = [1, 2, 0]          # file ids in disk order: the game last, so the others' offsets (which the
+EXT_BASE = 0x65400              # (src/ext.i)
+DISK_ORDER = [1, 2, 3, 0]          # file ids in disk order: the game last, so the others' offsets (which the
                                 # game holds: TRACKS_OFFSET) do not depend on its packed size
 MAIN_SHA1 = '74d3f9924c56270c5fc2a4231be035c9157851a1'     # the original program (original/bin/main.bin)
 
@@ -74,12 +77,26 @@ def write_trackmap(tracks, tracks_offset):
     for r in range(0, 160, 16):
         L.append('\tdc.b\t' + ','.join(f'${v:02X}' for v in m[r:r + 16]) + f'\t; tracks {r}-{r + 15}')
     open(os.path.join(OUT, 'trackmap.i'), 'w').write('\n'.join(L) + '\n')
+    open(os.path.join(OUT, 'tracks.i'), 'w').write(
+        '; written by enhanced/tools/build_disk.py\n'
+        f'TRACKS_STORED\tequ\t{len(tracks)}\t\t; the original disk\'s tracks on this disk (the game reads them)\n')
 
 
 def game(tracks_offset, tracks):
     write_trackmap(tracks, tracks_offset)
     src, _ = make_game.make()
     return assemble(src, os.path.join(OUT, 'nzs_game.bin'), OUT, [OUT, os.path.join(ENH, 'src'), ORIG])
+
+
+def original_but(main, orig):
+    """the game is the original program but for diskload.s ($A04-$D87) and make_game.PATCHES"""
+    skip = [(0xA04, 0xD88)] + [(a, a + n) for a, n, *_ in make_game.PATCHES]
+    m, o = bytearray(main), bytearray(orig)
+    if len(m) != len(o):
+        return False
+    for a, b in skip:
+        m[run_addr(a):run_addr(b)] = o[run_addr(a):run_addr(b)]
+    return m == o
 
 
 def original_track(t):
@@ -98,8 +115,11 @@ def build():
     for i, n in ((1, len(screen)), (2, len(track_data))):
         offsets[i] = off
         off = (off + n + 1) & ~1
-    offsets[0] = off
     main = game(offsets[2], tracks)
+    ext = assemble(os.path.join(ENH, 'src', 'ext.s'), os.path.join(OUT, 'ext.bin'), OUT, [OUT, os.path.join(ENH, 'src')])
+    offsets[3] = off
+    off = (off + len(ext) + 1) & ~1
+    offsets[0] = off
     packed = pack.pack(main)
     if pack.unpack(packed) != main:
         raise SystemExit('build_disk.py: packing the game went wrong')
@@ -108,7 +128,8 @@ def build():
         raise SystemExit(f'the files do not fit on the disk: {end} bytes')
     files = {0: ('FID_MAIN', packed, 0x400, 'the game, packed (enhanced/build/nzs_game.s)'),
              1: ('FID_SCREEN', screen, 0x70000, 'the loading screen (byte-run, decoded to $78000)'),
-             2: ('FID_TRACKS', track_data, None, f'{len(tracks)} tracks of the original disk the game reads')}
+             2: ('FID_TRACKS', track_data, None, f'{len(tracks)} tracks of the original disk the game reads'),
+             3: ('FID_EXT', ext, EXT_BASE, 'the extension module (src/ext.s)')}
     boot = assemble(os.path.join(ENH, 'src', 'boot_4489.s'), os.path.join(OUT, 'boot.bin'), os.path.join(ENH, 'src'))
     if len(boot) != 1024:
         raise SystemExit(f'bootblock is {len(boot)} bytes')
@@ -131,9 +152,12 @@ def build():
         print(f'  {i:>2}  {name:<11} ${o:06X} {n:>8}  {o // TRACK:>3}-{(o + n - 1) // TRACK:<4} {ld:>10}  {desc}')
     print(f'  free from ${end:06X}: {DISK - end} bytes')
     print(f'  the original tracks the game reads: {", ".join(game_tracks.runs(tracks))}')
-    print(f'  game: {len(main)} bytes unpacked; the original program but for diskload.s at $A04-$D87: '
-          + ('yes' if main[:run_addr(0xA04)] == orig_main[:run_addr(0xA04)]
-             and main[run_addr(0xD88):] == orig_main[run_addr(0xD88):] else 'NO'))
+    same = original_but(main, orig_main)
+    print(f'  game: {len(main)} bytes unpacked; the original program but for diskload.s at $A04-$D87 and '
+          f'{len(make_game.PATCHES)} patch(es) ({", ".join(f"${a:X}" for a, *_ in make_game.PATCHES)}): '
+          + ('yes' if same else 'NO'))
+    if not same:
+        raise SystemExit('build_disk.py: the game differs from the original elsewhere')
     return ADF
 
 

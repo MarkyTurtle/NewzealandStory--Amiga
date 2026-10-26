@@ -4,9 +4,12 @@
 
 The original source with its disk reading replaced: the lines from TrackWrite ($A04) up to
 TrackRead's end ($D88, the label dat_00D88) become `include "diskload.s"` (enhanced/src), which
-fills exactly the same space, so every other byte of the program stays where it was. Assembled
-with the include paths enhanced/build (trackmap.i), enhanced/src and original (nzs_hw.i,
-nzs_equates.i) by build_disk.py.
+fills exactly the same space, so every other byte of the program stays where it was. Then the
+PATCHES: single instructions replaced by ones of the same size (each checked against the
+original line, with its address), which call the extension module (src/ext.s, ext.i).
+Assembled with the include paths enhanced/build (trackmap.i), enhanced/src and original
+(nzs_hw.i, nzs_equates.i) by build_disk.py, which checks that the program is the original's but
+for diskload.s and these patches.
 """
 import os, re, sys
 
@@ -15,6 +18,12 @@ ENH = os.path.normpath(os.path.join(HERE, '..'))
 ORIG = os.path.normpath(os.path.join(ENH, '..', 'original'))
 OUT = os.path.join(ENH, 'build')
 START, END = 'TrackWrite:', 'dat_00D88:'          # the replaced lines: [START, END)
+
+# (address, size, the original instruction, its replacement, why)
+PATCHES = [
+    (0x404C, 6, 'jsr     (sub_0C6A8).l', 'jsr     (EXT_BASE+EXT_TITLETEXT).l',
+     "the title's text, then the machine's memory lines (ExtTitleText)"),
+]
 
 
 def make(path=os.path.join(OUT, 'nzs_game.s')):
@@ -31,6 +40,12 @@ def make(path=os.path.join(OUT, 'nzs_game.s')):
         '; TrackWrite / TrackRead ($A04-$D87): replaced by the AmigaDOS disk\'s (enhanced/src/diskload.s)',
         ';' + '-' * 79,
         '\tinclude\t"diskload.s"'] + src[e:]
+    for addr, size, old, new, why in PATCHES:
+        tag = f'; {addr:05X}'
+        k = next((i for i, l in enumerate(out) if l.rstrip().endswith(tag)), None)
+        if k is None or old not in out[k]:
+            raise SystemExit(f'make_game.py: the patch at ${addr:X} does not find "{old}"')
+        out[k] = f'        {new:<40}; {addr:05X}  enhanced: {why}'
     os.makedirs(os.path.dirname(path), exist_ok=True)
     open(path, 'w').write('\n'.join(out))
     return path, e - s
