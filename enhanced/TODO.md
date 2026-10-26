@@ -6,55 +6,26 @@ then merged.
 ## Done
 
 * **The machine's memory** (branch `feature/memory-config`): the bootblock's machine
-  description (chip / slow / fast RAM, PAL / NTSC, CPU), an extension module in memory the
-  original never uses, a track cache in the largest memory beyond 512K of chip RAM, and the
-  memory shown on the title screen (`README.md`, *The machine's memory*).
+  description (chip / slow / fast RAM, PAL / NTSC, CPU), a track cache in the largest memory
+  beyond 512K of chip RAM, and the memory shown on the title screen (`README.md`, *The
+  machine's memory*).
+* **The source edited by hand** (branch `feature/scroller`): `src/nzs_game.s`, the debug monitor
+  removed from block 1 and the enhanced code in its place; block 2 checked label by label.
+* **The scroller** (branch `feature/scroller`): an interleaved display, a corkscrew with a
+  vertical ring, double-buffered with a pristine buffer (`README.md`, *The scroller*): a tile is
+  one blit, a new column or row is drawn once and copied, BOBs are restored from the pristine
+  buffer. Identical to the original's display in the emulator; to try in WinUAE.
 
-## Memory: next uses
+## Next
 
-* Chip RAM above 512K: the pre-masked interleaved BOBs (below), all of them at start-up.
-* Slow / fast RAM on an A500: move the program (code and tables) there, as the Ghosts'n Goblins
-  enhanced game does (`EnhRelocate`: assembled at two addresses to make a relocation table), and
-  use the chip RAM it frees for masks; the cache takes the rest of the region.
-* The extension module grows past its 11 KB: give it a home in the memory the program frees.
+### BOBs in one blit
 
-## Interleaved display
-
-Change the screen from separate bitplanes (`$2000` apart) to an interleaved screen: each line
-holds its 4 planes one after another, 160 bytes a line, with `BPL1MOD`/`BPL2MOD` = 120.
-
-**Why:** fewer blits for the background, which the game redraws completely on every pass
-(`sub_0B55C`; see the answer on scrolling below).
-* The original copies each 16×16 tile as 4 blits of 1 word × 16 lines, one per plane. That is
-  about 20 × 12 × 4 ≈ 960 blits per pass, each with its own register setup and wait.
-* On an interleaved screen, one blit of 1 word × 64 lines (A modulo 0, D modulo 38) copies the
-  whole tile: about 240 blits, a quarter of the setups and waits.
-* **The tiles need no conversion.** They are already stored line-interleaved (each tile is 128
-  bytes; each line holds the 4 planes' words in turn, which is why the original blits them with
-  A modulo 6). Only the blit parameters change.
-* Possible further step: draw only the parts that change, keeping a clean background buffer
-  that scrolls by its bitplane pointers. This is the Ghosts'n Goblins "pristine buffer" idea,
-  adapted to an 8-way scroll. It is a larger change and worth weighing once the interleaved
-  version works.
-
-**Assets and code to convert:**
-* BOBs. The stored frames are interleaved by word column (mask, p0-p3 per 16 pixels).
-  `DeinterleaveBobs` (`$4E92`) turns them into mask + 4 planes at start-up. For an interleaved
-  screen they need to be line-interleaved (p0-p3 per line), and the mask has to be repeated for
-  each plane line (mask × 4): the A channel's modulo can't re-read one mask line 4 times. This
-  can be done offline (a tool converts the bank and the per-level banks), or by a replacement for
-  `DeinterleaveBobs` at load time. Then `BlitBob` (`$B6C4`) does one blit per BOB instead of one
-  per plane. Clipping and the hot spots (`BobDirectory`) are unaffected.
-* Every routine that assumes the `$2000` plane stride. There are 14 references in
-  `nzs_main.s` (`#l_02000` / `$2000(aN)`): the tile and BOB blits, the panel/score/text drawing
-  (`$C7C6`, `$C8D4`, `$C92E` …), the screen clears and copies (`$B0BC`, `$B8F8` …), and the
-  pictures and screens drawn at `$44CE`, `$4948`, `$49F4`, `$4DD4`, `$5068`, `$BFA8`.
-* The copper lists: the bitplane pointers (`$C27A`/`$C29A`/`CopperList`) become 40 bytes apart,
-  and the modulos are set.
-* Full-screen pictures (the intro, title and end pictures, and the font if it is drawn per
-  plane): converted offline, or line-interleaved as they are loaded.
-* Fine horizontal scroll (BPLCON1), the panel split at line `$DC` and the window-squeeze effect
-  are unaffected.
+The BOBs are still drawn as the original draws them - one cookie-cut blit per plane, 4 a BOB,
+from frames stored as a mask and 4 planes - and are now most of the blitting left. On the
+interleaved buffers a BOB can be one blit if its frame is line-interleaved with its mask
+repeated for each plane's row (the A channel's modulo can't read one mask row 4 times).
+`DeinterleaveBobs` (`$4E92`) could make that form instead of mask + planes, at start-up and for
+each level's extra BOBs.
 
 **Sprite masks: memory.** The main bank is 94,208 bytes (`$22AA6-$39AA6`), of which the masks
 are about 18.8 KB. Repeating each mask 4 times costs about 56 KB more, plus the same for the
@@ -63,9 +34,10 @@ per-level banks. Options:
 2. *512K:* as in the enhanced Ghosts'n Goblins, a cache of masked frames. Pre-build the
    frames that are always on screen (the kiwi, his arrows, common enemies) and build the rest
    on demand into a fixed-size cache, evicting the least recently used.
-3. Fallback: draw a BOB whose interleaved mask isn't built with the old one-blit-per-plane
-   method (the masks as they are, using per-plane blits on the interleaved screen with D
-   modulo 158). Slower, but needs no extra memory.
+3. Fallback: a BOB whose masked form isn't built is drawn as now (4 blits, the mask as it is).
+
+On 512K the scroller's buffers fill `$65400-$7FFFF`; what is left is about 1 KB, so the masks
+need either the program moved to slow / fast RAM (below) or chip RAM above 512K.
 
 The blitter only reaches chip RAM. On an A500 with a trapdoor 512K (slow RAM at `$C00000`), a
 cache there would need a CPU copy into chip RAM before blitting. That RAM is better used as a
@@ -73,6 +45,20 @@ file cache (below), freeing chip RAM for the masks.
 
 One program for every machine: work out the memory at boot (the bootblock) and scale back at
 run time, as decided for Ghosts'n Goblins.
+
+### Memory: next uses
+
+* Chip RAM above 512K: the pre-masked interleaved BOBs (above), all of them at start-up.
+* Slow / fast RAM on an A500: move the program (code and tables) there, as the Ghosts'n Goblins
+  enhanced game does (`EnhRelocate`: assembled at two addresses to make a relocation table), and
+  use the chip RAM it frees for masks; the cache takes the rest of the region.
+
+### Frame rate
+
+The original's logic runs once a pass of its game loop, which takes 2 frames, so the enhanced
+game holds the passes to 2 frames (`SCR_MIN_FRAMES`). 50 frames a second would need the logic
+run twice in a pass's worth of time - every movement and timer in the game is per pass - or
+frames drawn in between: a project of its own.
 
 ## Loading
 
@@ -82,8 +68,10 @@ its map and sometimes 2 tracks of extra BOBs.
   use 52-56), but the game reads them again at every new level. It skips the load only when the
   same level restarts (`LoadedLevel`). Skip it when the world's data is already in memory, and
   load just the 1-track map.
-* On 1 MB machines, cache files in the extra RAM (the whole level data is 528 KB on disk, packed
-  and unpacked in place), so later loads become a copy.
+* The track cache (done) keeps whole tracks. A file cache - the level data split into files
+  (world data, maps, extra BOBs, the ending; about 470-490 KB against the tracks' 528 KB) read
+  by file id - would hold all of it in 512K of slow RAM, keep whole levels, and suit new data
+  (pre-masked BOBs, edited levels).
 
 ---
 

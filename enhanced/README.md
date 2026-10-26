@@ -1,14 +1,17 @@
 # The New Zealand Story on an ordinary AmigaDOS disk
 
-> The original game, rebuilt from the disassembly in [`../original`](../original) onto a
-> standard AmigaDOS-format disk that boots with the
+> The game rebuilt from the disassembly in [`../original`](../original) onto a standard
+> AmigaDOS-format disk that boots with the
 > [4489_byteloader](https://github.com/MarkyTurtle/4489_byteloader) instead of Rob Northen's
-> Copylock-protected boot chain. Nothing on it is copy-protected: any emulator or real drive
+> Copylock-protected boot chain, with improvements: a scroller that updates only what moves (a
+> corkscrew with a vertical ring, double-buffered, with a pristine buffer), and the machine's
+> memory used for a track cache. Nothing on it is copy-protected: any emulator or real drive
 > reads it, and it can be written to a real floppy with any ADF tool.
 
 ```
 python3 enhanced/tools/build_disk.py      # -> enhanced/build/nzs.adf
 python3 enhanced/tools/test_boot.py       # boots it in an emulator and checks it
+python3 enhanced/tools/test_scroller.py   # the display against the original's, frame by frame
 ```
 
 (`../BUILDING.md` has what to install.) Tested in FS-UAE as an A500 with FS-UAE's built-in AROS
@@ -18,14 +21,18 @@ real Kickstart 1.3 and later.
 
 | File | What it is |
 |---|---|
+| `src/nzs_game.s` | **The game's source**, edited by hand since October 2026 (made from `original/nzs_main.s` by `tools/fork_source.py`): the original's, with the debug monitor removed and jumps put over the start of the routines the enhanced code takes over (each marked `enhanced:`) |
+| `src/enhanced.s` | The enhanced game's own code, in block 1 where the monitor was: the track cache, the title's memory lines, the entries for the routines taken over |
+| `src/scroller.s` | The scroller (below) |
+| `src/diskload.s` | The game's disk reading on this disk, in place of the original's `TrackWrite` / `TrackRead`, with the track cache in front of the disk |
 | `src/boot_4489.s` | The bootblock: surveys the machine's memory, finds the boot drive, loads the extension module and goes on in it |
-| `src/ext.s`, `src/ext.i` | The extension module: the rest of the boot (loading screen, program), the track cache, the memory lines on the title; in memory the original never uses (`$65400`) |
-| `src/diskload.s` | The game's disk reading on this disk: replaces the original's `TrackWrite` / `TrackRead` in their own space, with the track cache in front of the disk |
+| `src/ext.s`, `src/ext.i` | The extension module: the part of the boot the bootblock has no room for (loading screen, program, the machine description handed to the game) |
 | `src/byteloader.i` | The 4489_byteloader, as published (used by both) |
-| `tools/build_disk.py` | Builds the disk |
-| `tools/make_game.py` | Makes the game's source (`build/nzs_game.s`) from `original/nzs_main.s` with `diskload.s` in place of the track routines and its `PATCHES` (same-size instructions that call the extension module) |
-| `tools/test_boot.py` | Boots the disk in an emulator (Unicorn) from Kickstart's call to the game's entry on four memory configurations, then calls the game's new `TrackRead` as the game does, twice (the second time from the cache when it fits) |
-| `tools/floppy.py` | The floppy drive the test uses (from the Ghosts'n Goblins project) |
+| `tools/build_disk.py` | Builds the disk; checks that every label of block 2 on is where the original has it |
+| `tools/test_boot.py` | Boots the disk in an emulator (Unicorn) from Kickstart's call to the game's start, on four memory configurations, then calls the game's `TrackRead` as the game does, twice (the second time from the cache when it fits) |
+| `tools/test_scroller.py` | Runs the original and the enhanced game side by side in `original/tools/nzsemu` and compares their displays pixel for pixel (`original/tools/display.py`) |
+| `tools/fork_source.py` | How `src/nzs_game.s` was made (kept for the record) |
+| `tools/floppy.py` | The floppy drive the boot test uses (from the Ghosts'n Goblins project) |
 
 ## The disk
 
@@ -38,7 +45,7 @@ the `$4489` sync, no filesystem (Workbench shows it as NDOS):
 | `$00400` | 144 | the file table: `'NZSF'`, version.w (1), count.w, 8 bytes zero, then for each file id its disk offset and length (longs) |
 | `$00600` | 16,896 | file 1: the loading screen (the original file) |
 | `$04800` | 540,672 | file 2: the 96 tracks of the original disk the game reads while it runs (level data), one after another |
-| `$88800` | about 1.4 KB | file 3: the extension module (`src/ext.s`), loaded to `$65400` |
+| `$88800` | 432 | file 3: the extension module (`src/ext.s`), loaded to `$65400` |
 | after it | about 275 KB | file 0: the game, packed in the original's format |
 | | about 64 KB | free |
 
@@ -72,9 +79,9 @@ The module (`ExtBoot`) then:
    apart), `BPLCON0 $4200`, `DDFSTRT $38`, `DDFSTOP $D0`, `DIWSTRT $3C81`, `DIWSTOP $04C1`, the
    same copper list; the file loaded to `$70000` and decoded there, its colours doubled;
 7. loads the game to `$400` and unpacks it in place, as the track 90 loader's `Unpack`; writes
-   the boot drive into the game's `BootDrive` (`$A08`);
-8. sets up the track cache and the title's memory lines (below);
-9. enters the game at `$400` with `d0 = a0 = $400`, as the track 90 loader did.
+   the machine description and the boot drive into the game's header (`EnhHeader`, `$426`);
+8. enters the game at `$400` with `d0 = a0 = $400`, as the track 90 loader did. The game's
+   start-up (`Init`) sets up the track cache and the title's memory lines (`EnhInit`).
 
 A load that fails is tried again; after 8 failures COLOR00 turns red while it goes on trying.
 Memory while loading: the game `$400-$52FA6`, the loader and its buffers `$60000-$63FFF`
@@ -92,7 +99,7 @@ has (the bootblock's description) and uses the largest of:
 | slow RAM (`$C00000-$DBFFFF`) | an A500 with a trapdoor expansion |
 | fast RAM (any other region) | a CPU card, a side expansion, an A1200 with fast RAM |
 
-for the **track cache** (`ExtCacheGet` / `ExtCachePut`, called by `TrackRead`): every track the
+for the **track cache** (`CacheGet` / `CachePut` in `enhanced.s`, called by `TrackRead`): every track the
 game reads from the disk is kept there while there is room, first come, first served, and read
 from memory the next time. A level played again (after a game over, the next game) reads nothing
 from the disk; the levels that share their graphics tracks (4-7, 12-14) read only their map. 512K
@@ -106,44 +113,132 @@ CHIP 512K  SLOW 512K  FAST 0K
 TRACK CACHE 93 OF 96 IN SLOW RAM
 ```
 
-(`NO TRACK CACHE` on a plain 512K machine). The game's title text call (`$404C`) is patched to
-`ExtTitleText`, which prints the original's text and then these two lines with the game's own
+(`NO TRACK CACHE` on a plain 512K machine). The game's title text call (`$404C`) calls
+`EnhTitleText`, which prints the original's text and then these two lines with the game's own
 printer (`sub_0C6A8`).
 
-**Where the module lives.** `$65400-$67FFF`, 11 KB between the game's object slots (which end
-at `$65396`) and its disk / deinterleave buffer at `$68000`: `original/nzs_main.s` has no
-absolute reference into it, and in `original/tools/nzsemu` nothing writes to it over 12 games
-and all 20 levels started in turn. The module is about 1.4 KB so far; `ext.s` fails to assemble
-if it outgrows the space.
+**Where the module lives.** `$65400`, in 11 KB between the game's object slots (which end at
+`$65396`) and its disk / deinterleave buffer at `$68000`, which the original never uses:
+`original/nzs_main.s` has no absolute reference into it, and in `original/tools/nzsemu` nothing
+writes to it over 12 games and all 20 levels started in turn. It is needed only while booting;
+the scroller's buffers start there.
 
 **One program for every machine**, as decided for Ghosts'n Goblins: the same disk on every
 Amiga, scaling up at run time. Next uses of the memory (`TODO.md`): pre-masked interleaved BOBs
 in chip RAM above 512K, and moving the program itself into slow / fast RAM to free chip RAM on
 an expanded A500.
 
+## The scroller (`src/scroller.s`)
+
+The original redraws the whole playfield on every pass of its game loop (`sub_0B55C`): 20 x 11
+tiles of 16 x 16, each copied as 4 blits of one word, about 880 blits, then the BOBs over them.
+The enhanced game keeps three buffers that change only where the view moves:
+
+* the **pristine buffer**: the background alone. When the view moves into a new tile column or
+  row, only that column or row is drawn, from the level's map;
+* **display buffers A and B**, shown alternately: each brings itself to the view by copying the
+  new column (one blit) or row (one blit) from the pristine buffer, has the BOBs drawn over it,
+  and before it is drawn again has each BOB's rectangle copied back from the pristine buffer
+  (one blit each). No background is ever saved.
+
+**The layout.** Every buffer is line-interleaved - each line holds the 4 planes' rows of 21
+words, 168 bytes - so a tile is one blit (the original's tiles are already stored a line of 4
+planes at a time) and so is a rectangle's restore.
+* **Horizontally, a corkscrew:** world tile column C is at byte 2C of a plane's row. The 20 words
+  fetched start at the camera's tile column, so scrolling right by a tile moves the bitplane
+  pointers on one word, and the column that leaves on the left is the memory of the one that
+  comes in on the right (the 21st word). Nothing is ever moved.
+* **Vertically, a ring** of 192 lines (12 tile rows; the playfield shows 176): world line Y is
+  ring line Y mod 192. Where the ring wraps inside the playfield, the copper list waits for that
+  line and reloads the pointers with ring line 0.
+* The same mapping in every buffer, so a rectangle copies to the same offset in another one.
+* **The panel** (lives, score, oxygen: the 24 lines under the playfield) is a buffer of its own
+  for each display buffer; at the original's split line (`$EC`, where it sets BPLCON1 to `$77`)
+  the copper list points the bitplanes at it.
+
+| Memory (during play) | | |
+|---|---:|---|
+| `$65400`, `$66300` | 2 x 3,840 | the panels of A and B (24 lines of 160 bytes) |
+| `$67200` | 32,384 | the pristine buffer (192 x 168 + 128: 64 columns of corkscrew) |
+| `$6F080`, `$76F00` | 2 x 32,384 | display buffers A and B |
+| `$7ED80`, `$7EF00` | 2 x 384 | their copper lists |
+| `$7F080`, `$7F600` | 2 x 1,400 | their lists of rectangles to restore (175 each) |
+
+That is the original's two screens (`$70000-$7FFFF`) and the buffers it uses only while loading
+or between games (its disk and BOB-deinterleave buffer at `$68000`, the boot's module at
+`$65400`), so it fits in 512K of chip RAM.
+
+**When it is on.** From the first pass of the game loop (`ScrEnter`: the panels taken from the
+game's screens, everything drawn in full) until the game clears its screens or sets up another
+display (`sub_0BB76`, `sub_0BCDA`) or reads the disk (`ScrLeave`). The title, the story pages,
+the high scores and the level start's READY screen are the game's own display, unchanged.
+
+**The game's drawing, translated.** The jumps put over the start of the routines it takes over
+(`nzs_game.s`, marked `enhanced:`) go to `enhanced.s`, which in the game's own display does
+what they did and in the scroller's goes to `scroller.s`:
+
+| Game routine | In the scroller's display |
+|---|---|
+| `sub_0B55C` (the playfield, after the fine scroll) | `EnhScroll`: the buffers brought to the camera, the back buffer's rectangles restored |
+| `sub_0B8B4` (a BOB's 4 blits) | `ScrBob`: the same cookie-cut blits, into the back buffer's ring (split where it wraps) or panel; the rectangle marked for restoring |
+| `sub_0C744`, `sub_0C84C` (the text printers), `sub_04C78` (a panel fill) | `ScrPrintCol`, `ScrPrintPix`, `ScrFill`: the same pixels, written into both display buffers as the game writes both screens |
+| `sub_0BC8C`'s end (a frame ready) | `EnhFlip`: the copper list for the buffer just drawn |
+| the level 6 interrupt (the frame taken) | `EnhL6`: that copper list from the next frame |
+| the level 3 interrupt | `EnhVBL`: the frame count, the game list's colours and sprites copied into the scroller's lists; `EnhDIW`: the ring's wrap follows the screen shake's display window |
+| `sub_0BCD0` (wait for the frame to be taken) | `EnhWaitFlip`: the same, and at least 2 frames a pass |
+
+The screen addresses the game computes stay as they were for the two screens (`$20(a6)`:
+`$70000` or `$78000`), with the line table (`mem_63E94`) made virtual - 64 bytes a line - so
+that a screen address always tells its line and byte (with the original's 40 bytes a line, a
+BOB's word just left of a line is the previous line's last), and the translation does the
+rest.
+
+**Speed.** The original's game loop takes 2 frames a pass (25 frames a second) and its logic
+runs once a pass, so the enhanced game holds each pass to at least 2 frames (`SCR_MIN_FRAMES`):
+the game runs at the original's speed, without its slow-downs. In the emulator a pass now makes
+about 50 blits instead of about 1,000 (the BOBs, drawn as the original draws them, are most of
+what is left).
+
+**Tested** (`tools/test_scroller.py`): the original and the enhanced game run side by side in
+`original/tools/nzsemu`, each level from the start-up with the same random joystick (changed
+between passes, and given to the game at once, so the two stay in step pass for pass), and
+what each shows is rendered from its own memory and copper list (`original/tools/display.py`)
+and compared every 5 passes: identical in every frame compared, on all 20 levels with four
+different joysticks. The comparison stops where the two games' state goes apart, which it
+eventually does because the CIA timer that counts the level's time ticks at a different phase
+from the passes. Not yet tried: WinUAE and real hardware.
+
 ## The game's disk reading (`src/diskload.s`)
 
 The original game reads its level data from the disk at the start of each level (5 tracks of
 packed data and 1 more, 2 more on some levels) and at the end of the game, by **track number**
-through the jump table's `TrackRead` (`../original/disk/DISKMAP.md`). `diskload.s` replaces
-`TrackWrite` (`$A04`) and `TrackRead` (`$C24`) in exactly their space (`$A04-$D87`), so every
-other byte of the program is the original's (`build_disk.py` checks it):
+through the jump table's `TrackRead` (`../original/disk/DISKMAP.md`). `diskload.s` takes the
+place of the original's `TrackWrite` and `TrackRead`:
 
 * `TrackRead`: same arguments and results (d0 = track, d1 = count, a0 = where; d0 = 0 if read,
   -1 if not). Each original track is looked up in `TrackMap` - its place among the tracks
   stored on this disk (`build/trackmap.i`, written by `build_disk.py`) - then taken from the
-  track cache if it is there (`ExtCacheGet`), otherwise read with the byteloader from the drive
+  track cache if it is there (`CacheGet`), otherwise read with the byteloader from the drive
   booted from, into the MFM buffer at `$68000` where the original read its tracks, and offered
-  to the cache (`ExtCachePut`). All registers are kept; the byteloader leaves the interrupts,
+  to the cache (`CachePut`). All registers are kept; the byteloader leaves the interrupts,
   CIA timers, blitter and copper alone, so the music and display go on while a level loads;
 * `TrackWrite` returns -1: only the built-in debug monitor's `W` command used it.
 
-The game itself is unchanged otherwise: `make_game.py` takes `original/nzs_main.s` as it is,
-replacing only the lines its `PATCHES` list (each checked against the original instruction,
-and the same size), so every annotation made to the original carries over. `build_disk.py`
-stops if the program differs from the original anywhere else.
+## The source
+
+`src/nzs_game.s` was made from `original/nzs_main.s` (`tools/fork_source.py`) and is edited by
+hand. The original's block 1 held a debug monitor (commands, a 68000 disassembler, its own
+screen output: about 9 KB) that the game never uses - the start-up and every exception go
+straight to `GameStart` - so it was removed, and the enhanced code (`enhanced.s`, which includes
+`scroller.s`) is in its place, block 1 padded to keep its size (about 5 KB is still free).
+
+Block 2 (`$3214` on) keeps every byte where the original has it: much of it is reached at fixed
+addresses (self-modifying code writes into instructions by address, tables are built beyond the
+program's end), so the routines the enhanced code takes over get a `jmp` over their first
+instructions and nothing moves. `build_disk.py` compares the address of every label of block 2
+on with the original's (1,495 of them) and stops if one has moved.
 
 ## Next
 
-This is the first step: the original game, unprotected. Improvements go here, each on its own
-branch, built and tested in WinUAE before merging. The list is in [`TODO.md`](TODO.md).
+Improvements go here, each on its own branch, built and tested in WinUAE before merging. The
+list is in [`TODO.md`](TODO.md).
