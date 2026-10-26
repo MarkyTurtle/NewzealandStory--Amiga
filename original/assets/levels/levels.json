@@ -2,6 +2,7 @@
  "levels": [
   {
    "level": 0,
+   "name": "1_1",
    "tracks": [
     2,
     6
@@ -103,6 +104,7 @@
   },
   {
    "level": 1,
+   "name": "1_2",
    "tracks": [
     6,
     10
@@ -129,13 +131,19 @@
      "type": 3,
      "x": 372,
      "y": 320,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 500,
      "y": 304,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 32,
@@ -259,6 +267,7 @@
   },
   {
    "level": 2,
+   "name": "1_3",
    "tracks": [
     11,
     15
@@ -285,85 +294,127 @@
      "type": 3,
      "x": 132,
      "y": 384,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 84,
      "y": 304,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 164,
      "y": 304,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 52,
      "y": 176,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 372,
      "y": 176,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 372,
      "y": 416,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 548,
      "y": 240,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 436,
      "y": 320,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 436,
      "y": 64,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 788,
      "y": 256,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 644,
      "y": 400,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 724,
      "y": 400,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 820,
      "y": 400,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 900,
      "y": 400,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 32,
@@ -410,6 +461,7 @@
   },
   {
    "level": 3,
+   "name": "1_4",
    "tracks": [
     14,
     18
@@ -436,67 +488,100 @@
      "type": 3,
      "x": 324,
      "y": 96,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 260,
      "y": 992,
-     "path": 2
+     "generator": 2,
+     "makes": [
+      23
+     ]
     },
     {
      "type": 3,
      "x": 164,
      "y": 912,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 436,
      "y": 832,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 884,
      "y": 800,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 836,
      "y": 592,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 692,
      "y": 48,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 804,
      "y": 304,
-     "path": 5
+     "generator": 5,
+     "makes": [
+      13
+     ]
     },
     {
      "type": 3,
      "x": 916,
      "y": 80,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 276,
      "y": 864,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 932,
      "y": 944,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 11,
@@ -630,10 +715,19 @@
     "CC4",
     "0E0",
     "EEE"
-   ]
+   ],
+   "boss_bank": {
+    "tracks": [
+     158,
+     159
+    ],
+    "frames": 26,
+    "bytes": 6634
+   }
   },
   {
    "level": 4,
+   "name": "2_1",
    "tracks": [
     22,
     26
@@ -660,67 +754,101 @@
      "type": 3,
      "x": 196,
      "y": 864,
-     "path": 7
+     "generator": 7,
+     "makes": [
+      6
+     ]
     },
     {
      "type": 3,
      "x": 724,
      "y": 864,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 884,
      "y": 272,
-     "path": 8
+     "generator": 8,
+     "makes": [
+      20
+     ]
     },
     {
      "type": 3,
      "x": 964,
      "y": 208,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 804,
      "y": 256,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 740,
      "y": 128,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 452,
      "y": 240,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 340,
      "y": 112,
-     "path": 2
+     "generator": 2,
+     "makes": [
+      23
+     ]
     },
     {
      "type": 3,
      "x": 260,
      "y": 224,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 116,
      "y": 144,
-     "path": 7
+     "generator": 7,
+     "makes": [
+      6
+     ]
     },
     {
      "type": 3,
      "x": 276,
      "y": 704,
-     "path": 10
+     "generator": 10,
+     "makes": [
+      8,
+      23
+     ]
     },
     {
      "type": 30,
@@ -895,6 +1023,7 @@
   },
   {
    "level": 5,
+   "name": "2_2",
    "tracks": [
     22,
     26
@@ -921,109 +1050,164 @@
      "type": 3,
      "x": 52,
      "y": 944,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 292,
      "y": 864,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 404,
      "y": 864,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 468,
      "y": 624,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 36,
      "y": 736,
-     "path": 7
+     "generator": 7,
+     "makes": [
+      6
+     ]
     },
     {
      "type": 3,
      "x": 36,
      "y": 640,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 84,
      "y": 560,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 532,
      "y": 992,
-     "path": 7
+     "generator": 7,
+     "makes": [
+      6
+     ]
     },
     {
      "type": 3,
      "x": 628,
      "y": 928,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 708,
      "y": 928,
-     "path": 13
+     "generator": 13,
+     "makes": [
+      21
+     ]
     },
     {
      "type": 3,
      "x": 932,
      "y": 944,
-     "path": 5
+     "generator": 5,
+     "makes": [
+      13
+     ]
     },
     {
      "type": 3,
      "x": 820,
      "y": 784,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 932,
      "y": 624,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 820,
      "y": 240,
-     "path": 7
+     "generator": 7,
+     "makes": [
+      6
+     ]
     },
     {
      "type": 3,
      "x": 580,
      "y": 192,
-     "path": 10
+     "generator": 10,
+     "makes": [
+      8,
+      23
+     ]
     },
     {
      "type": 3,
      "x": 388,
      "y": 192,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 68,
      "y": 192,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 116,
      "y": 112,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 24,
@@ -1179,6 +1363,7 @@
   },
   {
    "level": 6,
+   "name": "2_3",
    "tracks": [
     22,
     26
@@ -1205,133 +1390,201 @@
      "type": 3,
      "x": 36,
      "y": 816,
-     "path": 7
+     "generator": 7,
+     "makes": [
+      6
+     ]
     },
     {
      "type": 3,
      "x": 212,
      "y": 800,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 356,
      "y": 880,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 420,
      "y": 960,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 580,
      "y": 944,
-     "path": 5
+     "generator": 5,
+     "makes": [
+      13
+     ]
     },
     {
      "type": 3,
      "x": 580,
      "y": 832,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 516,
      "y": 752,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 228,
      "y": 640,
-     "path": 10
+     "generator": 10,
+     "makes": [
+      8,
+      23
+     ]
     },
     {
      "type": 3,
      "x": 36,
      "y": 576,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 116,
      "y": 448,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 212,
      "y": 288,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 68,
      "y": 80,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 308,
      "y": 80,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 548,
      "y": 64,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 340,
      "y": 288,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 596,
      "y": 384,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 820,
      "y": 288,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 852,
      "y": 144,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 660,
      "y": 448,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 820,
      "y": 288,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 324,
      "y": 624,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 932,
      "y": 624,
-     "path": 5
+     "generator": 5,
+     "makes": [
+      13
+     ]
     },
     {
      "type": 5,
@@ -1417,6 +1670,7 @@
   },
   {
    "level": 7,
+   "name": "2_4",
    "tracks": [
     22,
     26
@@ -1443,103 +1697,161 @@
      "type": 3,
      "x": 84,
      "y": 80,
-     "path": 6
+     "generator": 6,
+     "makes": [
+      4,
+      5,
+      6
+     ]
     },
     {
      "type": 3,
      "x": 484,
      "y": 80,
-     "path": 6
+     "generator": 6,
+     "makes": [
+      4,
+      5,
+      6
+     ]
     },
     {
      "type": 3,
      "x": 948,
      "y": 160,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 884,
      "y": 224,
-     "path": 7
+     "generator": 7,
+     "makes": [
+      6
+     ]
     },
     {
      "type": 3,
      "x": 772,
      "y": 240,
-     "path": 6
+     "generator": 6,
+     "makes": [
+      4,
+      5,
+      6
+     ]
     },
     {
      "type": 3,
      "x": 820,
      "y": 176,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 532,
      "y": 208,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 500,
      "y": 240,
-     "path": 2
+     "generator": 2,
+     "makes": [
+      23
+     ]
     },
     {
      "type": 3,
      "x": 932,
      "y": 672,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 708,
      "y": 1008,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 180,
      "y": 960,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 308,
      "y": 960,
-     "path": 2
+     "generator": 2,
+     "makes": [
+      23
+     ]
     },
     {
      "type": 3,
      "x": 36,
      "y": 992,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 100,
      "y": 864,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 276,
      "y": 784,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 212,
      "y": 656,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 132,
      "y": 608,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 24,
@@ -1652,10 +1964,19 @@
     "CC4",
     "0E0",
     "EEE"
-   ]
+   ],
+   "boss_bank": {
+    "tracks": [
+     156,
+     157
+    ],
+    "frames": 9,
+    "bytes": 8986
+   }
   },
   {
    "level": 8,
+   "name": "3_1",
    "tracks": [
     29,
     33
@@ -1682,121 +2003,181 @@
      "type": 3,
      "x": 164,
      "y": 64,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 196,
      "y": 288,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 164,
      "y": 432,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 212,
      "y": 704,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 3,
      "x": 164,
      "y": 880,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 372,
      "y": 912,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 404,
      "y": 704,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 564,
      "y": 704,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 404,
      "y": 560,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 452,
      "y": 400,
-     "path": 16
+     "generator": 16,
+     "makes": [
+      16
+     ]
     },
     {
      "type": 3,
      "x": 484,
      "y": 400,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 3,
      "x": 692,
      "y": 336,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 500,
      "y": 128,
-     "path": 12
+     "generator": 12,
+     "makes": [
+      18
+     ]
     },
     {
      "type": 3,
      "x": 964,
      "y": 208,
-     "path": 2
+     "generator": 2,
+     "makes": [
+      23
+     ]
     },
     {
      "type": 3,
      "x": 820,
      "y": 400,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 3,
      "x": 932,
      "y": 528,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 836,
      "y": 704,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 868,
      "y": 928,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 980,
      "y": 928,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 724,
      "y": 976,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 9,
@@ -1901,6 +2282,7 @@
   },
   {
    "level": 9,
+   "name": "3_2",
    "tracks": [
     34,
     38
@@ -1927,133 +2309,202 @@
      "type": 3,
      "x": 340,
      "y": 464,
-     "path": 2
+     "generator": 2,
+     "makes": [
+      23
+     ]
     },
     {
      "type": 3,
      "x": 452,
      "y": 464,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 308,
      "y": 256,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 388,
      "y": 64,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 3,
      "x": 212,
      "y": 576,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 180,
      "y": 752,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 116,
      "y": 640,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 84,
      "y": 352,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 3,
      "x": 36,
      "y": 688,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 52,
      "y": 976,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 180,
      "y": 832,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 3,
      "x": 292,
      "y": 720,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 356,
      "y": 880,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 452,
      "y": 880,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 596,
      "y": 960,
-     "path": 8
+     "generator": 8,
+     "makes": [
+      20
+     ]
     },
     {
      "type": 3,
      "x": 692,
      "y": 848,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 3,
      "x": 500,
      "y": 656,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 692,
      "y": 592,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 628,
      "y": 400,
-     "path": 6
+     "generator": 6,
+     "makes": [
+      4,
+      5,
+      6
+     ]
     },
     {
      "type": 3,
      "x": 836,
      "y": 320,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 916,
      "y": 320,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 532,
      "y": 96,
-     "path": 5
+     "generator": 5,
+     "makes": [
+      13
+     ]
     },
     {
      "type": 24,
@@ -2101,6 +2552,7 @@
   },
   {
    "level": 10,
+   "name": "3_3",
    "tracks": [
     39,
     43
@@ -2127,103 +2579,155 @@
      "type": 3,
      "x": 116,
      "y": 192,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 436,
      "y": 112,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 628,
      "y": 64,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 436,
      "y": 112,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 724,
      "y": 128,
-     "path": 12
+     "generator": 12,
+     "makes": [
+      18
+     ]
     },
     {
      "type": 3,
      "x": 948,
      "y": 80,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 948,
      "y": 288,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 868,
      "y": 720,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 772,
      "y": 432,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 3,
      "x": 916,
      "y": 608,
-     "path": 7
+     "generator": 7,
+     "makes": [
+      6
+     ]
     },
     {
      "type": 3,
      "x": 676,
      "y": 688,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 100,
      "y": 480,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 100,
      "y": 928,
-     "path": 2
+     "generator": 2,
+     "makes": [
+      23
+     ]
     },
     {
      "type": 3,
      "x": 644,
      "y": 832,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 852,
      "y": 928,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 980,
      "y": 944,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 196,
      "y": 944,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 25,
@@ -2317,6 +2821,7 @@
   },
   {
    "level": 11,
+   "name": "3_4",
    "tracks": [
     44,
     48
@@ -2343,109 +2848,165 @@
      "type": 3,
      "x": 100,
      "y": 880,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 372,
      "y": 976,
-     "path": 13
+     "generator": 13,
+     "makes": [
+      21
+     ]
     },
     {
      "type": 3,
      "x": 324,
      "y": 816,
-     "path": 8
+     "generator": 8,
+     "makes": [
+      20
+     ]
     },
     {
      "type": 3,
      "x": 404,
      "y": 672,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 100,
      "y": 592,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 244,
      "y": 512,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 68,
      "y": 288,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 372,
      "y": 224,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 500,
      "y": 288,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 596,
      "y": 448,
-     "path": 10
+     "generator": 10,
+     "makes": [
+      8,
+      23
+     ]
     },
     {
      "type": 3,
      "x": 596,
      "y": 800,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 724,
      "y": 816,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 660,
      "y": 672,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 852,
      "y": 704,
-     "path": 16
+     "generator": 16,
+     "makes": [
+      16
+     ]
     },
     {
      "type": 3,
      "x": 884,
      "y": 832,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 884,
      "y": 544,
-     "path": 2
+     "generator": 2,
+     "makes": [
+      23
+     ]
     },
     {
      "type": 3,
      "x": 852,
      "y": 368,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 660,
      "y": 192,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 32,
@@ -2541,10 +3102,19 @@
     "CC4",
     "0E0",
     "EEE"
-   ]
+   ],
+   "boss_bank": {
+    "tracks": [
+     154,
+     155
+    ],
+    "frames": 21,
+    "bytes": 9094
+   }
   },
   {
    "level": 12,
+   "name": "4_1",
    "tracks": [
     52,
     56
@@ -2571,85 +3141,127 @@
      "type": 3,
      "x": 84,
      "y": 144,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 212,
      "y": 144,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 404,
      "y": 144,
-     "path": 5
+     "generator": 5,
+     "makes": [
+      13
+     ]
     },
     {
      "type": 3,
      "x": 580,
      "y": 112,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 820,
      "y": 112,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 980,
      "y": 160,
-     "path": 5
+     "generator": 5,
+     "makes": [
+      13
+     ]
     },
     {
      "type": 3,
      "x": 916,
      "y": 288,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 820,
      "y": 624,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 644,
      "y": 608,
-     "path": 16
+     "generator": 16,
+     "makes": [
+      16
+     ]
     },
     {
      "type": 3,
      "x": 580,
      "y": 800,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 644,
      "y": 864,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 804,
      "y": 800,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 884,
      "y": 816,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 516,
      "y": 544,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 32,
@@ -2772,6 +3384,7 @@
   },
   {
    "level": 13,
+   "name": "4_2",
    "tracks": [
     52,
     56
@@ -2798,43 +3411,65 @@
      "type": 3,
      "x": 212,
      "y": 96,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 340,
      "y": 208,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 628,
      "y": 144,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 836,
      "y": 144,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 900,
      "y": 160,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 852,
      "y": 608,
-     "path": 5
+     "generator": 5,
+     "makes": [
+      13
+     ]
     },
     {
      "type": 3,
      "x": 724,
      "y": 656,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 26,
@@ -2900,6 +3535,7 @@
   },
   {
    "level": 14,
+   "name": "4_3",
    "tracks": [
     52,
     56
@@ -2926,85 +3562,128 @@
      "type": 3,
      "x": 596,
      "y": 864,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 852,
      "y": 864,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 948,
      "y": 736,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 836,
      "y": 560,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 788,
      "y": 624,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 548,
      "y": 656,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 628,
      "y": 208,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 868,
      "y": 176,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 948,
      "y": 96,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 340,
      "y": 112,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 84,
      "y": 96,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 3,
      "x": 404,
      "y": 576,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 3,
      "x": 372,
      "y": 816,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 132,
      "y": 880,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 32,
@@ -3069,6 +3748,7 @@
   },
   {
    "level": 15,
+   "name": "4_4",
    "tracks": [
     59,
     63
@@ -3095,73 +3775,109 @@
      "type": 3,
      "x": 356,
      "y": 704,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 436,
      "y": 704,
-     "path": 5
+     "generator": 5,
+     "makes": [
+      13
+     ]
     },
     {
      "type": 3,
      "x": 212,
      "y": 656,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 68,
      "y": 672,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 356,
      "y": 480,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 132,
      "y": 416,
-     "path": 16
+     "generator": 16,
+     "makes": [
+      16
+     ]
     },
     {
      "type": 3,
      "x": 68,
      "y": 352,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 52,
      "y": 208,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 116,
      "y": 176,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 36,
      "y": 80,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 436,
      "y": 320,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 420,
      "y": 192,
-     "path": 12
+     "generator": 12,
+     "makes": [
+      18
+     ]
     },
     {
      "type": 6,
@@ -3227,6 +3943,7 @@
   },
   {
    "level": 16,
+   "name": "5_1",
    "tracks": [
     70,
     74
@@ -3253,127 +3970,197 @@
      "type": 3,
      "x": 100,
      "y": 912,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 52,
      "y": 800,
-     "path": 10
+     "generator": 10,
+     "makes": [
+      8,
+      23
+     ]
     },
     {
      "type": 3,
      "x": 436,
      "y": 816,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 180,
      "y": 544,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 340,
      "y": 464,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 212,
      "y": 64,
-     "path": 10
+     "generator": 10,
+     "makes": [
+      8,
+      23
+     ]
     },
     {
      "type": 3,
      "x": 116,
      "y": 176,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 404,
      "y": 176,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 644,
      "y": 208,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 644,
      "y": 128,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 868,
      "y": 128,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 740,
      "y": 272,
-     "path": 7
+     "generator": 7,
+     "makes": [
+      6
+     ]
     },
     {
      "type": 3,
      "x": 868,
      "y": 448,
-     "path": 12
+     "generator": 12,
+     "makes": [
+      18
+     ]
     },
     {
      "type": 3,
      "x": 628,
      "y": 496,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 3,
      "x": 708,
      "y": 592,
-     "path": 8
+     "generator": 8,
+     "makes": [
+      20
+     ]
     },
     {
      "type": 3,
      "x": 868,
      "y": 624,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 916,
      "y": 720,
-     "path": 5
+     "generator": 5,
+     "makes": [
+      13
+     ]
     },
     {
      "type": 3,
      "x": 772,
      "y": 768,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 612,
      "y": 864,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 692,
      "y": 944,
-     "path": 8
+     "generator": 8,
+     "makes": [
+      20
+     ]
     },
     {
      "type": 3,
      "x": 900,
      "y": 944,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 14,
@@ -3414,6 +4201,7 @@
   },
   {
    "level": 17,
+   "name": "5_2",
    "tracks": [
     74,
     78
@@ -3440,43 +4228,66 @@
      "type": 3,
      "x": 820,
      "y": 48,
-     "path": 10
+     "generator": 10,
+     "makes": [
+      8,
+      23
+     ]
     },
     {
      "type": 3,
      "x": 740,
      "y": 464,
-     "path": 2
+     "generator": 2,
+     "makes": [
+      23
+     ]
     },
     {
      "type": 3,
      "x": 580,
      "y": 464,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 692,
      "y": 912,
-     "path": 10
+     "generator": 10,
+     "makes": [
+      8,
+      23
+     ]
     },
     {
      "type": 3,
      "x": 884,
      "y": 928,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 884,
      "y": 832,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 132,
      "y": 608,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 21,
@@ -3592,6 +4403,7 @@
   },
   {
    "level": 18,
+   "name": "5_3",
    "tracks": [
     81,
     85
@@ -3618,121 +4430,182 @@
      "type": 3,
      "x": 260,
      "y": 944,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 260,
      "y": 736,
-     "path": 5
+     "generator": 5,
+     "makes": [
+      13
+     ]
     },
     {
      "type": 3,
      "x": 260,
      "y": 544,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 3,
      "x": 260,
      "y": 320,
-     "path": 16
+     "generator": 16,
+     "makes": [
+      16
+     ]
     },
     {
      "type": 3,
      "x": 260,
      "y": 144,
-     "path": 8
+     "generator": 8,
+     "makes": [
+      20
+     ]
     },
     {
      "type": 3,
      "x": 84,
      "y": 768,
-     "path": 12
+     "generator": 12,
+     "makes": [
+      18
+     ]
     },
     {
      "type": 3,
      "x": 516,
      "y": 928,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 516,
      "y": 736,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 452,
      "y": 336,
-     "path": 8
+     "generator": 8,
+     "makes": [
+      20
+     ]
     },
     {
      "type": 3,
      "x": 564,
      "y": 528,
-     "path": 10
+     "generator": 10,
+     "makes": [
+      8,
+      23
+     ]
     },
     {
      "type": 3,
      "x": 516,
      "y": 304,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 516,
      "y": 128,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 772,
      "y": 112,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 772,
      "y": 320,
-     "path": 5
+     "generator": 5,
+     "makes": [
+      13
+     ]
     },
     {
      "type": 3,
      "x": 772,
      "y": 544,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 772,
      "y": 752,
-     "path": 11
+     "generator": 11,
+     "makes": [
+      19
+     ]
     },
     {
      "type": 3,
      "x": 772,
      "y": 928,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 948,
      "y": 928,
-     "path": 0
+     "generator": 0,
+     "makes": [
+      10
+     ]
     },
     {
      "type": 3,
      "x": 948,
      "y": 544,
-     "path": 8
+     "generator": 8,
+     "makes": [
+      20
+     ]
     },
     {
      "type": 3,
      "x": 948,
      "y": 320,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     }
    ],
    "attributes": 53122,
@@ -3758,6 +4631,7 @@
   },
   {
    "level": 19,
+   "name": "5_4",
    "tracks": [
     84,
     88
@@ -3784,103 +4658,159 @@
      "type": 3,
      "x": 228,
      "y": 880,
-     "path": 10
+     "generator": 10,
+     "makes": [
+      8,
+      23
+     ]
     },
     {
      "type": 3,
      "x": 852,
      "y": 992,
-     "path": 2
+     "generator": 2,
+     "makes": [
+      23
+     ]
     },
     {
      "type": 3,
      "x": 948,
      "y": 608,
-     "path": 10
+     "generator": 10,
+     "makes": [
+      8,
+      23
+     ]
     },
     {
      "type": 3,
      "x": 148,
      "y": 576,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 36,
      "y": 736,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 100,
      "y": 304,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 532,
      "y": 224,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 644,
      "y": 336,
-     "path": 4
+     "generator": 4,
+     "makes": [
+      22
+     ]
     },
     {
      "type": 3,
      "x": 804,
      "y": 480,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 916,
      "y": 224,
-     "path": 3
+     "generator": 3,
+     "makes": [
+      12
+     ]
     },
     {
      "type": 3,
      "x": 884,
      "y": 144,
-     "path": 1
+     "generator": 1,
+     "makes": [
+      17
+     ]
     },
     {
      "type": 3,
      "x": 788,
      "y": 224,
-     "path": 10
+     "generator": 10,
+     "makes": [
+      8,
+      23
+     ]
     },
     {
      "type": 3,
      "x": 708,
      "y": 128,
-     "path": 9
+     "generator": 9,
+     "makes": [
+      11
+     ]
     },
     {
      "type": 3,
      "x": 612,
      "y": 144,
-     "path": 16
+     "generator": 16,
+     "makes": [
+      16
+     ]
     },
     {
      "type": 3,
      "x": 516,
      "y": 224,
-     "path": 14
+     "generator": 14,
+     "makes": [
+      7,
+      14
+     ]
     },
     {
      "type": 3,
      "x": 340,
      "y": 176,
-     "path": 8
+     "generator": 8,
+     "makes": [
+      20
+     ]
     },
     {
      "type": 3,
      "x": 308,
      "y": 80,
-     "path": 15
+     "generator": 15,
+     "makes": [
+      15
+     ]
     },
     {
      "type": 14,
@@ -3907,7 +4837,15 @@
     "CC4",
     "0E0",
     "EEE"
-   ]
+   ],
+   "boss_bank": {
+    "tracks": [
+     152,
+     153
+    ],
+    "frames": 10,
+    "bytes": 8910
+   }
   }
  ],
  "types": [
@@ -4278,6 +5216,299 @@
    "speed": 0,
    "linked": 0,
    "first_frame": 109
+  }
+ ],
+ "generators": [
+  {
+   "generator": 0,
+   "program": [
+    "near 32,160:",
+    "open",
+    "type 10",
+    "close",
+    "again"
+   ],
+   "makes": [
+    10
+   ]
+  },
+  {
+   "generator": 1,
+   "program": [
+    "near 32,48:",
+    "open",
+    "type 17",
+    "close",
+    "again"
+   ],
+   "makes": [
+    17
+   ]
+  },
+  {
+   "generator": 2,
+   "program": [
+    "near 160,20:",
+    "open",
+    "type 23",
+    "close",
+    "wait 100",
+    "again"
+   ],
+   "makes": [
+    23
+   ]
+  },
+  {
+   "generator": 3,
+   "program": [
+    "near 50,100:",
+    "open",
+    "type 12",
+    "wait 15",
+    "type 12",
+    "wait 15",
+    "type 12",
+    "wait 15",
+    "type 12",
+    "wait 15",
+    "close",
+    "again"
+   ],
+   "makes": [
+    12
+   ]
+  },
+  {
+   "generator": 4,
+   "program": [
+    "near 100,100:",
+    "open",
+    "type 22",
+    "wait 10",
+    "type 22",
+    "wait 10",
+    "close",
+    "again"
+   ],
+   "makes": [
+    22
+   ]
+  },
+  {
+   "generator": 5,
+   "program": [
+    "near 100,100:",
+    "open",
+    "type 13",
+    "close",
+    "again"
+   ],
+   "makes": [
+    13
+   ]
+  },
+  {
+   "generator": 6,
+   "program": [
+    "near 100,100:",
+    "open",
+    "type 4",
+    "wait 25",
+    "type 4",
+    "wait 25",
+    "type 5",
+    "wait 25",
+    "type 6",
+    "close",
+    "again"
+   ],
+   "makes": [
+    4,
+    5,
+    6
+   ]
+  },
+  {
+   "generator": 7,
+   "program": [
+    "near 100,100:",
+    "open",
+    "type 6",
+    "wait 25",
+    "type 6",
+    "close",
+    "again"
+   ],
+   "makes": [
+    6
+   ]
+  },
+  {
+   "generator": 8,
+   "program": [
+    "near 16,32:",
+    "open",
+    "type 20",
+    "close",
+    "wait 200",
+    "again"
+   ],
+   "makes": [
+    20
+   ]
+  },
+  {
+   "generator": 9,
+   "program": [
+    "near 100,100:",
+    "open",
+    "type 11",
+    "wait 35",
+    "type 11",
+    "close",
+    "again"
+   ],
+   "makes": [
+    11
+   ]
+  },
+  {
+   "generator": 10,
+   "program": [
+    "near 80,100:",
+    "open",
+    "type 8",
+    "type 23",
+    "close",
+    "wait 200",
+    "again"
+   ],
+   "makes": [
+    8,
+    23
+   ]
+  },
+  {
+   "generator": 11,
+   "program": [
+    "near 180,50:",
+    "open",
+    "type 19",
+    "wait 25",
+    "type 19",
+    "close",
+    "wait 200",
+    "again"
+   ],
+   "makes": [
+    19
+   ]
+  },
+  {
+   "generator": 12,
+   "program": [
+    "near 80,150:",
+    "open",
+    "type 18",
+    "close",
+    "again"
+   ],
+   "makes": [
+    18
+   ]
+  },
+  {
+   "generator": 13,
+   "program": [
+    "near 80,150:",
+    "open",
+    "type 21",
+    "close",
+    "wait 200",
+    "again"
+   ],
+   "makes": [
+    21
+   ]
+  },
+  {
+   "generator": 14,
+   "program": [
+    "near 80,150:",
+    "open",
+    "type 14",
+    "wait 5",
+    "type 7",
+    "wait 5",
+    "type 14",
+    "wait 5",
+    "type 14",
+    "wait 5",
+    "close",
+    "wait 50",
+    "again"
+   ],
+   "makes": [
+    7,
+    14
+   ]
+  },
+  {
+   "generator": 15,
+   "program": [
+    "near 100,150:",
+    "open",
+    "type 15",
+    "close",
+    "wait 200",
+    "again"
+   ],
+   "makes": [
+    15
+   ]
+  },
+  {
+   "generator": 16,
+   "program": [
+    "near 100,150:",
+    "open",
+    "type 16",
+    "close",
+    "wait 200",
+    "again"
+   ],
+   "makes": [
+    16
+   ]
+  },
+  {
+   "generator": 17,
+   "program": [
+    "near 80,100:",
+    "open",
+    "type 8",
+    "close",
+    "wait 200",
+    "again"
+   ],
+   "makes": [
+    8
+   ]
+  },
+  {
+   "generator": 18,
+   "program": [
+    "near 160,20:",
+    "open",
+    "type 23",
+    "close",
+    "wait 100",
+    "again"
+   ],
+   "makes": [
+    23
+   ]
   }
  ]
 }

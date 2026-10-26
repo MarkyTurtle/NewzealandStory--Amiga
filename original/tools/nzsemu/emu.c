@@ -37,7 +37,8 @@
  *                         a snapshot PREFIX_nnnn every EVERY passes (0: none), at SNAPADDR (default
  *                         ADDR) in that pass; then the frame finished
  *   trace ADDR            log (to the log file) the frame, line, d0, d1, a0, the words at a6+4, a6+6, a5
- *                         and its object's type ($1C) and mirror flag ($10) each time the PC reaches ADDR
+ *                         and its object's type ($1C), mirror flag ($10) and script ($14), and the level
+ *                         ($641C0), each time the PC reaches ADDR
  *   watchpc LO HI         log (to the log file) each instruction's first write to each 256-byte block of
  *                         LO-HI
  *   watch LO HI           log (to the log file) the first write to each 256-byte block of LO-HI,
@@ -332,10 +333,12 @@ void instr_hook(unsigned int pc) {
     if (pc == trace_pc && logf) {
         unsigned a6 = m68k_get_reg(NULL, M68K_REG_A6);
         unsigned a5 = m68k_get_reg(NULL, M68K_REG_A5);
-        fprintf(logf, "frame %lu line %lu: pc $%X d0 $%X d1 $%X a0 $%X a6+4: $%04X $%04X a5 $%X type $%04X mirror $%02X\n",
+        fprintf(logf, "frame %lu line %lu: pc $%X d0 $%X d1 $%X a0 $%X a6+4: $%04X $%04X a5 $%X type $%04X mirror $%02X"
+                " script $%X level $%04X\n",
                 frame, line_no, pc, m68k_get_reg(NULL, M68K_REG_D0), m68k_get_reg(NULL, M68K_REG_D1),
                 m68k_get_reg(NULL, M68K_REG_A0), m68k_read_memory_16(a6 + 4), m68k_read_memory_16(a6 + 6), a5,
-                a5 < RAM - 0x40 ? m68k_read_memory_16(a5 + 0x1C) : 0, a5 < RAM - 0x40 ? m68k_read_memory_8(a5 + 0x10) : 0);
+                a5 < RAM - 0x40 ? m68k_read_memory_16(a5 + 0x1C) : 0, a5 < RAM - 0x40 ? m68k_read_memory_8(a5 + 0x10) : 0,
+                a5 < RAM - 0x40 ? m68k_read_memory_32(a5 + 0x14) : 0, m68k_read_memory_16(0x641C0));
     }
     if (pc == TRACKREAD) {
         int ok = track_read();

@@ -3,8 +3,9 @@
   python3 tools/levels/levels.py OUTDIR
 
 Writes OUTDIR/levelNN.png (the whole map, each object the level places drawn where it starts,
-with its type number), OUTDIR/levelNN_map.png (the map alone), OUTDIR/levels.json and
-OUTDIR/types.png (each object type's first frame).
+with its type number; a generator's with the types it lets out), OUTDIR/levelNN_map.png (the map
+alone), OUTDIR/bossNN.png (the boss's BOB frames, on the 4th level of a world), OUTDIR/levels.json
+and OUTDIR/types.png (each object type's first frame).
 
 The data (docs/LEVELS.md):
 
@@ -12,20 +13,29 @@ The data (docs/LEVELS.md):
     +0  long  the level's tile attributes: a word a tile (collision), $AAAA ends (sub_0C5C0 makes
               the collision map at $462A6 from it and the map)
     +4  long  the level's object list (sub_05AD4)
-    +8  long  (a word before the tile attributes)
+    +8  long  the level's name, shown as it starts: text ("1_1", '_' the font's dash), $FF ends
     +C  word  the first of the 5 tracks of its world data: packed as the main program; unpacked
               at $3CAA6: '01', 16 colours (half value), ...; the 16 x 16 tiles from +$80,
               128 bytes each (16 lines of the 4 planes' words in turn)
-    +E  word  the track of its map, at $44AA6: '01', width.w (columns), height.w (rows), ...;
+    +E  word  the track of its map, at $44AA6: '01', width.w (columns), height.w (rows) (the rest
+              of the header, 2 words at +$10, is not read by the game);
               from +$80, rows of 64 bytes (a byte a tile) - the top row last: row R (from the
               top) is at +$80 + (height - 1 - R) x 64
   The camera's limits (sub_0C5C0): x up to width x 16 - $130, y up to (height - 11) x 16; level
   15 ($8 = $F0) is 32 columns wide whatever its map says.
 
-  The object list: time.w (the level's time, at least $28: (a6)), a byte, the kiwi's start
-  (x, y in tiles), a byte; then objects: type.b (negative ends), x.b, y.b (tiles: placed at
-  x x 16 + 4, y x 16), then a byte: negative none; for type 3 a path (dat_05C0A); otherwise
+  The object list: time.w (the level's time, at least $28: (a6)), the kiwi as an object (its
+  type byte, 0, and parameter byte are skipped; x, y in tiles: his start, unless he restarts from
+  where he died: $7C(a6)); then objects: type.b (negative ends), x.b, y.b (tiles: placed at
+  x x 16 + 4, y x 16), then a byte: negative none; for type 3 its program (dat_05C0A); otherwise
   bit 7 moves it 8 pixels right and the rest is where its animation script starts ($22).
+
+  Type 3 is a generator: a door that opens when the kiwi comes near and lets enemies out, run
+  by a program (dat_05C0A: count x 2.w, then for each a word, the program's offset from that
+  word; sub_05F2C / sub_05F72). A program: the distances x.w, y.w the kiwi must be within, then
+  byte commands: a type (0-$7F) and 3 bytes (x, y, a parameter: unused, the enemy comes out at
+  the door, facing the kiwi), $FE n wait n passes, $FC open (script $6070), $FD close ($607E),
+  $FB stop, $FF then (at an even address) a long: the next program (most loop to themselves).
 
   Object types (dat_05854), 12 bytes each: handler.l (the object's $18), animation script.l
   ($14), d2.w (frames a step), linked type.w (an object created with it, e.g. what it rides).
@@ -105,6 +115,79 @@ def script_frames(m, start, limit=400):
     return frames, seen, code, mirror
 
 
+GENERATORS = 0x5C0A
+
+
+def generator(m, k):
+    """generator program k -> (its steps as text, the types it makes)"""
+    e = GENERATORS + 2 + 2 * k
+    a, seen, steps, types = e + struct.unpack_from('>h', m, e)[0], set(), [], []
+    while a is not None and a not in seen:
+        seen.add(a)
+        steps.append(f'near {w(m, a)},{w(m, a + 2)}:')
+        p = a + 4
+        while True:
+            b = m[p]
+            if b < 0x80:
+                steps.append(f'type {b}'); types.append(b); p += 4
+            elif b == 0xFE:
+                steps.append(f'wait {m[p + 1]}'); p += 2
+            elif b in (0xFC, 0xFD):
+                steps.append('open' if b == 0xFC else 'close'); p += 1
+            elif b == 0xFF:
+                p += 1 + ((p + 1) & 1)
+                a = L(m, p)
+                steps.append('again' if a in seen else f'then ${a:X}')
+                break
+            else:
+                steps.append('stop'); a = None
+                break
+    return steps, sorted(set(types))
+
+
+EXTRA_TRACKS = 0x418C              # by world: the first of 2 tracks of the boss's BOBs (0: none)
+BOSS_FRAME = 579                    # their frame numbers: directory entries from $3BED6
+
+
+def boss_bank(m, lv):
+    """the 4th level of a world loads 2 more tracks to $6C000: its boss's BOB frames - $2A00 bytes
+    of frames (stored as the main bank's), then their directory (16 bytes each, as the main
+    bank's; offsets from the start). They are deinterleaved and copied to $613A6, and their
+    directory appended at $3BED6: frames 579 on. -> (first track, [(directory entry, frame data)])"""
+    if (lv + 1) % 4:
+        return None, []
+    t = m[EXTRA_TRACKS + lv // 4]
+    if not t:
+        return None, []
+    d = track(t) + track(t + 1)
+    out, k = [], 0
+    while True:
+        e = struct.unpack_from('>LhhHHH', d, 0x2A00 + 16 * k)
+        if k and e[0] == 0:
+            break
+        ww, hh = struct.unpack_from('>HH', d, e[0])
+        out.append((e, d[e[0]:e[0] + 4 + 10 * ww * hh]))
+        k += 1
+    return t, out
+
+
+def boss_image(frames, pal):
+    ims = []
+    for e, raw in frames:
+        ww, hh = struct.unpack_from('>HH', raw, 0)
+        ps = ww * 2 * hh
+        pl = bobs.deinterleave(raw[4:], ww, hh)
+        ims.append(to_image(planar(pl[ps:], ww * 2, hh, 4, plane_size=ps), pal,
+                            transparent=planar(pl[:ps], ww * 2, hh, 1)))
+    sheet = Image.new('RGBA', (sum(i.width + 6 for i in ims), max(i.height for i in ims) + 12), (40, 40, 48, 255))
+    dr, x = ImageDraw.Draw(sheet), 0
+    for k, i in enumerate(ims):
+        sheet.alpha_composite(i, (x, 12))
+        dr.text((x, 0), str(BOSS_FRAME + k), fill=(160, 160, 170, 255))
+        x += i.width + 6
+    return sheet
+
+
 def level_data(m, lv):
     e = LEVEL_TABLE + 16 * lv
     attrs, objs, extra, t5, tmap = L(m, e), L(m, e + 4), L(m, e + 8), w(m, e + 12), w(m, e + 14)
@@ -130,14 +213,16 @@ def level_data(m, lv):
             pass
         if prm != 0xFF and prm < 0x80:
             if t == 3:
-                o['path'] = prm
+                o['generator'] = prm
+                o['makes'] = generator(m, prm)[1]
             else:
                 o['script_start'] = prm * 2
         elif prm != 0xFF and prm >= 0x80 and t != 3:
             o['x'] += 8
             o['script_start'] = (prm & 0x7F) * 2
         placed.append(o)
-    return dict(level=lv, tracks=[t5, t5 + 4], map_track=tmap, width=width, height=height,
+    name = bytes(m[extra:m.index(0xFF, extra)]).decode('latin-1')
+    return dict(level=lv, name=name, tracks=[t5, t5 + 4], map_track=tmap, width=width, height=height,
                 camera_max=[width * 16 - 0x130, (height - 11) * 16], time=time, kiwi=kiwi,
                 objects=placed, attributes=attrs, object_list=objs, palette=['%03X' % c for c in pal]), world, mp, pal
 
@@ -220,11 +305,18 @@ def main():
             if b:
                 im.alpha_composite(b, (max(0, min(o['x'], im.width - b.width)), max(0, min(o['y'], im.height - b.height))))
             dr.rectangle((o['x'], o['y'], o['x'] + 15, o['y'] + 15), outline=(255, 255, 0, 255))
-            dr.text((o['x'] + 1, o['y'] - 10), str(o['type']), fill=(255, 255, 0, 255))
+            label = str(o['type']) + ('>' + ','.join(map(str, o['makes'])) if 'makes' in o else '')
+            dr.text((o['x'] + 1, o['y'] - 10), label, fill=(255, 255, 0, 255))
         im.convert('RGB').save(os.path.join(out, f'level{lv:02d}.png'))
+        bt, bf = boss_bank(m, lv)
+        if bf:
+            boss_image(bf, pal).save(os.path.join(out, f'boss{lv:02d}.png'))
+            info['boss_bank'] = dict(tracks=[bt, bt + 1], frames=len(bf), bytes=sum(len(r) for e, r in bf))
         levels.append(info)
         print(f"level {lv:2}: {info['width']}x{info['height']} tiles, {len(info['objects'])} objects, kiwi at {info['kiwi']}")
-    json.dump(dict(levels=levels, types=types), open(os.path.join(out, 'levels.json'), 'w'), indent=1)
+    gens = [dict(generator=k, program=generator(m, k)[0], makes=generator(m, k)[1])
+            for k in range(w(m, GENERATORS) // 2)]
+    json.dump(dict(levels=levels, types=types, generators=gens), open(os.path.join(out, 'levels.json'), 'w'), indent=1)
 
 
 if __name__ == '__main__':
