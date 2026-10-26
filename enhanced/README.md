@@ -246,20 +246,33 @@ an object that jumped or is new is drawn where it is.
 **The panel** is drawn into, not redrawn: BOBs drawn there (the oxygen gauge, lives, the EXTEND
 letters) go into both display buffers' panels, so it is the same in M and S.
 
+**Faster drawing.** Profiled in the emulator (`nzsemu`'s `profile`), the drawing's time was the
+CPU's more than the blitter's, and much of it was not drawing:
+* the copy of the game's colours and sprite pointers into both copper lists at every vertical
+  blank (`EnhVBL`), and into each list as it is built (`ScrCopper`), went entry by entry: the
+  block's layout never changes, so it is now copied as 34 longs (15 lines a frame to 3);
+* the ring line (`ScrAddr`, `ScrRingLeft`, `ScrCopper`) is found with 3 compares instead of a
+  division, and its offset from a table;
+* `BlitBob` is called for every object with a frame, most of them far off the screen, only to
+  clip them away (its fields set for the logic's collisions on the way). M (`SmoothObjects`) no
+  longer passes objects more than 256 pixels off the screen to it: S, drawn next, sets their
+  fields for the logic as the game does.
+
 **Performance** (`tools/test_smooth.py`, every level for 240 passes):
 
 | The emulator | In-between frames drawn | Frames for 240 passes (50 Hz / 25 Hz, all levels) |
 |---|---|---|
-| the CPU timed | 99.0 % | 10,501 / 10,474 |
-| the CPU and the blitter timed (`--blittime`) | 96.4 % (83 % on the busiest level, 2-1; all of them on 8 levels) | 10,527 / 10,501 |
+| the CPU timed (before the faster drawing) | 99.0 % | 10,501 / 10,474 |
+| the CPU and the blitter timed (`--blittime`), before | 96.4 % (83 % on level 2-1) | 10,527 / 10,501 |
+| the CPU and the blitter timed, now | **99.0 %** (93 % at worst, level 1-2; all of them on 12 levels) | 10,524 / 10,501 |
 
 The emulator does not count the bitplanes' share of chip memory, which slows an A500's blitter
 during the display a little more: WinUAE will tell.
 
 **Tested** (`tools/test_scroller.py`): every S frame pixel for pixel the same as the original's
 frame for that pass, on all 20 levels (709 compared). M frames (`tools/test_smooth.py`, levels 1
-and 4, every frame for 120 passes): 16,522 object positions half-way between the S frames
-either side, 44 not - an object turning, whose new frame has its own offset.
+and 4, every frame for 120 passes): 6,367 positions of objects on the screen half-way between
+the S frames either side, 41 not - an object turning, whose new frame has its own offset.
 
 ## The mirrored frames (`src/mirror.s`)
 
