@@ -24,7 +24,7 @@ The files (ids: FID_ in boot_4489.s):
   3  the extension module (src/ext.s, assembled at EXT_BASE): the rest of the boot, the
      machine's memory on the title, the track cache; loaded by the bootblock
 """
-import hashlib, os, struct, subprocess, sys
+import json, hashlib, os, struct, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ENH = os.path.normpath(os.path.join(HERE, '..'))
@@ -85,8 +85,28 @@ def write_trackmap(tracks, tracks_offset):
         f'TRACKS_STORED\tequ\t{len(tracks)}\t\t; the original disk\'s tracks on this disk (the game reads them)\n')
 
 
+def write_mirrors():
+    """mirrors.i: for each level, the frames it was seen to draw mirrored (a bit each, frame 0 in
+    the first byte's top bit), built into the mirror cache as it starts (src/mirror.s)"""
+    obs = json.load(open(os.path.join(ORIG, 'assets', 'levels', 'observed.json')))
+    nf, first = 289, 0x122
+    L = ['; written by enhanced/tools/build_disk.py from original/assets/levels/observed.json:',
+         '; for each level, the frames it draws mirrored (a bit each, frame 0 the first byte\'s bit 7)',
+         'MirWarm:']
+    total = []
+    for lv in range(20):
+        fs = {f - first for f in obs[str(lv)]['frames'] if first <= f < first + nf}
+        bits = bytearray((nf + 7) // 8)
+        for f in fs:
+            bits[f // 8] |= 0x80 >> (f % 8)
+        L.append('\tdc.b\t' + ','.join(f'${b:02X}' for b in bits) + f'\t; level {lv}: {len(fs)} frames')
+    L.append('\teven')
+    open(os.path.join(OUT, 'mirrors.i'), 'w').write('\n'.join(L) + '\n')
+
+
 def game(tracks_offset, tracks):
     write_trackmap(tracks, tracks_offset)
+    write_mirrors()
     return assemble(os.path.join(ENH, 'src', 'nzs_game.s'), os.path.join(OUT, 'nzs_game.bin'), OUT,
                     [OUT, os.path.join(ENH, 'src'), ORIG], listing=os.path.join(OUT, 'nzs_game.lst'))
 

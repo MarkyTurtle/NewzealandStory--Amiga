@@ -7,6 +7,8 @@
 ;   CachePut      / disk are kept in memory the game does not otherwise use
 ;   EnhTitleText  the title's text (the game calls it at $404C in place of the printer,
 ;                 sub_0C6A8): the original's, then the machine's memory lines
+;   mirror.s      the mirrored BOB frames: all built at start-up as the original does, or on a
+;                 512K machine built when first drawn into a cache
 ;
 ; The machine (the bootblock's description, ext.i, left in EnhMachine by the boot):
 ;   chip RAM above 512K (A500+, A600, A1200, an A500 with a 1MB Agnus)  \  the largest one
@@ -21,6 +23,7 @@ CHIP_512K       equ     $80000
 
 ; EnhInit - at start-up (Init), before the game starts
 EnhInit:        bsr.w   CacheInit
+        bsr.w   MirInit
         bra.w   MakeTitleText
 
 ; the track cache: where, how many tracks it holds, how many it holds now, and for each of the
@@ -283,6 +286,7 @@ TitleText:      dcb.b   2*(4+40+1)+1,$ff
 BobMinterm      equ     BobMinterm_+2           ; sub_0B8B4's ori.w #$fca,d7: BlitBob changes it
 
 	include	"scroller.s"
+	include	"mirror.s"
 
 ; sub_0B8B4: a BOB's 4 blits
 EnhBob:         tst.b   ScrActive

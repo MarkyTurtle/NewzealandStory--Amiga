@@ -15,6 +15,10 @@ then merged.
   vertical ring, double-buffered with a pristine buffer (`README.md`, *The scroller*): a tile is
   one blit, a new column or row is drawn once and copied, BOBs are restored from the pristine
   buffer. Identical to the original's display in the emulator; to try in WinUAE.
+* **Mirrored frames on demand** (branch `feature/mirror-cache`): on a 512K machine the mirrored
+  BOB frames are built when first drawn into a 48 KB ring cache, a level's known ones built as it
+  starts; 43 KB of chip RAM freed (`$563A6-$611B0`), no cost in play in the emulator
+  (`README.md`, *The mirrored frames*). To try in WinUAE.
 
 ## Next
 
@@ -36,8 +40,9 @@ per-level banks. Options:
    on demand into a fixed-size cache, evicting the least recently used.
 3. Fallback: a BOB whose masked form isn't built is drawn as now (4 blits, the mask as it is).
 
-On 512K the scroller's buffers fill `$65400-$7FFFF`; what is left is about 1 KB, so the masks
-need either the program moved to slow / fast RAM (below) or chip RAM above 512K.
+On 512K the scroller's buffers fill `$65400-$7FFFF`; the mirror cache freed 43 KB at
+`$563A6-$611B0` (the place for a cache of masked frames); beyond that the masks need the
+program moved to slow / fast RAM (below) or chip RAM above 512K.
 
 The blitter only reaches chip RAM. On an A500 with a trapdoor 512K (slow RAM at `$C00000`), a
 cache there would need a CPU copy into chip RAM before blitting. That RAM is better used as a
@@ -48,16 +53,10 @@ run time, as decided for Ghosts'n Goblins.
 
 ### Memory on 512K: the BOB frames
 
-The main bank (93.7 KB) and its mirrored copies (the same again, built at start-up) take about
-187 KB of chip RAM on every level (`../original/docs/LEVELS.md`, *The frames each level can
-show*). From the code, a level can show 122-256 of the 289 frames (41-85 KB), so keeping only
-a level's or a world's frames saves little. The mirrored copies are the waste: a level draws at
-most about 40 KB of them in play, and the code can't rule a frame out (nearly every object can
-turn round).
-1. **Mirror on demand:** build a mirrored frame the first time an object draws it mirrored,
-   into a cache of about 48 KB; when it is full, drop the least recently used. About 45 KB of
-   chip RAM freed, safe whatever is drawn. The first step.
-2. Optionally pre-build the common frames' mirrors (the kiwi) so the cache never stalls on them.
+Done: the mirrored frames on demand (above), 43 KB freed at `$563A6-$611B0`. Left: from the
+code, a level can show 122-256 of the 289 frames (41-85 KB), so keeping only a level's or a
+world's unmirrored frames would save little more (`../original/docs/LEVELS.md`). The freed
+memory is for the pre-masked BOBs (*BOBs in one blit*, above).
 
 ### Memory: next uses
 

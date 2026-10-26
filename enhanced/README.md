@@ -5,13 +5,15 @@
 > [4489_byteloader](https://github.com/MarkyTurtle/4489_byteloader) instead of Rob Northen's
 > Copylock-protected boot chain, with improvements: a scroller that updates only what moves (a
 > corkscrew with a vertical ring, double-buffered, with a pristine buffer), and the machine's
-> memory used for a track cache. Nothing on it is copy-protected: any emulator or real drive
+> memory used for a track cache, and on a 512K machine 43 KB of chip RAM freed by mirroring sprite
+frames on demand. Nothing on it is copy-protected: any emulator or real drive
 > reads it, and it can be written to a real floppy with any ADF tool.
 
 ```
 python3 enhanced/tools/build_disk.py      # -> enhanced/build/nzs.adf
 python3 enhanced/tools/test_boot.py       # boots it in an emulator and checks it
 python3 enhanced/tools/test_scroller.py   # the display against the original's, frame by frame
+python3 enhanced/tools/test_mirror.py     # what the mirror cache costs in play
 ```
 
 (`../BUILDING.md` has what to install.) Tested in FS-UAE as an A500 with FS-UAE's built-in AROS
@@ -24,13 +26,15 @@ real Kickstart 1.3 and later.
 | `src/nzs_game.s` | **The game's source**, edited by hand since October 2026 (made from `original/nzs_main.s` by `tools/fork_source.py`): the original's, with the debug monitor removed and jumps put over the start of the routines the enhanced code takes over (each marked `enhanced:`) |
 | `src/enhanced.s` | The enhanced game's own code, in block 1 where the monitor was: the track cache, the title's memory lines, the entries for the routines taken over |
 | `src/scroller.s` | The scroller (below) |
+| `src/mirror.s` | The mirrored BOB frames: all built at start-up, or on a 512K machine built on demand into a cache (below) |
 | `src/diskload.s` | The game's disk reading on this disk, in place of the original's `TrackWrite` / `TrackRead`, with the track cache in front of the disk |
 | `src/boot_4489.s` | The bootblock: surveys the machine's memory, finds the boot drive, loads the extension module and goes on in it |
 | `src/ext.s`, `src/ext.i` | The extension module: the part of the boot the bootblock has no room for (loading screen, program, the machine description handed to the game) |
 | `src/byteloader.i` | The 4489_byteloader, as published (used by both) |
 | `tools/build_disk.py` | Builds the disk; checks that every label of block 2 on is where the original has it |
 | `tools/test_boot.py` | Boots the disk in an emulator (Unicorn) from Kickstart's call to the game's start, on four memory configurations, then calls the game's `TrackRead` as the game does, twice (the second time from the cache when it fits) |
-| `tools/test_scroller.py` | Runs the original and the enhanced game side by side in `original/tools/nzsemu` and compares their displays pixel for pixel (`original/tools/display.py`) |
+| `tools/test_scroller.py` | Runs the original and the enhanced game side by side in `original/tools/nzsemu` and compares their displays pixel for pixel (`original/tools/display.py`); `--chip` for the machine's chip RAM |
+| `tools/test_mirror.py` | Plays every level with the mirror cache, with it cold, and with all frames mirrored at start-up, and compares the frames built in play and where each pass's drawing ends |
 | `tools/fork_source.py` | How `src/nzs_game.s` was made (kept for the record) |
 | `tools/floppy.py` | The floppy drive the boot test uses (from the Ghosts'n Goblins project) |
 
@@ -208,6 +212,49 @@ different joysticks. The comparison stops where the two games' state goes apart,
 eventually does because the CIA timer that counts the level's time ticks at a different phase
 from the passes. Not yet tried: WinUAE and real hardware.
 
+## The mirrored frames (`src/mirror.s`)
+
+An object facing left is drawn from a mirrored copy of its frame. The original builds a copy of
+all 289 frames of the main BOB bank at the start of each game (`sub_0C52C`): 94 KB of chip RAM
+from `$4A3A6`, and about half a second of the CPU. A level draws at most about 40 KB of them
+(`../original/docs/LEVELS.md`, *The frames each level can show*), and since nearly every object
+can turn round, no frame can be ruled out.
+
+* **More than 512K of chip RAM:** as the original: all built at start-up.
+* **512K:** a 48 KB cache from `$4A3A6`; `$563A6-$611B0` (43 KB) is free in play (the ending
+  works in this memory, as it did over the original's copies; each new game starts the cache
+  afresh).
+  * At start-up the mirrored frames' directory entries are made as the original makes them,
+    but each points at its unmirrored frame (the same size, so BlitBob clips with it as before).
+  * When BlitBob has clipped a BOB and is about to draw it (`EnhBobFrame`, at `$B7CC`), a
+    mirrored frame not built yet is built into the cache and its entry pointed at it. A frame
+    that never comes on screen is never built.
+  * The cache is a ring: a frame goes at the next free place, and the oldest frames there are
+    dropped (their entries pointed back at their unmirrored frames). No search, no
+    fragmentation; a hit costs one compare in BlitBob.
+  * **Built ahead:** as a level starts, after its tracks are loaded (`EnhLevelStart`, at
+    `$41FE`), the cache is emptied and the frames that level was seen to draw mirrored built at
+    once (`MirWarm`, made by `build_disk.py` from `../original/assets/levels/observed.json`):
+    up to about 40 KB, about a tenth of a second while the level appears.
+  * Built by `MirCopy`, unrolled for the frame's width: about 26 cycles a byte against the
+    original's 36 (on a 68000, 4 ms for a typical 964-byte frame, 10 ms for the largest).
+
+**Performance** (`tools/test_mirror.py`, every level for 240 passes in the emulator, which
+counts the CPU's time but not the blitter's):
+
+| | Frames built in play | Most in one pass | Latest end of a pass's drawing (of 624 lines) | Passes over 2 frames |
+|---|---|---|---|---|
+| All built at start-up | - | - | 616 | 0 |
+| The cache, built ahead | **0** | 0 | 618 (at most 2 lines later on any level) | 0 |
+| The cache, nothing built ahead (the worst case) | 261 (86 KB) | 1,684 bytes | 618 (at most 57 lines later) | 0 |
+
+So with the frames built ahead the cache costs nothing in play: every frame the plays needed
+was already built. With nothing built ahead, a pass that needs a new frame takes up to 57 lines
+(3.6 ms) longer. That is what a frame missing from the list would cost, once.
+
+**Tested** (`tools/test_scroller.py`, with and without `--chip 0x100000`): pixel for pixel the
+same display as the original's, on all 20 levels, with the cache and without.
+
 ## The game's disk reading (`src/diskload.s`)
 
 The original game reads its level data from the disk at the start of each level (5 tracks of
@@ -230,7 +277,8 @@ place of the original's `TrackWrite` and `TrackRead`:
 hand. The original's block 1 held a debug monitor (commands, a 68000 disassembler, its own
 screen output: about 9 KB) that the game never uses - the start-up and every exception go
 straight to `GameStart` - so it was removed, and the enhanced code (`enhanced.s`, which includes
-`scroller.s`) is in its place, block 1 padded to keep its size (about 5 KB is still free).
+`scroller.s` and `mirror.s`) is in its place, block 1 padded to keep its size (about 3 KB is
+still free).
 
 Block 2 (`$3214` on) keeps every byte where the original has it: much of it is reached at fixed
 addresses (self-modifying code writes into instructions by address, tables are built beyond the
