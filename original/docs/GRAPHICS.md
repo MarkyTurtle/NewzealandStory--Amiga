@@ -39,7 +39,8 @@ separate blocks: the mask, then plane 0 ... plane 3, each width/8 × height byte
 buffer at `$68000` and patches its own displacements. `BlitBob` (`$B6C4`) draws them in this
 second form with the cookie-cut minterm `$CA` (A = mask, B = the plane, C = the screen).
 
-Levels with extra graphics load 2 more tracks to `$6C000`. Their directory entries are appended
-at `$3BED6` with offsets rebased by `$3E900`, deinterleaved the same way and copied to `$613A6`.
-Extracting these per-level banks is still to do. So are the level maps and tiles, the intro and
-title pictures, and the font.
+The 4th level of worlds 1, 2, 3 and 5 loads 2 more tracks to `$6C000`: the boss's frames. Their
+directory entries are appended at `$3BED6` (frames 579 on) with offsets rebased by `$3E900`,
+deinterleaved the same way and copied to `$613A6`. They, the level maps and the tiles are
+extracted by `tools/levels/levels.py` ([`LEVELS.md`](LEVELS.md)). The intro and title pictures
+and the font are still to do.

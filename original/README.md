@@ -23,6 +23,7 @@ Conversion by Choice Software: code C. Gordon, graphics S. Connor.
 | `docs/BOOT.md` | **How the disk boots and the copy protection**, stage by stage, and why the game does not need it |
 | `docs/SOUND.md` | **The sound**: the effects and instruments (IFF 8SVX files from Audio Master), Jonathan Dunn's music driver and its data format, the 12 songs |
 | `docs/GRAPHICS.md` | The screen, palettes and the BOB format |
+| `docs/LEVELS.md` | **The levels**: the level table, world data, maps, object lists, generators, the bosses' frames, object types and animation scripts; the frames each level can show |
 | `assets/` | The extracted assets: samples (`.iff`, `.wav`), the songs decoded and rendered (`.ogg`), every BOB frame (`.png`) - `tools/assets/make_assets.sh` |
 | `render/out/` | `loadscreen.png` |
 | `tools/` | below |
@@ -53,6 +54,7 @@ python3 tools/disk/pack.py pack main.bin main_packed.bin         ; sha1 068da711
 | `tools/disk/game_tracks.py` | The tracks the game reads while it runs (level data), from its tables |
 | `tools/nzsemu/` | A minimal Amiga (Musashi) that runs the main program for study: VBL, CIAs, blitter, audio interrupts, joystick and keyboard; the disk answered from the extracted tracks; scripted (`emu.c` header), with snapshots, coverage and audio register logs. `build.sh`; `coverage.py --run` replays the sessions behind `tools/disasm/main_coverage.txt`; `show.py` draws a snapshot |
 | `tools/assets/` | The asset extractors: `make_assets.sh` runs `sound.py` (samples, music data), `bobs.py` (BOB frames) and `music.py` + `paula.py` (renders the songs through the driver in nzsemu and a Paula model) |
+| `tools/levels/` | `levels.py` (the level data decoded, the maps rendered with their objects, the bosses' frames), `scripts.py` (the frames each object type can show, from the code), `observe.py` (the frames each level draws, played in nzsemu), `frames.py` (the frames each level can show, checked against the plays) |
 | `tools/screen.py` | Renders the display from a memory image by following the copper list |
 | `tools/dis.py` | A quick capstone listing of any address range |
 

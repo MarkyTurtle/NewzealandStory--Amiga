@@ -46,6 +46,19 @@ file cache (below), freeing chip RAM for the masks.
 One program for every machine: work out the memory at boot (the bootblock) and scale back at
 run time, as decided for Ghosts'n Goblins.
 
+### Memory on 512K: the BOB frames
+
+The main bank (93.7 KB) and its mirrored copies (the same again, built at start-up) take about
+187 KB of chip RAM on every level (`../original/docs/LEVELS.md`, *The frames each level can
+show*). From the code, a level can show 122-256 of the 289 frames (41-85 KB), so keeping only
+a level's or a world's frames saves little. The mirrored copies are the waste: a level draws at
+most about 40 KB of them in play, and the code can't rule a frame out (nearly every object can
+turn round).
+1. **Mirror on demand:** build a mirrored frame the first time an object draws it mirrored,
+   into a cache of about 48 KB; when it is full, drop the least recently used. About 45 KB of
+   chip RAM freed, safe whatever is drawn. The first step.
+2. Optionally pre-build the common frames' mirrors (the kiwi) so the cache never stalls on them.
+
 ### Memory: next uses
 
 * Chip RAM above 512K: the pre-masked interleaved BOBs (above), all of them at start-up.
@@ -93,9 +106,9 @@ contains:
 * 5 tracks of packed world data to `$3CAA6`, unpacked in place (`UnpackLevel`). This holds the
   16×16 tile set (from `$3CB26`, 128 bytes a tile) and the world's other data.
 * 1 track to `$44AA6`: the level's map (from `$44B26`, one byte a tile, rows of 64).
-* On some levels, 2 more tracks to `$6C000`: extra BOB frames for that level (which
-  creatures they are is still to be extracted). Their directory entries are appended to the main bank's at `$3BED6`, deinterleaved,
-  and copied to `$613A6`.
+* On the 4th level of worlds 1, 2, 3 and 5, 2 more tracks to `$6C000`: the boss's BOB frames
+  (9-26 frames). Their directory entries are appended to the main bank's at `$3BED6`,
+  deinterleaved, and copied to `$613A6`.
 * At the end of the game: 5 tracks from track 144 (the ending).
 
 These buffers are inside the program's own address range: `$3CAA6-$460A5` is part of the
