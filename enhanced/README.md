@@ -19,8 +19,9 @@ python3 enhanced/tools/test_smooth.py --blittime   # how much of the game runs a
 
 (`../BUILDING.md` has what to install.) Tested in FS-UAE as an A500 with FS-UAE's built-in AROS
 Kickstart replacement: it boots to the loading screen, then the attract sequence, and the game
-plays, loading its level data from the disk. Still to be tried: WinUAE and real hardware with a
-real Kickstart 1.3 and later.
+plays, loading its level data from the disk. Tested in WinUAE: the scroller, the mirror cache
+and 50 frames a second in play, the progress screens and the return to the title. Still to be
+tried: real hardware.
 
 | File | What it is |
 |---|---|
@@ -213,7 +214,8 @@ what each shows is rendered from its own memory and copper list (`original/tools
 and compared every 5 passes: identical in every frame compared, on all 20 levels with four
 different joysticks. The comparison stops where the two games' state goes apart, which it
 eventually does because the CIA timer that counts the level's time ticks at a different phase
-from the passes. Not yet tried: WinUAE and real hardware.
+from the passes. Tested in WinUAE (the play, the progress screen between levels, the title
+after a game); not yet on real hardware.
 
 ## 50 frames a second (`src/smooth.s`)
 

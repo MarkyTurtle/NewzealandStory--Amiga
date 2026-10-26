@@ -14,14 +14,14 @@ then merged.
 * **The scroller** (branch `feature/scroller`): an interleaved display, a corkscrew with a
   vertical ring, double-buffered with a pristine buffer (`README.md`, *The scroller*): a tile is
   one blit, a new column or row is drawn once and copied, BOBs are restored from the pristine
-  buffer. Identical to the original's display in the emulator; to try in WinUAE.
+  buffer. Identical to the original's display in the emulator; tested in WinUAE.
 * **50 frames a second** (branch `feature/50hz`): the logic still once a pass (25 a second), an
   in-between frame drawn each pass with the camera and every object half-way; a busy pass drops
-  to 25 Hz for that pass, never slower (`README.md`, *50 frames a second*). To try in WinUAE.
+  to 25 Hz for that pass, never slower (`README.md`, *50 frames a second*). Tested in WinUAE.
 * **Mirrored frames on demand** (branch `feature/mirror-cache`): on a 512K machine the mirrored
   BOB frames are built when first drawn into a 48 KB ring cache, a level's known ones built as it
   starts; 43 KB of chip RAM freed (`$563A6-$611B0`), no cost in play in the emulator
-  (`README.md`, *The mirrored frames*). To try in WinUAE.
+  (`README.md`, *The mirrored frames*). Tested in WinUAE.
 
 ## Next
 
