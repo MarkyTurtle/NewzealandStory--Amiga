@@ -8011,7 +8011,7 @@ l_0B198:
         bne.b   l_0B186                         ; 0B1BE
         bra.b   l_0B18A                         ; 0B1C0
 sub_0B1C2:
-        lea.l   (mem_64380).l,a5                ; 0B1C2
+        jmp     (EnhAnim).l                     ; 0B1C2  enhanced: only the drawing when done (smooth.s)
         move.w  #$47,d7                         ; 0B1C8
         move.w  d7,$b0(a6)                      ; 0B1CC
         subq.w  #$1,d7                          ; 0B1D0
@@ -8117,9 +8117,8 @@ l_0B30A:
 l_0B30E:
         lea.l   $3a(a5),a5                      ; 0B30E
         dbra    d7,l_0B1D6                      ; 0B312
-        ext.l   d7                              ; 0B316
-        move.l  d7,(a3)+                        ; 0B318
-        bra.w   l_0B14E                         ; 0B31A
+        jmp     (EnhAnimEnd).l                  ; 0B316  enhanced: the animation's end (smooth.s)
+        nop                                     ; 0B31C
 l_0B31E:
         trap    #$e                             ; 0B31E
 	dc.b	'********  ANIM   ERROR  ********'

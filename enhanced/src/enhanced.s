@@ -287,6 +287,7 @@ BobMinterm      equ     BobMinterm_+2           ; sub_0B8B4's ori.w #$fca,d7: Bl
 
 	include	"scroller.s"
 	include	"mirror.s"
+	include	"smooth.s"
 
 ; sub_0B8B4: a BOB's 4 blits
 EnhBob:         tst.b   ScrActive

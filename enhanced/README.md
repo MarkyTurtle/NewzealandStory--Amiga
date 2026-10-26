@@ -5,8 +5,8 @@
 > [4489_byteloader](https://github.com/MarkyTurtle/4489_byteloader) instead of Rob Northen's
 > Copylock-protected boot chain, with improvements: a scroller that updates only what moves (a
 > corkscrew with a vertical ring, double-buffered, with a pristine buffer), and the machine's
-> memory used for a track cache, and on a 512K machine 43 KB of chip RAM freed by mirroring sprite
-frames on demand. Nothing on it is copy-protected: any emulator or real drive
+> memory used for a track cache, on a 512K machine 43 KB of chip RAM freed by mirroring sprite frames
+on demand, and 50 frames a second in play. Nothing on it is copy-protected: any emulator or real drive
 > reads it, and it can be written to a real floppy with any ADF tool.
 
 ```
@@ -14,6 +14,7 @@ python3 enhanced/tools/build_disk.py      # -> enhanced/build/nzs.adf
 python3 enhanced/tools/test_boot.py       # boots it in an emulator and checks it
 python3 enhanced/tools/test_scroller.py   # the display against the original's, frame by frame
 python3 enhanced/tools/test_mirror.py     # what the mirror cache costs in play
+python3 enhanced/tools/test_smooth.py --blittime   # how much of the game runs at 50 Hz
 ```
 
 (`../BUILDING.md` has what to install.) Tested in FS-UAE as an A500 with FS-UAE's built-in AROS
@@ -26,6 +27,7 @@ real Kickstart 1.3 and later.
 | `src/nzs_game.s` | **The game's source**, edited by hand since October 2026 (made from `original/nzs_main.s` by `tools/fork_source.py`): the original's, with the debug monitor removed and jumps put over the start of the routines the enhanced code takes over (each marked `enhanced:`) |
 | `src/enhanced.s` | The enhanced game's own code, in block 1 where the monitor was: the track cache, the title's memory lines, the entries for the routines taken over |
 | `src/scroller.s` | The scroller (below) |
+| `src/smooth.s` | 50 frames a second: the in-between frame drawn each pass (below) |
 | `src/mirror.s` | The mirrored BOB frames: all built at start-up, or on a 512K machine built on demand into a cache (below) |
 | `src/diskload.s` | The game's disk reading on this disk, in place of the original's `TrackWrite` / `TrackRead`, with the track cache in front of the disk |
 | `src/boot_4489.s` | The bootblock: surveys the machine's memory, finds the boot drive, loads the extension module and goes on in it |
@@ -34,6 +36,7 @@ real Kickstart 1.3 and later.
 | `tools/build_disk.py` | Builds the disk; checks that every label of block 2 on is where the original has it |
 | `tools/test_boot.py` | Boots the disk in an emulator (Unicorn) from Kickstart's call to the game's start, on four memory configurations, then calls the game's `TrackRead` as the game does, twice (the second time from the cache when it fits) |
 | `tools/test_scroller.py` | Runs the original and the enhanced game side by side in `original/tools/nzsemu` and compares their displays pixel for pixel (`original/tools/display.py`); `--chip` for the machine's chip RAM |
+| `tools/test_smooth.py` | Plays every level at 50 Hz and at 25 Hz: how many in-between frames are drawn, and that the game keeps its speed; `--blittime` makes the emulator's CPU wait for the blitter as an A500's does |
 | `tools/test_mirror.py` | Plays every level with the mirror cache, with it cold, and with all frames mirrored at start-up, and compares the frames built in play and where each pass's drawing ends |
 | `tools/fork_source.py` | How `src/nzs_game.s` was made (kept for the record) |
 | `tools/floppy.py` | The floppy drive the boot test uses (from the Ghosts'n Goblins project) |
@@ -198,8 +201,8 @@ BOB's word just left of a line is the previous line's last), and the translation
 rest.
 
 **Speed.** The original's game loop takes 2 frames a pass (25 frames a second) and its logic
-runs once a pass, so the enhanced game holds each pass to at least 2 frames (`SCR_MIN_FRAMES`):
-the game runs at the original's speed, without its slow-downs. In the emulator a pass now makes
+runs once a pass, so the enhanced game holds each pass to 2 frames: the game runs at the
+original's speed, without its slow-downs (and at 50 frames a second, below). In the emulator a pass now makes
 about 50 blits instead of about 1,000 (the BOBs, drawn as the original draws them, are most of
 what is left).
 
@@ -211,6 +214,50 @@ and compared every 5 passes: identical in every frame compared, on all 20 levels
 different joysticks. The comparison stops where the two games' state goes apart, which it
 eventually does because the CIA timer that counts the level's time ticks at a different phase
 from the passes. Not yet tried: WinUAE and real hardware.
+
+## 50 frames a second (`src/smooth.s`)
+
+The original's logic runs once a pass of its loop, and a pass takes 2 frames: 25 frames a
+second, each shown twice. Every speed and timer in the game is counted in passes, so the logic
+stays as it is; instead each pass now draws two frames:
+
+* **M**, the in-between frame: the camera and every object half-way between where they were in
+  the last pass's frame and where they are now. The screen shows each pass one frame (20 ms)
+  later than before; the animation frames still change at the original's rate.
+* **S**, the pass's own frame, as before.
+
+How a pass goes (`l_04298`): the logic, then `EnhWaitFlip` (`sub_0BCD0`) waits until the last S
+has been taken and calls `SmoothMid`: the objects' animation is run there (`sub_0B1C2` without
+its drawing: `EnhAnim`, `EnhAnimEnd`), every object and the camera moved half-way, M drawn with
+the game's own routines (the background `sub_0B55C`, the BOBs `l_0B14E`, the flip `sub_0BC8C`),
+everything moved back, and the positions kept for the next pass. Then the loop draws S as
+before.
+
+**Time.** A frame is taken at the split (the level 6 interrupt) and shown from the next frame.
+With the last S taken at split t, M must be taken at split t+1 and S at t+2; S is never flipped
+before frame t+2 begins (`SmoothPace`), which holds the game to 2 frames a pass whether M was
+drawn or not. M has the rest of the frame after the logic, about 270 lines: `SmoothMid` measures
+what M took and leaves it out when it would not fit in time - that pass shows S twice, as
+before. Never slower. Also left out: the first pass in the display, and when the camera jumps;
+an object that jumped or is new is drawn where it is.
+
+**The panel** is drawn into, not redrawn: BOBs drawn there (the oxygen gauge, lives, the EXTEND
+letters) go into both display buffers' panels, so it is the same in M and S.
+
+**Performance** (`tools/test_smooth.py`, every level for 240 passes):
+
+| The emulator | In-between frames drawn | Frames for 240 passes (50 Hz / 25 Hz, all levels) |
+|---|---|---|
+| the CPU timed | 99.0 % | 10,501 / 10,474 |
+| the CPU and the blitter timed (`--blittime`) | 96.4 % (83 % on the busiest level, 2-1; all of them on 8 levels) | 10,527 / 10,501 |
+
+The emulator does not count the bitplanes' share of chip memory, which slows an A500's blitter
+during the display a little more: WinUAE will tell.
+
+**Tested** (`tools/test_scroller.py`): every S frame pixel for pixel the same as the original's
+frame for that pass, on all 20 levels (709 compared). M frames (`tools/test_smooth.py`, levels 1
+and 4, every frame for 120 passes): 16,522 object positions half-way between the S frames
+either side, 44 not - an object turning, whose new frame has its own offset.
 
 ## The mirrored frames (`src/mirror.s`)
 
