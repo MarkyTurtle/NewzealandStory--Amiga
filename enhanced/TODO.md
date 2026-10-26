@@ -84,6 +84,62 @@ Done (branch `feature/50hz`): 50 frames a second by drawing an in-between frame 
 30 on an A500, more on the busiest levels) - drawing the BOBs in one blit (above) is the way to
 fewer.
 
+### Title menu, two-button joysticks and a cheat
+
+Along the lines of the enhanced Ghosts'n Goblins' title menu (`enhanced/docs/SCROLLER.md` there,
+*The title menu*, *Two-button joysticks*, *The test page's tests*). Each on its own branch.
+
+**The title menu.** The title screen (the text `dat_0C0A2`, printed by `sub_0C6A8` from `$404C`,
+now through `EnhTitleText`; the wait for fire or the time-out in `sub_0B9F0`) keeps its logo,
+credits and copyright lines and gets a menu under the kiwi:
+
+| Page | Items |
+|---|---|
+| title | `START GAME`, `OPTIONS`, `TEST MENU` |
+| options | `INPUT - JUMP ON UP` / `JUMP ON BUTTON 2`, `CHEAT OFF` / `ON`, `EXIT` |
+| test | the machine's memory line (moved from the title), the track / mirror cache line, `SOUND TEST`, `INPUT TEST`, `SPRITE TEST`, `EXIT` |
+
+* Up / down move (round from the last item to the first), fire chooses; left, right and fire
+  switch a setting. The chosen item shows as `> ... <`. Moves and fire count when newly pressed
+  (against the last reading), so a held button does not repeat - and fire on `START GAME` must
+  start the game on the same frame as the original's fire did, so the comparisons with the
+  original (`test_scroller.py`) stay in step.
+* A move or a change redraws the title and restarts its time-out to the attract sequence; the
+  options and test pages have no time-out.
+* The original's typed cheat code on the title (the keys checked in `sub_0B9F0` against
+  `dat_045B4`, eor `$41`: it gives 1,000 lives, `l_04F46`) keeps working.
+* Settings last until the machine is reset.
+
+**Two-button joysticks.** The original jumps on up and fires (the kiwi's arrows) on the button.
+The second button (port 2, pin 9: a two-button stick or a Sega-style pad) as jump:
+* *Reading it:* the vertical blank's joystick reading (`ReadJoystick`, `$2A6C`, kept at
+  `$63DB0` by `$BE24`) also sets a spare bit when `POTINP` bit 14 (DATRY) is low; `POTGO`
+  written so pin 9 is driven high and a pressed button pulls it low (the game already writes
+  `POTGO` `$FF00` at `$C452`: to check against the mouse port's use). Nothing else reads the new
+  bit, so with jump on up the game is as before.
+* *The kiwi's jump:* find where his handler (type 0, `$91D4`) turns up into a jump, and with jump
+  on button 2 take the jump from the button instead; up then only climbs / swims as the game
+  does elsewhere (to check: what up does in water, on a ride, on a ladder, if he has one).
+* The option: `INPUT` on the options page (and a key, as J in Ghosts'n Goblins). Jump on up
+  stays the default: the original's controls, and what the comparisons use.
+
+**Cheat on / off.** `CHEAT` on the options page: on, the kiwi does not lose lives (or the
+original's 1,000 lives - to decide; and perhaps the time limit off, the level select): the
+same switch as the typed code, so the two agree. Shown on the title when on.
+
+**The test page's tests.**
+* *Sound test:* the 12 songs and the 18 effects by number (`PlaySong`, `PlaySample`), fire
+  plays, `MUSIC OFF` stops the tune.
+* *Input test:* the joystick's directions, both buttons and the last key, shown as they change.
+* *Sprite test:* any BOB frame of the main bank (and its mirrored copy) drawn on the title.
+
+**Perhaps also on the options page:** `DISPLAY 50 HZ / 25 HZ` (`SmoothOn`), for comparing.
+
+*Testing:* a `test_menu.py` as Ghosts'n Goblins': from one saved state of the title, starting a
+game from the menu, moving round, each switch, the pages and `EXIT`, the time-out; and a
+`test_jump.py`: each input setting with up, button 2 and both, on open ground and where up does
+something else. `nzsemu` needs the second button (`POTINP`) in its `joy` command.
+
 ## Loading
 
 How it works now (see the next section): each level reads 5 tracks of world data, 1 track for
