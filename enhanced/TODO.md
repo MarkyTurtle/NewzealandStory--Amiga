@@ -46,6 +46,17 @@ file cache (below), freeing chip RAM for the masks.
 One program for every machine: work out the memory at boot (the bootblock) and scale back at
 run time, as decided for Ghosts'n Goblins.
 
+### Memory on 512K: the BOB frames
+
+The main bank (93.7 KB) and its mirrored copies (the same again, built at start-up) take about
+187 KB of chip RAM on every level. What the levels really draw
+(`../original/docs/LEVELS.md`, *The frames each level needs*):
+1. Mirror only the frames ever drawn mirrored (224 of 289): about 28 KB freed, no change to
+   loading. The first step.
+2. Keep only the current world's frames, normal and mirrored, loaded with the world: at most
+   112 KB (world 2), about 71 KB freed. Needs the frame sets made safe (more plays, or the
+   handlers' code analysed) or a fallback: a missing frame built into a small cache.
+
 ### Memory: next uses
 
 * Chip RAM above 512K: the pre-masked interleaved BOBs (above), all of them at start-up.
