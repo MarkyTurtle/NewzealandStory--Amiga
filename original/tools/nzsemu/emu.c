@@ -4,7 +4,7 @@
  * (level 3), CIA-B timer A/B and TOD alarm (level 6), CIA-A (fire buttons, keyboard: level 2),
  * the audio channel 3 interrupt (level 4: the game's sample player), the blitter (area mode,
  * done at once when BLTSIZE is written), the joystick. The disk is not emulated: a call of the
- * game's TrackRead ($C24) is answered from the extracted tracks (disk/files/tracks/). The display
+ * game's TrackRead (its jump table entry, $40C) is answered from the extracted tracks (disk/files/tracks/). The display
  * is not drawn: snapshots of memory and the custom registers are written instead, and
  * tools/screen.py draws them by following the copper list.
  *
@@ -27,6 +27,8 @@
  *   play ADDR N           N frames of: call ADDR, then the rest of the frame (a music player)
  *   audio FILE            log every write to the audio registers and DMACON: "cycle reg value"
  *   load FILE ADDR        copy a file into memory at ADDR
+ *   watchpc LO HI         log (to the log file) each instruction's first write to each 256-byte block of
+ *                         LO-HI
  *   watch LO HI           log (to the log file) the first write to each 256-byte block of LO-HI,
  *                         with the PC that made it
  */
@@ -49,7 +51,15 @@ static unsigned until_pc = 0xFFFFFFFF; static int until_hit;
 static int blits, blit_line;
 static FILE *audf;
 static unsigned watch_lo = 1, watch_hi = 0; static uint8_t watched[RAM / 256];
+static int watch_pcs; static unsigned seen_n, seen[8192];   /* watchpc: (block << 20 | pc) seen */
 static void watch(unsigned a) {
+    if (watch_pcs && a >= watch_lo && a < watch_hi) {
+        unsigned pc = m68k_get_reg(NULL, M68K_REG_PPC), key = (a >> 8) << 20 | (pc & 0xFFFFF);
+        for (unsigned i = 0; i < seen_n; i++) if (seen[i] == key) return;
+        if (seen_n < 8192) seen[seen_n++] = key;
+        if (logf) fprintf(logf, "frame %lu: write to $%05X by pc $%X\n", frame, a, pc);
+        return;
+    }
     if (a >= watch_lo && a < watch_hi && !watched[a >> 8]) {
         watched[a >> 8] = 1;
         if (logf) fprintf(logf, "frame %lu: first write to $%05X block by pc $%X\n", frame, a & ~0xFF, m68k_get_reg(NULL, M68K_REG_PPC));
@@ -257,8 +267,9 @@ unsigned int m68k_read_disassembler_8(unsigned int a) { return m68k_read_memory_
 unsigned int m68k_read_disassembler_16(unsigned int a) { return m68k_read_memory_16(a); }
 unsigned int m68k_read_disassembler_32(unsigned int a) { return m68k_read_memory_32(a); }
 
-/* ---- the game's TrackRead ($C24, after Relocate), answered from the extracted tracks */
-#define TRACKREAD 0xC24
+/* ---- the game's TrackRead, answered from the extracted tracks: intercepted at the jump table's entry
+ * (JT_TrackRead, $40C), through which the game makes every read (so the enhanced game too) */
+#define TRACKREAD 0x40C
 static int track_read(void) {
     unsigned d0 = m68k_get_reg(NULL, M68K_REG_D0) & 0xFFFF, d1 = m68k_get_reg(NULL, M68K_REG_D1) & 0xFFFF;
     unsigned a0 = m68k_get_reg(NULL, M68K_REG_A0);
@@ -390,7 +401,8 @@ int main(int argc, char **argv) {
             if (reps > 1) { while (line_no < 312) run_line(); line_no = 0; frame++; }
           }
         }
-        else if (!strcmp(cmd, "watch")) { watch_lo = strtoul(a1, 0, 0); watch_hi = strtoul(a2, 0, 0); memset(watched, 0, sizeof watched); }
+        else if (!strcmp(cmd, "watchpc")) { watch_pcs = 1; watch_lo = strtoul(a1, 0, 0); watch_hi = strtoul(a2, 0, 0); seen_n = 0; }
+        else if (!strcmp(cmd, "watch")) { watch_pcs = 0; watch_lo = strtoul(a1, 0, 0); watch_hi = strtoul(a2, 0, 0); memset(watched, 0, sizeof watched); }
         else if (!strcmp(cmd, "log")) { logf = fopen(a1, "a"); setvbuf(logf, 0, _IOLBF, 0); }
         else if (!strcmp(cmd, "until")) {
             until_pc = strtoul(a1, 0, 0); until_hit = 0; long n = a2[0] ? strtol(a2, 0, 0) : 100000;

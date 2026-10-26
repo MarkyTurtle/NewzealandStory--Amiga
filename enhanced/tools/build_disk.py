@@ -12,9 +12,10 @@ real drive reads it, and it can be written to a floppy with any ADF tool:
   $600  the files, one after another in DISK_ORDER, each on an even offset
 
 The files (ids: FID_ in boot_4489.s):
-  0  the game, packed: enhanced/build/nzs_game.s (make_game.py: original/nzs_main.s with
-     src/diskload.s in place of its track reading), packed by original/tools/disk/pack.py in
-     the original's format; the bootblock unpacks it to $400
+  0  the game, packed: src/nzs_game.s (the hand-edited source, made from original/nzs_main.s
+     by tools/fork_source.py; it includes src/diskload.s and src/enhanced.s), packed by
+     original/tools/disk/pack.py in the original's format; the extension module unpacks it
+     to $400
   1  the loading screen: the original file (original/disk/files/t091-093_loading_screen.bin)
   2  the tracks of the original disk that the game reads while it runs (level data:
      original/disk/files/tracks/, found by original/tools/disk/game_tracks.py), one after
@@ -32,7 +33,7 @@ OUT = os.path.join(ENH, 'build')
 ADF = os.path.join(OUT, 'nzs.adf')
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ORIG, 'tools', 'disk'))
-import make_game, pack, game_tracks                      # noqa: E402
+import pack, game_tracks                                 # noqa: E402
 
 TRACK = 11 * 512
 DISK = 80 * 2 * TRACK
@@ -45,8 +46,10 @@ MAIN_SHA1 = '74d3f9924c56270c5fc2a4231be035c9157851a1'     # the original progra
 run_addr = game_tracks.file_offset     # file offset in the program (as loaded at $400) of a run address
 
 
-def assemble(src, out, cwd, incdirs=()):
+def assemble(src, out, cwd, incdirs=(), listing=None):
     cmd = ['vasmm68k_mot', '-Fbin', '-m68000', '-no-opt', '-quiet'] + [f'-I{d}' for d in incdirs] + ['-o', out, src]
+    if listing:
+        cmd[1:1] = ['-L', listing]
     r = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
     if r.returncode:
         sys.stdout.write(r.stdout + r.stderr)
@@ -84,19 +87,45 @@ def write_trackmap(tracks, tracks_offset):
 
 def game(tracks_offset, tracks):
     write_trackmap(tracks, tracks_offset)
-    src, _ = make_game.make()
-    return assemble(src, os.path.join(OUT, 'nzs_game.bin'), OUT, [OUT, os.path.join(ENH, 'src'), ORIG])
+    return assemble(os.path.join(ENH, 'src', 'nzs_game.s'), os.path.join(OUT, 'nzs_game.bin'), OUT,
+                    [OUT, os.path.join(ENH, 'src'), ORIG], listing=os.path.join(OUT, 'nzs_game.lst'))
 
 
-def original_but(main, orig):
-    """the game is the original program but for diskload.s ($A04-$D87) and make_game.PATCHES"""
-    skip = [(0xA04, 0xD88)] + [(a, a + n) for a, n, *_ in make_game.PATCHES]
-    m, o = bytearray(main), bytearray(orig)
-    if len(m) != len(o):
-        return False
-    for a, b in skip:
-        m[run_addr(a):run_addr(b)] = o[run_addr(a):run_addr(b)]
-    return m == o
+def symbols(listing):
+    """{name: value} from a vasm listing's symbol table"""
+    out, on = {}, False
+    for ln in open(listing, errors='replace'):
+        if ln.startswith('Symbols by name:'):
+            on = True
+            continue
+        if ln.startswith('Symbols by value:'):
+            break
+        if on and ':' in ln:                            # NAME   section:VALUE (E: an equate)
+            name, val = ln.rsplit(None, 1)[0].strip(), ln.rsplit(None, 1)[1]
+            sec, _, v = val.partition(':')
+            if sec != 'E':
+                try:
+                    out[name] = int(v, 16)
+                except ValueError:
+                    pass
+    return out
+
+
+BLOCK2, PROGRAM_END = 0x3214, 0x52FA7
+
+
+def layout(main, orig_main):
+    """the program's layout as the original's: the same length, and every label of block 2 and
+    after ($3214-) that the enhanced source still has at the same address (block 1 is the
+    enhanced game's own: the code there may move, as long as block 1 keeps its size). The
+    program's data and much of its code are reached at fixed addresses (self-modifying code,
+    tables built at run time beyond its end), so nothing there may move.
+    -> (ok, the labels compared, the ones that moved)"""
+    o = symbols(os.path.join(OUT, 'main_orig.lst'))
+    e = symbols(os.path.join(OUT, 'nzs_game.lst'))
+    common = [n for n, v in o.items() if BLOCK2 <= v < PROGRAM_END and n in e and not n.startswith('.')]
+    moved = [n for n in common if e[n] != o[n]]
+    return len(main) == len(orig_main) and not moved, len(common), moved
 
 
 def original_track(t):
@@ -105,7 +134,7 @@ def original_track(t):
 
 def build():
     os.makedirs(OUT, exist_ok=True)
-    orig_main = assemble('nzs_main.s', os.path.join(OUT, 'main_orig.bin'), ORIG)
+    orig_main = assemble('nzs_main.s', os.path.join(OUT, 'main_orig.bin'), ORIG, listing=os.path.join(OUT, 'main_orig.lst'))
     if hashlib.sha1(orig_main).hexdigest() != MAIN_SHA1:
         print('  (original/nzs_main.s no longer assembles to the original program)')
     tracks = game_tracks.tracks(orig_main)
@@ -152,12 +181,11 @@ def build():
         print(f'  {i:>2}  {name:<11} ${o:06X} {n:>8}  {o // TRACK:>3}-{(o + n - 1) // TRACK:<4} {ld:>10}  {desc}')
     print(f'  free from ${end:06X}: {DISK - end} bytes')
     print(f'  the original tracks the game reads: {", ".join(game_tracks.runs(tracks))}')
-    same = original_but(main, orig_main)
-    print(f'  game: {len(main)} bytes unpacked; the original program but for diskload.s at $A04-$D87 and '
-          f'{len(make_game.PATCHES)} patch(es) ({", ".join(f"${a:X}" for a, *_ in make_game.PATCHES)}): '
-          + ('yes' if same else 'NO'))
-    if not same:
-        raise SystemExit('build_disk.py: the game differs from the original elsewhere')
+    ok, n, moved = layout(main, orig_main)
+    print(f'  game: {len(main)} bytes unpacked (the original: {len(orig_main)}); {n} labels of block 2 on '
+          f'compared with the original: ' + ('all in place' if ok else f'MOVED: {", ".join(moved[:10])}'))
+    if not ok:
+        raise SystemExit('build_disk.py: the game\'s layout differs from the original\'s')
     return ADF
 
 

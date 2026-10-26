@@ -44,8 +44,10 @@ DEVICE, NAME, BOOTREQ = 0x1100, 0x1200, 0x1300
 UNITS = [0x1400 + 0x40 * n for n in range(4)]     # trackdisk's unit structures, DF0-DF3
 FOREIGN = 0x1600                        # a unit of some other device
 LOADER = (0x63100, 0x63500)             # where the loader runs (VHPOSR moves while it is here)
-GAME_LOADER = (0xA04, 0xD88)            # the game's TrackRead / byteloader (diskload.s), after Relocate
-GAME_BOOTDRIVE = 0xA08                  # its BootDrive (run address)
+SYMS = build_disk.symbols(os.path.join(build_disk.OUT, 'nzs_game.lst'))   # the game's labels
+GAME_LOADER = (SYMS['TrackWrite'], SYMS['TrackMap'])  # the game's TrackRead / byteloader (diskload.s)
+GAME_HEADER = 0x426                     # the game's header (ext.i): 'NZSE', boot drive, machine
+GAME_ENTRY = 0x4000                     # GameStart: Init has run (EnhInit: the cache, the title's lines)
 STOP = 0x1F0                            # a return address that ends a call
 READS = [(2, 5), (84, 5), (18, 1), (89, 1), (152, 2), (158, 2), (144, 5), (68, 1)]   # (track, count)
 MISSING = [(0, 1), (1, 1), (100, 1), (89, 2)]
@@ -95,11 +97,8 @@ def memlist(w, regions):
 
 
 def title_lines(u):
-    """the extension module's title text (the printer's form) -> [(x, y, colour, text)]"""
-    import re
-    ext = open(os.path.join(build_disk.OUT, 'ext.bin'), 'rb').read()
-    a = EXT_BASE + ext.index(b'\xff' * 91)                    # TitleText as assembled: 91 x $FF
-    t = bytes(u.mem_read(a, 91))
+    """the game's title text (EnhTitleText's, in the printer's form) -> [(x, y, colour, text)]"""
+    t = bytes(u.mem_read(SYMS['TitleText'], 91))
     out, p = [], 0
     while p < len(t) and t[p] != 0xFF:
         x, y, c2, col = t[p:p + 4]; p += 4
@@ -126,7 +125,7 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
         if good: w(req + 0x14, '>LL', DEVICE, UNITS[n])
         w(req + 0x1F, '>B', 0 if good else 32)                  # io_Error (TDERR_BadUnitNum)
         u.reg_write(UC_M68K_REG_D0, 0 if good else 32)
-    u.hook_add(UC_HOOK_CODE, opendevice, begin=OPENDEVICE, end=OPENDEVICE)
+    od_hook = u.hook_add(UC_HOOK_CODE, opendevice, begin=OPENDEVICE, end=OPENDEVICE)
     w(DEVICE + 10, '>L', NAME); u.mem_write(NAME, b'trackdisk.device\0')
     w(BOOTREQ + 0x14, '>LL', DEVICE, FOREIGN if foreign else UNITS[unit])
     u.reg_write(UC_M68K_REG_A1, BOOTREQ)
@@ -143,14 +142,15 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
     # (in supervisor mode already: the privilege-violation trick is not exercised here)
     u.emu_start(BOOTBUF + 0x0C, 0x400, count=600_000_000)
     pc = u.reg_read(UC_M68K_REG_PC)
+    u.hook_del(od_hook)                                   # (the game's own code runs over that address)
 
     entry = lambda i: struct.unpack_from('>LL', adf, 0x410 + 8 * i)
     mo, ml = entry(0); so, sl = entry(1)
     game = bytearray(pack.unpack(adf[mo:mo + ml]))
-    game[build_disk.run_addr(GAME_BOOTDRIVE):build_disk.run_addr(GAME_BOOTDRIVE) + 4] = struct.pack('>L', unit if not foreign else 0)
     built = open(os.path.join(build_disk.OUT, 'nzs_game.bin'), 'rb').read()
-    same_as_built = bytes(game[:build_disk.run_addr(GAME_BOOTDRIVE)]) == built[:build_disk.run_addr(GAME_BOOTDRIVE)] and \
-        bytes(game[build_disk.run_addr(GAME_BOOTDRIVE) + 4:]) == built[build_disk.run_addr(GAME_BOOTDRIVE) + 4:]
+    hd = build_disk.run_addr(GAME_HEADER)                    # the header: as built but for the boot's part
+    in_mem = bytes(u.mem_read(0x400, len(game)))
+    same_as_built = game == bytearray(built) and in_mem[:hd + 4] == built[:hd + 4] and in_mem[hd + 44:] == built[hd + 44:]
     screen_file = adf[so:so + sl]
     pal, planes, _ = extract_files.decode_screen(screen_file)
     want = b''.join(bytes(p[:8000]) for p in planes)
@@ -162,7 +162,7 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
     checks = [('at the game entry ($400), d0 = a0 = $400',
                pc == 0x400 and u.reg_read(UC_M68K_REG_D0) == 0x400 and u.reg_read(UC_M68K_REG_A0) == 0x400),
               ('the file table', adf[0x400:0x404] == b'NZSF'),
-              ('the game unpacked at $400, BootDrive set', same_as_built and bytes(u.mem_read(0x400, len(game))) == bytes(game)),
+              ('the game unpacked at $400 as built', same_as_built),
               ('the screen file at $70000', bytes(u.mem_read(0x70000, sl)) == screen_file),
               ('the screen decoded at $78000 as the original decodes it', got == want),
               ('the 16 colours', [m.r16(0xDFF180 + 2 * k) for k in range(16)] == pal),
@@ -174,27 +174,34 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
               (f'units opened: {opened}', opened[0] == 3 and opened[-1] == (0 if foreign else unit)),
               (f'the motor off and DF{unit} deselected', not fd.motor or not fd.sel)]
     ext = open(os.path.join(build_disk.OUT, 'ext.bin'), 'rb').read()
-    mi = bytes(u.mem_read(EXT_BASE + 32, 36))
+    mi = bytes(u.mem_read(0x400 + hd + 8, 36))
+    bootdrive = m.r32(0x400 + hd + 4)
     chip = next((lo, hi) for lo, hi, at in reversed(regions) if at & 2)
     slow = next(((lo, hi) for lo, hi, at in reversed(regions) if not at & 2 and 0xC00000 <= lo < 0xDC0000), (0, 0))
     fast = next(((lo, hi) for lo, hi, at in reversed(regions) if not at & 2 and not 0xC00000 <= lo < 0xDC0000), (0, 0))
     want_mi = b'NZSM' + struct.pack('>BBH', 1, 50, 0) + struct.pack('>6LL', *chip, *slow, *fast, unit if not foreign else 0)
-    cache = struct.unpack('>LHHH', bytes(u.mem_read(EXT_BASE + 68, 10)))
+    checks += [('the extension module at $65400', bytes(u.mem_read(EXT_BASE, 16)) == ext[:16]),
+               ('the machine description and the boot drive in the game\'s header (chip, slow, fast RAM, PAL)',
+                mi == want_mi and bootdrive == (unit if not foreign else 0))]
+    if png:
+        import screen
+        mem = bytes(u.mem_read(0, 0x80000))
+        custom = {0x180 + 2 * k: m.r16(0xDFF180 + 2 * k) for k in range(32)}
+        custom[0x100] = regs[0x100]
+        screen.render(mem, cop, custom=custom, top=0x3C, lines=200).save(png)
+    print(f'{machine}, DF{unit} ({"booted from a unit of another device" if foreign else "booted from"}; drives {list(drives)}): '
+          f'{fd.reads} track reads (random start: {random_start}), head at cylinder {fd.cyl}')
+    # the game's start-up: Relocate, Init (EnhInit) up to GameStart; then its TrackRead, called as
+    # the game calls it
+    orig_track = build_disk.original_track
+    u.emu_start(0x400, GAME_ENTRY, count=20_000_000)
+    relocated = u.reg_read(UC_M68K_REG_PC) == GAME_ENTRY
+    cache = struct.unpack('>LHHH', bytes(u.mem_read(SYMS['CacheBase'], 10)))
     lines = title_lines(u)
-    with open(os.path.join(build_disk.OUT, f'test_ext_{list(MACHINES).index(machine)}.bin'), 'wb') as f:
-        f.write(bytes(u.mem_read(EXT_BASE, len(ext))))           # (the module as booted: tools/nzsemu can load it)
-    checks += [('the extension module at $65400', bytes(u.mem_read(EXT_BASE, 32)) == ext[:32]),
-               ('the machine description in it (chip, slow, fast RAM, PAL, the drive)', mi == want_mi),
-               (f'the track cache: {["none", "chip", "slow", "fast"][kind]} RAM, ${cbase:X}, {slots} tracks',
+    checks += [(f'the track cache: {["none", "chip", "slow", "fast"][kind]} RAM, ${cbase:X}, {slots} tracks',
                 (cache[3], cache[1]) == (kind, slots) and (not slots or cache[0] == cbase)),
                (f'the title: "{line1}" / "{line2}"', [l[3] for l in lines] == [line1, line2]
                 and all(l[0] == (40 - len(l[3])) // 2 for l in lines))]
-    print(f'{machine}, DF{unit} ({"booted from a unit of another device" if foreign else "booted from"}; drives {list(drives)}): '
-          f'{fd.reads} track reads (random start: {random_start}), head at cylinder {fd.cyl}')
-    # the game's own disk reading: run Relocate (to Init), then call TrackRead as the game does
-    orig_track = build_disk.original_track
-    u.emu_start(0x400, 0x55A, count=10_000_000)
-    relocated = u.reg_read(UC_M68K_REG_PC) == 0x55A
     def track_read(track, count, buf=0x3CAA6):
         sp = 0x7000
         w(sp, '>L', STOP)
@@ -202,7 +209,7 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
         u.reg_write(UC_M68K_REG_D0, track); u.reg_write(UC_M68K_REG_D1, count)
         u.reg_write(UC_M68K_REG_D2, 0); u.reg_write(UC_M68K_REG_A0, buf); u.reg_write(UC_M68K_REG_A6, 0x641B8)
         u.mem_write(buf, bytes(count * 5632))
-        u.emu_start(0xC24, STOP, count=200_000_000)
+        u.emu_start(0x40C, STOP, count=200_000_000)                # JT_TrackRead
         d0 = u.reg_read(UC_M68K_REG_D0)
         kept = u.reg_read(UC_M68K_REG_A6) == 0x641B8 and u.reg_read(UC_M68K_REG_A0) == buf and u.reg_read(UC_M68K_REG_PC) == STOP
         return d0, bytes(u.mem_read(buf, count * 5632)), kept
@@ -218,7 +225,7 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
         again &= d0 == 0 and kept and data == b''.join(orig_track(t + k) for k in range(n))
     tracks_read = len({t + k for t, n in READS for k in range(n)})
     cached = fd.reads == disk_reads if slots >= tracks_read else fd.reads > disk_reads
-    checks += [('Relocate run: at Init ($55A)', relocated),
+    checks += [('Relocate and Init run: at GameStart ($4000)', relocated),
                (f'TrackRead: {len(READS)} reads (tracks {", ".join(f"{t}+{n}" for t, n in READS)}) as on the original disk, registers kept', good_reads),
                (f'TrackRead: -1 for tracks the disk does not have ({", ".join(f"{t}+{n}" for t, n in MISSING)})', bad_reads),
                (f'TrackRead again: the same tracks, ' + ('all from the cache (no disk reads)' if slots >= tracks_read
@@ -228,11 +235,6 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
     for what, good in checks:
         print(f'  {"ok  " if good else "FAIL"} {what}'); ok &= good
     if png:
-        import screen
-        mem = bytes(u.mem_read(0, 0x80000))
-        custom = {0x180 + 2 * k: m.r16(0xDFF180 + 2 * k) for k in range(32)}
-        custom[0x100] = regs[0x100]
-        screen.render(mem, cop, custom=custom, top=0x3C, lines=200).save(png)
         print(f'  rendered the display: {os.path.relpath(png, os.path.join(build_disk.ENH, ".."))}')
     return ok
 
