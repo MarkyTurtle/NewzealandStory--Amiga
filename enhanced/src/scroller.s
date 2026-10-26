@@ -744,7 +744,8 @@ EnhFlip:        tst.b   ScrActive
 ;   bitplanes on; the pointers for its first line; modulos 128; the game's list from BPLCON1
 ;   (its fine scroll, $3C(a6)) to its colours; where the ring wraps in the playfield, a WAIT
 ;   and the pointers of ring line 0; the game's split ($EC: BPLCON1 $77) with the panel's
-;   pointers and modulos 120; the end
+;   pointers and modulos 120; below the display, the modulos back to 0 (the game's own list
+;   never sets them: when the game leaves this display, its screens need them 0); the end
 ScrCopper:      move.w  d7,d6
         subq.w  #1,d6
         add.w   d6,d6                           ; d6 = word index
@@ -822,8 +823,17 @@ ScrCopper:      move.w  d7,d6
         bsr.b   .ptrs
         move.l  #$01080000+SCR_PLINE-40,(a0)+
         move.l  #$010A0000+SCR_PLINE-40,(a0)+
+        move.l  #$ffdffffe,(a0)+                ; below the display (line 271, past any shake):
+        move.l  #$0f01fffe,(a0)+                ;   the modulos back to the game's (0), which its
+        move.l  #$01080000,(a0)+                ;   own copper list never sets - for when the game
+        move.l  #$010a0000,(a0)+                ;   leaves this display (ScrLeave)
         move.l  #$fffffffe,(a0)+
-        movea.l a3,a0
+        move.l  a0,d0                           ; (the list must fit its 384 bytes)
+        sub.l   a3,d0
+        cmp.l   #384,d0
+        bls.b   .fits
+        move.w  #$f00,(CUSTOM+COLOR00).l
+.fits:          movea.l a3,a0
         rts
 ; .ptrs - the 4 bitplane pointers: d0 = plane 0, d4 = the planes' distance
 .ptrs:          move.w  #$00e0,d1
