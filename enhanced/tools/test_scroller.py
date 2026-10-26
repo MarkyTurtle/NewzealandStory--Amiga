@@ -2,7 +2,11 @@
 (original/tools/nzsemu) with the same input, and what each shows is compared pixel for pixel
 (original/tools/display.py follows each one's copper list) at frames all through a session.
 
-  python3 enhanced/tools/test_scroller.py [--levels N] [--every P] [--passes N] [--seed S] [--keep]
+  python3 enhanced/tools/test_scroller.py [--levels N] [--every P] [--passes N] [--seed S] [--chip BYTES] [--keep]
+
+--chip: the enhanced game's machine description given that much chip RAM (default: none
+recorded, as on a 512K machine; 0x100000 for 1MB: the mirrored frames all built at start-up
+rather than the cache, src/mirror.s).
 
 The session: the attract mode, then for each level (the level number poked in as the level
 starts, as tools/nzsemu/coverage.py does) N passes of the game loop (default 240) with a
@@ -36,9 +40,9 @@ FIRE = 'joy f\nframes 8\njoy\n'
 STATE = (0x641BA, 0x65400)          # the game's globals (but (a6), CIA-B timer B's count) and objects
 
 
-def script(tmp, tag, lv, every, passes, seed):
+def script(tmp, tag, lv, every, passes, seed, pre=''):
     """one level, from the start-up (each level in a run of its own: the same state in both)"""
-    s = ('setd1 0xBE04 0xFFFFFFFF\nframes 200\n' + FIRE +
+    s = (pre + 'setd1 0xBE04 0xFFFFFFFF\nframes 200\n' + FIRE +
          f'until 0x40F8 60000\npoke 0x641C0 {lv * 16} w\npoke 0x641D2 5 w\nframes 120\n' + FIRE +
          f'passes {passes} {seed} 0x42CE {every} {tmp}/{tag}_l{lv:02d} 0x42DE\n')
     return s, [f'{tag}_l{lv:02d}_{k:04d}' for k in range(1, passes // every + 1)]
@@ -58,6 +62,12 @@ def main():
     seed = int(args[args.index('--seed') + 1]) if '--seed' in args else 1000
     passes = int(args[args.index('--passes') + 1]) if '--passes' in args else 240
     levels = list(range(n))
+    pre = ''
+    if '--chip' in args:                            # the machine's chip RAM (default: 512K)
+        sys.path.insert(0, HERE)
+        import build_disk
+        machine = build_disk.symbols(os.path.join(ENH, 'build', 'nzs_game.lst'))['EnhMachine'] + 4 + 12
+        pre = f'poke {machine} {int(args[args.index("--chip") + 1], 0)} l\n'   # (block 1 is stored 4 higher)
     os.makedirs(OUT, exist_ok=True)
     tmp = tempfile.mkdtemp(dir=os.path.join(ENH, 'build'))
     shots = []
@@ -65,7 +75,7 @@ def main():
     jobs = []
     for lv in levels:
         so, sh = script(tmp, 'o', lv, every, passes, seed + lv)
-        se, _ = script(tmp, 'e', lv, every, passes, seed + lv)
+        se, _ = script(tmp, 'e', lv, every, passes, seed + lv, pre)
         shots += sh
         jobs += [(os.path.join(ORIG, 'bin', 'main.bin'), so, f'o{lv}'), (os.path.join(ENH, 'build', 'nzs_game.bin'), se, f'e{lv}')]
     with ThreadPoolExecutor(os.cpu_count() or 2) as ex:

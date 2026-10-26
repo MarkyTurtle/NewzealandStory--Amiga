@@ -712,7 +712,7 @@ l_041F0:
 l_041F6:
         move.w  $8(a6),(LoadedLevel).l          ; 041F6
 l_041FE:
-        jsr     (sub_0C5C0).l                   ; 041FE
+        jsr     (EnhLevelStart).l               ; 041FE  enhanced: + the mirror cache warmed (mirror.s)
         bsr.w   sub_04C30                       ; 04204
         move.w  $8(a6),d0                       ; 04208
         lea.l   LevelTable(pc),a0               ; 0420C
@@ -8523,9 +8523,8 @@ l_0B7BC:
         move.l  d2,d4                           ; 0B7C2
         move.l  d3,d5                           ; 0B7C4
         lea.l   CUSTOM,a2                       ; 0B7C6
-        lsl.w   #$4,d1                          ; 0B7CC
-        adda.l  (a1,d1.w),a0                    ; 0B7CE
-        movea.l a0,a1                           ; 0B7D2
+        jsr     (EnhBobFrame).l                 ; 0B7CC  enhanced: the frame's address, mirrored on demand (mirror.s)
+        nop                                     ; 0B7D2
         lea.l   (mem_63E94).l,a0                ; 0B7D4
         lsl.w   #$2,d0                          ; 0B7DA
         movea.l (a0,d0.w),a0                    ; 0B7DC
@@ -9411,8 +9410,9 @@ l_0C4EE:
 l_0C52A:
         rts                                     ; 0C52A
 sub_0C52C:
-        bsr.w   sub_0C048                       ; 0C52C
-        movea.l #dat_4A3A6,a1                   ; 0C530
+        jmp     (EnhMirrorInit).l               ; 0C52C  enhanced: the mirrored frames, all or a cache (mirror.s)
+        nop                                     ; 0C532
+        nop                                     ; 0C534
         movea.l $84(a6),a3                      ; 0C536
         move.w  #$122,d7                        ; 0C53A
         lea.l   (dat_4A2A6).l,a5                ; 0C53E
