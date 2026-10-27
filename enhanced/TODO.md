@@ -97,8 +97,7 @@ credits and copyright lines and gets a menu under the kiwi:
   original (`test_scroller.py`) stay in step.
 * A move or a change redraws the title and restarts its time-out to the attract sequence; the
   options and test pages have no time-out.
-* The original's typed cheat code on the title (the keys checked in `sub_0B9F0` against
-  `dat_045B4`, eor `$41`: it gives 1,000 lives, `l_04F46`) keeps working.
+* The original's cheat, typed on the title, keeps working (below).
 * Settings last until the machine is reset.
 
 **Two-button joysticks.** The original jumps on up and fires (the kiwi's arrows) on the button.
@@ -114,9 +113,20 @@ The second button (port 2, pin 9: a two-button stick or a Sega-style pad) as jum
 * The option: `INPUT` on the options page (and a key, as J in Ghosts'n Goblins). Jump on up
   stays the default: the original's controls, and what the comparisons use.
 
-**Cheat on / off.** `CHEAT` on the options page: on, the kiwi does not lose lives (or the
-original's 1,000 lives - to decide; and perhaps the time limit off, the level select): the
-same switch as the typed code, so the two agree. Shown on the title when on.
+**Cheat on / off.** The original has a cheat: `MOTHERFUCKENKIWIBASTARD` typed on the title.
+`sub_0B9F0` checks each key (raw key codes, `dat_045B4`, each eor `$41`, `$BE` ends) while the
+title waits; each right key plays a sound, the whole code plays tune 10 and sets the game's
+starting lives (the immediate at `l_04F46+2`, normally 3) to 1,000. That number is also the
+cheat's switch:
+* in play, the game loop (`$43C0`) tests the HELP key (raw `$5F`, worked out from the 1,000)
+  and skips to the next level (`l_054AE`);
+* `sub_0900A` would turn F1 (raw `$50`, held: `sub_0903A`) into a free-moving kiwi through the
+  walls (`sub_08FD4`: his handler swapped, 4 pixels a step with the joystick) and back - but
+  nothing calls it: left in, unused.
+
+`CHEAT` on the options page sets the same immediate (1,000 or 3), so the menu and the typed code
+agree, and both features come with it; shown on the title when on. Perhaps also: `sub_0900A`
+called from the kiwi's handler, so the original's own fly mode works with the cheat on.
 
 **The test page's tests.**
 * *Sound test:* the 12 songs and the 18 effects by number (`PlaySong`, `PlaySample`), fire
