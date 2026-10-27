@@ -316,7 +316,8 @@ original has nothing, a menu:
 | Page | Items |
 |---|---|
 | title | `START GAME`, `OPTIONS` |
-| options | `INPUT: JUMP ON UP` / `JUMP ON BUTTON 2` / `JUMP 1 FIRE 2`, `CHEAT: OFF` / `ON`, `EXIT`; under the kiwi, the machine's memory lines (*The machine's memory*) |
+| options | `INPUT: JUMP ON UP` / `JUMP ON BUTTON 2` / `JUMP 1 FIRE 2`, `CHEAT: OFF` / `ON`, `SOUND TEST`, `EXIT`; under the kiwi, the machine's memory lines (*The machine's memory*) |
+| sound test | `MUSIC: 01`-`12`, `EFFECT: 01 KIWI JUMP`-`12 EXPLOSION`, `MUSIC OFF`, `EXIT` |
 
 Up and down move (round), fire chooses; on `INPUT` and `CHEAT` left, right and fire change the
 setting. The chosen item shows as `> ... <` in white. `EnhTitleWait` takes the place of the
@@ -331,6 +332,11 @@ second button is port 2's pin 9 (`POTINP` bit 14, low when pressed; `POTGO` `$FF
 * `JUMP ON BUTTON 2`: button 2 is up - it jumps, and swims up; the stick's up does nothing.
 * `JUMP 1 FIRE 2`: button 1 jumps, button 2 fires.
 
+**The sound test**: on `MUSIC` and `EFFECT` left and right choose the tune (the driver's 12,
+`PlaySong`) or the effect (the 12 IFF 8SVX effects, `PlaySample`; names from their files,
+`../original/docs/SOUND.md`) and fire plays it; `MUSIC OFF` stops the tune (`StopSong` with
+d0 = 0: every voice), and so does `EXIT`. No time-out on this page either.
+
 **The cheat** setting is the original's own (*The cheat*, below): on, 1,000 lives, tune 10;
 off, 3. Typing the code on either page turns it on as well. The settings last until the machine
 is reset.
@@ -339,7 +345,8 @@ To make room in block 1, the 50 Hz buffers moved to the scroller's free memory a
 restore lists (`$7FB80`), and the mirror cache's queue to the memory the cache frees
 (`$563A6`, used only with it).
 
-**Tested** (`tools/test_menu.py`, 25 cases): starting a game, moving round, each setting and
+**Tested** (`tools/test_menu.py`, 34 cases, the sound test's included: the numbers going round,
+the tune playing (`Music_Voices`) and stopping, the effect on channel 3): starting a game, moving round, each setting and
 `EXIT`, the title's time-out and none on the options page, the typed code on both pages, and in
 play each input setting with up, button 1 and button 2 (what the game reads at `$63DB0`).
 `nzsemu`'s `joy 2` holds the second button.

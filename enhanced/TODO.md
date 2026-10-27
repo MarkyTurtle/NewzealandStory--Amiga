@@ -79,7 +79,8 @@ fewer.
 
 Done (branch `feature/options-menu`): the title menu's title and options pages, the input
 settings (jump on up / on button 2 / button 1 jumps and 2 fires) and the cheat switch
-(`README.md`, *The title menu*). Left: the test page and its tests (below).
+(`README.md`, *The title menu*), and a sound test on its own page from the options. Left: an
+input test and a sprite test (below).
 
 Along the lines of the enhanced Ghosts'n Goblins' title menu (`enhanced/docs/SCROLLER.md` there,
 *The title menu*, *Two-button joysticks*, *The test page's tests*). Each on its own branch.

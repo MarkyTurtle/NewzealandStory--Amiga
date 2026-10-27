@@ -4,8 +4,9 @@
 
 Each case runs the enhanced game from the start-up in original/tools/nzsemu with joystick moves
 (the second button: "joy 2", POTGOR bit 14) and keys, and checks the menu's state (MenuPage,
-MenuSel, JoyMode), the cheat (the game's starting lives, l_04F46+2) and what the game reads
-from the joystick ($63DB0: bit 2 up, bit 7 fire). Writes the title's two pages as pictures to
+MenuSel, JoyMode, the sound test's MenuSong / MenuSfx, its tune playing: Music_Voices, its
+effect: channel 3's AUD3LC), the cheat (the game's starting lives, l_04F46+2) and what the game reads
+from the joystick ($63DB0: bit 2 up, bit 7 fire). Writes the title's three pages as pictures to
 enhanced/build/test_menu/.
 """
 import os, struct, subprocess, sys, tempfile
@@ -42,9 +43,12 @@ class Run:
                               p + '.txt'], check=True, capture_output=True, text=True).stdout
         m = open(p + '.mem', 'rb').read()
         w = lambda a: struct.unpack_from('>H', m, a)[0]
+        regs = open(p + '.regs', 'rb').read()
         return dict(page=w(self.syms['MenuPage']), sel=w(self.syms['MenuSel']), mode=w(self.syms['JoyMode']),
                     lives=w(LIVES), joy=m[JOY], frames=int(out.strip().splitlines()[-1].split()[1].rstrip(',')),
-                    prefix=p)
+                    song=w(self.syms['MenuSong']), sfx=w(self.syms['MenuSfx']),
+                    voices=w(self.syms['Music_Voices']),
+                    aud3=struct.unpack_from('>L', regs, 0xD0)[0] & 0x7FFFE, prefix=p)
 
 
 def main():
@@ -85,8 +89,28 @@ def main():
     check(r['sel'] == 1 and r['lives'] == 1000, 'CHEAT, fire: on (1,000 lives)')
     r = run(opts + tap('d') + tap('f') + tap('r'))
     check(r['lives'] == 3, 'CHEAT, right: off')
-    r = run(opts + tap('d') + tap('d') + tap('f'))
+    r = run(opts + tap('d') * 3 + tap('f'))
     check(r['page'] == 0 and r['sel'] == 1, 'EXIT: the title, OPTIONS chosen')
+    snd = opts + tap('d') * 2 + tap('f')
+    r = run(snd)
+    check(r['page'] == 2 and r['sel'] == 0 and r['song'] == 1, 'SOUND TEST: its page, MUSIC 01 chosen')
+    display.render(*display.load(r['prefix'])).save(os.path.join(OUT, 'sound.png'))
+    r = run(snd + tap('r') + tap('r'))
+    check(r['song'] == 3, 'MUSIC, right twice: 03')
+    r = run(snd + tap('l'))
+    check(r['song'] == 12, 'MUSIC, left from 01: round to 12')
+    r = run(snd + tap('r') + tap('f') + 'frames 20\n')
+    check(r['voices'] != 0, 'MUSIC, fire: the tune plays (Music_Voices)')
+    r = run(snd + tap('r') + tap('f') + 'frames 20\n' + tap('d') * 2 + tap('f') + 'frames 10\n')
+    check(r['voices'] == 0, 'MUSIC OFF: it stops')
+    r = run(snd + tap('d') + tap('r') * 2 + tap('f') + 'frames 2\n')
+    check(r['sfx'] == 2 and 0x17F84 < r['aud3'] < 0x17F84 + 1060, 'EFFECT 03 (KIWI SHOT), fire: channel 3 plays it')
+    r = run(snd + tap('d') + tap('l'))
+    check(r['sfx'] == 11, 'EFFECT, left from 01: round to 12')
+    r = run(snd + tap('r') + tap('f') + 'frames 20\n' + tap('u') + tap('f') + 'frames 10\n')
+    check(r['page'] == 1 and r['sel'] == 2 and r['voices'] == 0, 'EXIT: the options page, SOUND TEST chosen, the tune stopped')
+    r = run(snd + 'until 0x45FC 3000\n')
+    check(r['frames'] >= 150 + 3000 and r['page'] == 2, 'the sound test does not time out')
     r = run(title + 'until 0x45FC 3000\n')
     check(r['frames'] < 150 + 3000, 'the title times out to the attract sequence')
     r = run(opts + 'until 0x45FC 3000\n')
@@ -99,7 +123,7 @@ def main():
     for mode, cases in ((0, (('u', 1, 0), ('2', 0, 0), ('f', 0, 1))),
                         (1, (('u', 0, 0), ('2', 1, 0), ('f', 0, 1))),
                         (2, (('u', 0, 0), ('f', 1, 0), ('2', 0, 1)))):
-        set_mode = opts + tap('r') * mode + tap('d') + tap('d') + tap('f') + tap('u') if mode else title
+        set_mode = opts + tap('r') * mode + tap('d') * 3 + tap('f') + tap('u') if mode else title
         for hold, up, fire in cases:
             r = run(set_mode + game + f'joy {hold}\nframes 4\n')
             check(r['mode'] == mode and bool(r['joy'] & 4) == bool(up) and bool(r['joy'] & 0x80) == bool(fire),
