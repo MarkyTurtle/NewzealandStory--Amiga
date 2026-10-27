@@ -53,6 +53,11 @@
  *                         LO-HI
  *   watch LO HI           log (to the log file) the first write to each 256-byte block of LO-HI,
  *                         with the PC that made it
+ *   dmacheck LO HI        log (to the log file) each DMA read or write that reaches LO-HI, once
+ *                         for each kind and 16-byte block: the blitter's channels (each blit's
+ *                         area), the copper lists (COP1LC / COP2LC and every pointer they load),
+ *                         the bitplane, sprite (its data to the 0,0 end) and audio pointers
+ *                         (with AUDxLEN) as the CPU or the copper sets them
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,6 +92,23 @@ static int blit_timed; static long blit_busy_until;   /* blittime: the blitter b
 static FILE *audf;
 static unsigned watch_lo = 1, watch_hi = 0; static uint8_t watched[RAM / 256];
 static int watch_pcs; static unsigned seen_n, seen[8192];   /* watchpc: (block << 20 | pc) seen */
+static unsigned dma_lo = 1, dma_hi = 0; static unsigned dma_seen_n, dma_seen[4096];
+static uint16_t rw(uint32_t a);
+static void dma_note(const char *kind, unsigned a, unsigned n) {   /* a DMA area: a .. a+n */
+    if (dma_lo >= dma_hi || a + n <= dma_lo || a >= dma_hi) return;
+    unsigned key = (a >> 4) << 4 | (kind[0] & 15);
+    for (unsigned i = 0; i < dma_seen_n; i++) if (dma_seen[i] == key) return;
+    if (dma_seen_n < 4096) dma_seen[dma_seen_n++] = key;
+    if (logf) fprintf(logf, "frame %lu: DMA %s $%06X-$%06X by pc $%X\n", frame, kind, a, a + n,
+                      m68k_get_reg(NULL, M68K_REG_PPC));
+}
+static void dma_ptr(unsigned reg, unsigned v) {             /* a pointer register loaded */
+    if (reg >= 0xE0 && reg < 0x100) dma_note("bitplane", v, 2);
+    else if (reg >= 0x120 && reg < 0x140) {               /* a sprite: its words to the 0,0 end */
+        unsigned n = 0; while (n < 2048 && (rw(v + n) | rw(v + n + 2))) n += 4;
+        dma_note("sprite", v, n + 4); }
+    else if (reg == 0x80 || reg == 0x84) dma_note("copper", v, 4);
+}
 static void watch(unsigned a) {
     if (watch_pcs && a >= watch_lo && a < watch_hi) {
         unsigned pc = m68k_get_reg(NULL, M68K_REG_PPC), key = (a >> 8) << 20 | (pc & 0xFFFFF);
@@ -152,6 +174,12 @@ static void blit(uint16_t size) {
     uint16_t fwm = cust[0x44 / 2], lwm = cust[0x46 / 2];
     uint32_t pa = ptr(0x50), pb = ptr(0x4C), pc = ptr(0x48), pd = ptr(0x54);
     int16_t ma = cust[0x64 / 2], mb = cust[0x62 / 2], mc = cust[0x60 / 2], md = cust[0x66 / 2];
+    if (dma_lo < dma_hi && !(con1 & 2)) {                  /* (dmacheck: ascending blits' areas) */
+        if (use & 8) dma_note("blitA", pa, h * (2 * w + ma));
+        if (use & 4) dma_note("blitB", pb, h * (2 * w + mb));
+        if (use & 2) dma_note("blitC", pc, h * (2 * w + mc));
+        if (use & 1) dma_note("blitD", pd, h * (2 * w + md));
+    }
     uint16_t adat = cust[0x74 / 2], bdat = cust[0x72 / 2], cdat = cust[0x70 / 2];
     int step = desc ? -2 : 2;
     int fill = (con1 >> 3) & 3;                     /* IFE / EFE (fill mode) */
@@ -225,6 +253,11 @@ static void custom_write(unsigned r, unsigned v) {
     v &= 0xFFFF;
     cust[r / 2] = v;
     if (audf && ((r >= 0xA0 && r < 0xE0) || r == 0x096)) fprintf(audf, "%ld %03X %04X\n", cyc_now(), r, v);
+    if (dma_lo < dma_hi && (r & 2) && ((r >= 0x80 && r < 0x88) || (r >= 0xE0 && r < 0x100) || (r >= 0x120 && r < 0x140)))
+        dma_ptr(r - 2, ((unsigned)cust[(r - 2) / 2] << 16 | v) & (RAM - 2));   /* (the low word: the pointer whole) */
+    if (dma_lo < dma_hi && r >= 0xA0 && r < 0xE0 && (r & 15) == 4) {          /* AUDxLEN: with AUDxLC */
+        unsigned lc = ((unsigned)cust[(r - 4) / 2] << 16 | cust[(r - 2) / 2]) & (RAM - 2);
+        dma_note("audio", lc, 2 * (v ? v : 0x10000)); }
     switch (r) {
     case 0x058: blit(v); break;
     case 0x096: { unsigned old = dmacon; dmacon = v & 0x8000 ? dmacon | (v & 0x7FFF) : dmacon & ~v;
@@ -416,8 +449,25 @@ static void keyboard_tick(void) {
         cia_irq(&ciaa, 8); key_delay = 3;
     }
 }
+static void copper_walk(unsigned a) {                       /* dmacheck: a copper list's pointers */
+    unsigned hi[0x100] = {0};
+    dma_note("copper", a, 4);
+    for (int i = 0; i < 1024; i++, a += 4) {
+        unsigned w1 = rw(a), w2 = rw(a + 2);
+        if (w1 == 0xFFFF && w2 == 0xFFFE) { dma_note("copper", a - 4 * i, 4 * i + 4); return; }
+        if (w1 & 1) continue;                                  /* WAIT / SKIP */
+        unsigned r = w1 & 0x1FE;
+        if (r & 2) { if ((r >= 0x80 && r < 0x88) || (r >= 0xE0 && r < 0x100) || (r >= 0x120 && r < 0x140))
+                         dma_ptr(r - 2, (hi[(r - 2) / 2] << 16 | w2) & (RAM - 2)); }
+        else hi[r / 2] = w2;
+    }
+}
 static void run_frame(void) {
     line_no = 0;
+    if (dma_lo < dma_hi) {
+        copper_walk(((unsigned)cust[0x80 / 2] << 16 | cust[0x82 / 2]) & (RAM - 2));
+        if (cust[0x84 / 2] | cust[0x86 / 2]) copper_walk(((unsigned)cust[0x84 / 2] << 16 | cust[0x86 / 2]) & (RAM - 2));
+    }
     /* CIA-A TOD counts frames (VSYNC) */
     ciaa.tod = (ciaa.tod + 1) & 0xFFFFFF;
     intreq |= 0x0020; update_irq();                           /* VERTB */
@@ -486,6 +536,7 @@ int main(int argc, char **argv) {
           }
         }
         else if (!strcmp(cmd, "trace")) { trace_pc = strtoul(a1, 0, 0); }
+        else if (!strcmp(cmd, "dmacheck")) { dma_lo = strtoul(a1, 0, 0); dma_hi = strtoul(a2, 0, 0); }
         else if (!strcmp(cmd, "blittime")) { blit_timed = atoi(a1); }
         else if (!strcmp(cmd, "profile")) {                  /* profile 1: start counting, 0: stop */
             if (atoi(a1)) { if (!prof) prof = calloc(RAM / 2, sizeof *prof); prof_pc = RAM; prof_cyc = cyc_now(); }
