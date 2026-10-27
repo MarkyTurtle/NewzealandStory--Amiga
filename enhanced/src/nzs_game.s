@@ -293,6 +293,7 @@ ReadJoystick:
         bne.b   l_02AA0                         ; 02A9A
         bset    #$7,d0                          ; 02A9C
 l_02AA0:
+        bsr.w   EnhJoy                          ; enhanced: the input setting (menu.s)
         move.w  d0,(dat_03184).l                ; 02AA0
         move.l  (a7)+,d2                        ; 02AA6
         rts                                     ; 02AA8
@@ -582,7 +583,7 @@ l_04016:
         lea.l   (GamePalette).l,a0              ; 0405E
         bsr.w   SetPalette                      ; 04064
         move.w  #$1e,(a6)                       ; 04068
-        bsr.w   sub_0B9F0                       ; 0406C
+        bsr.w   EnhTitleWait                    ; 0406C  enhanced: the title menu (menu.s)
         tst.w   (a6)                            ; 04070
         bne.b   l_04084                         ; 04072
         bsr.w   sub_045FC                       ; 04074
@@ -855,8 +856,8 @@ l_0439C:
         move.w  #$3c,(a6)                       ; 043B8
         bsr.w   sub_050F4                       ; 043BC
 l_043C0:
-        lea.l   l_04F46(pc),a0                  ; 043C0
-        move.w  $2(a0),d0                       ; 043C4
+        jsr     (EnhCheatKeys).l                ; 043C0  enhanced: + the fly mode on F1 (enhanced.s)
+        nop                                     ; 043C6
         eori.w  #$3b7,d0                        ; 043C8
         move.w  d0,d1                           ; 043CC
         addq.w  #$1,d1                          ; 043CE

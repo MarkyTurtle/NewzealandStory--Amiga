@@ -7,7 +7,7 @@ then merged.
 
 * **The machine's memory** (branch `feature/memory-config`): the bootblock's machine
   description (chip / slow / fast RAM, PAL / NTSC, CPU), a track cache in the largest memory
-  beyond 512K of chip RAM, and the memory shown on the title screen (`README.md`, *The
+  beyond 512K of chip RAM, and the memory shown on the title menu's options page (`README.md`, *The
   machine's memory*).
 * **The source edited by hand** (branch `feature/scroller`): `src/nzs_game.s`, the debug monitor
   removed from block 1 and the enhanced code in its place; block 2 checked label by label.
@@ -86,6 +86,11 @@ fewer.
 
 ### Title menu, two-button joysticks and a cheat
 
+Done (branch `feature/options-menu`): the title menu's title and options pages, the input
+settings (jump on up / on button 2 / button 1 jumps and 2 fires) and the cheat switch
+(`README.md`, *The title menu*), and a sound test on its own page from the options. Left: an
+input test and a sprite test (below).
+
 Along the lines of the enhanced Ghosts'n Goblins' title menu (`enhanced/docs/SCROLLER.md` there,
 *The title menu*, *Two-button joysticks*, *The test page's tests*). Each on its own branch.
 
@@ -128,14 +133,15 @@ title waits; each right key plays a sound, the whole code plays tune 10 and sets
 starting lives (the immediate at `l_04F46+2`, normally 3) to 1,000. That number is also the
 cheat's switch:
 * in play, the game loop (`$43C0`) tests the HELP key (raw `$5F`, worked out from the 1,000)
-  and skips to the next level (`l_054AE`);
+  and skips to the next level (`l_054AE`) - the enhanced game moves this to F2 (raw `$51`,
+  on a new press) in `EnhCheatKeys` and gives the HELP test 3, so HELP does nothing;
 * `sub_0900A` would turn F1 (raw `$50`, held: `sub_0903A`) into a free-moving kiwi through the
   walls (`sub_08FD4`: his handler swapped, 4 pixels a step with the joystick) and back - but
   nothing calls it: left in, unused.
 
 `CHEAT` on the options page sets the same immediate (1,000 or 3), so the menu and the typed code
-agree, and both features come with it; shown on the title when on. Perhaps also: `sub_0900A`
-called from the kiwi's handler, so the original's own fly mode works with the cheat on.
+agree, and both features come with it; shown on the title when on. Done (branch
+`feature/fly-mode`): the fly mode works with the cheat on (`README.md`, *The cheat*).
 
 **The test page's tests.**
 * *Sound test:* the 12 songs and the 18 effects by number (`PlaySong`, `PlaySample`), fire

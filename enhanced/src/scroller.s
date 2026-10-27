@@ -32,6 +32,7 @@ SCR_COPPER_A    equ     $7ED80                  ; the copper lists, 384 bytes ea
 SCR_COPPER_B    equ     $7EF00
 SCR_RESTORE_A   equ     $7F080                  ; restore lists, 1,400 bytes each (175 rectangles)
 SCR_RESTORE_B   equ     $7F600                  ; (to $7FB78)
+SCR_FREE        equ     $7FB80                  ; free to $80000: smooth.s's buffers
 ;
 ; The display is in this mode from the first pass of the game loop (ScrEnter, from sub_0B55C)
 ; until the game clears its screens or sets up another display (ScrLeave: sub_0BB76,
