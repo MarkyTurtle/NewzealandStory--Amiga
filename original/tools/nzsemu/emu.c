@@ -1,6 +1,8 @@
 /* nzsemu: runs The New Zealand Story's main program on a minimal Amiga, for studying it.
  *
- * A 68000 (Musashi) with 512K of chip RAM and just what the game uses: the vertical blank
+ * A 68000 (Musashi) with chip RAM (2MB: the game sees as much as its machine description says;
+ * the custom chips reach all of it) and 512K of slow RAM at $C00000 (the CPU's only), and just
+ * what the game uses: the vertical blank
  * (level 3), CIA-B timer A/B and TOD alarm (level 6), CIA-A (fire buttons, keyboard: level 2),
  * the audio channel 3 interrupt (level 4: the game's sample player), the blitter (area mode,
  * done at once when BLTSIZE is written), the joystick. The disk is not emulated: a call of the
@@ -58,11 +60,14 @@
 #include <stdint.h>
 #include "m68k.h"
 
-#define RAM 0x80000
-static uint8_t ram[RAM];
+#define RAM 0x200000                  /* chip RAM */
+#define SNAP 0x80000                  /* what a snapshot / the coverage holds: the first 512K */
+#define SLOW_LO 0xC00000              /* slow RAM ("trapdoor"), the CPU's only */
+#define SLOW_SIZE 0x80000
+static uint8_t ram[RAM], slow[SLOW_SIZE];
 static uint16_t cust[0x100];          /* custom registers as last written / derived */
 static uint16_t intena, intreq, dmacon, adkcon;
-static uint8_t cover[RAM / 8];
+static uint8_t cover[SNAP / 8];
 static const char *trackdir;
 static FILE *logf;
 static unsigned long frame, line_no;
@@ -131,7 +136,7 @@ static void aud_schedule(int ch) {
 static uint16_t rw(uint32_t a) { a &= RAM - 2; return ram[a] << 8 | ram[a + 1]; }
 static void watch(unsigned a);
 static void ww(uint32_t a, uint16_t v) { a &= RAM - 2; watch(a); ram[a] = v >> 8; ram[a + 1] = v; }
-static uint32_t ptr(int r) { return ((uint32_t)cust[r / 2] << 16 | cust[r / 2 + 1]) & 0x7FFFE; }
+static uint32_t ptr(int r) { return ((uint32_t)cust[r / 2] << 16 | cust[r / 2 + 1]) & (RAM - 2); }
 static void blit(uint16_t size) {
     uint16_t con0 = cust[0x40 / 2], con1 = cust[0x42 / 2];
     blits++;
@@ -274,6 +279,7 @@ static void cia_write(cia_t *c, int reg, unsigned v) {
 unsigned int m68k_read_memory_8(unsigned int a) {
     a &= 0xFFFFFF;
     if (a < RAM) return ram[a];
+    if (a - SLOW_LO < SLOW_SIZE) return slow[a - SLOW_LO];
     if ((a & 0xFFF000) == 0xBFE000 && (a & 1)) return cia_read(&ciaa, (a >> 8) & 15, 1);
     if ((a & 0xFFF000) == 0xBFD000 && !(a & 1)) return cia_read(&ciab, (a >> 8) & 15, 0);
     if ((a & 0xFFF000) == 0xDFF000) { unsigned v = custom_read(a & 0x1FE); return a & 1 ? v & 0xFF : v >> 8; }
@@ -282,6 +288,7 @@ unsigned int m68k_read_memory_8(unsigned int a) {
 unsigned int m68k_read_memory_16(unsigned int a) {
     a &= 0xFFFFFF;
     if (a < RAM) return ram[a] << 8 | ram[a + 1];
+    if (a - SLOW_LO < SLOW_SIZE) return slow[a - SLOW_LO] << 8 | slow[a - SLOW_LO + 1];
     if ((a & 0xFFF000) == 0xDFF000) return custom_read(a & 0x1FE);
     return m68k_read_memory_8(a) << 8 | m68k_read_memory_8(a + 1);
 }
@@ -289,6 +296,7 @@ unsigned int m68k_read_memory_32(unsigned int a) { return m68k_read_memory_16(a)
 void m68k_write_memory_8(unsigned int a, unsigned int v) {
     a &= 0xFFFFFF;
     if (a < RAM) { watch(a); ram[a] = v; return; }
+    if (a - SLOW_LO < SLOW_SIZE) { slow[a - SLOW_LO] = v; return; }
     if ((a & 0xFFF000) == 0xBFE000 && (a & 1)) { cia_write(&ciaa, (a >> 8) & 15, v); return; }
     if ((a & 0xFFF000) == 0xBFD000 && !(a & 1)) { cia_write(&ciab, (a >> 8) & 15, v); return; }
     if ((a & 0xFFF000) == 0xDFF000) { unsigned r = a & 0x1FE; custom_write(r, a & 1 ? (cust[r / 2] & 0xFF00) | (v & 0xFF) : (v & 0xFF) << 8 | (v & 0xFF)); }
@@ -296,6 +304,7 @@ void m68k_write_memory_8(unsigned int a, unsigned int v) {
 void m68k_write_memory_16(unsigned int a, unsigned int v) {
     a &= 0xFFFFFF;
     if (a < RAM) { watch(a); ram[a] = v >> 8; ram[a + 1] = v; return; }
+    if (a - SLOW_LO < SLOW_SIZE) { slow[a - SLOW_LO] = v >> 8; slow[a - SLOW_LO + 1] = v; return; }
     if ((a & 0xFFF000) == 0xDFF000) { custom_write(a & 0x1FE, v); return; }
     m68k_write_memory_8(a, v >> 8); m68k_write_memory_8(a + 1, v);
 }
@@ -329,7 +338,7 @@ void instr_hook(unsigned int pc) {
         if (prof_pc < RAM) prof[prof_pc >> 1] += (unsigned)(c - prof_cyc);
         prof_pc = pc; prof_cyc = c;
     }
-    if (pc < RAM) cover[pc >> 3] |= 1 << (pc & 7);
+    if (pc < SNAP) cover[pc >> 3] |= 1 << (pc & 7);
     if (pc == until_pc) { until_hit = 1; m68k_end_timeslice(); }
     if (pc == set_d1_pc) m68k_set_reg(M68K_REG_D1, set_d1_val);
     if (pc == pass_pc && pass_every < 0) pass_every = -pass_every;
@@ -420,7 +429,7 @@ static void run_frame(void) {
 static uint32_t rng = 1;
 static unsigned rnd(void) { rng = rng * 1103515245 + 12345; return rng >> 16; }
 static void snapshot(const char *prefix) {
-    char fn[500]; snprintf(fn, sizeof fn, "%s.mem", prefix); FILE *o = fopen(fn, "wb"); fwrite(ram, 1, RAM, o); fclose(o);
+    char fn[500]; snprintf(fn, sizeof fn, "%s.mem", prefix); FILE *o = fopen(fn, "wb"); fwrite(ram, 1, SNAP, o); fclose(o);
     snprintf(fn, sizeof fn, "%s.regs", prefix); o = fopen(fn, "wb");
     for (int i = 0; i < 0x100; i++) { uint16_t v = cust[i]; fputc(v >> 8, o); fputc(v & 0xFF, o); } fclose(o);
 }

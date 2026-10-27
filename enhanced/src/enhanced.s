@@ -7,8 +7,8 @@
 ;   CachePut      / disk are kept in memory the game does not otherwise use
 ;   EnhTitleText  the title's text (the game calls it at $404C in place of the printer,
 ;                 sub_0C6A8): the original's, then the machine's memory lines
-;   mirror.s      the mirrored BOB frames: all built at start-up as the original does, or on a
-;                 512K machine built when first drawn into a cache
+;   frames.s      (block 3) the main bank's BOB frames in one-blit form, mirrored ones too: all
+;                 built once with chip RAM above 512K, or on a 512K machine a cache
 ;
 ; The machine (the bootblock's description, ext.i, left in EnhMachine by the boot):
 ;   chip RAM above 512K (A500+, A600, A1200, an A500 with a 1MB Agnus)  \  the largest one
@@ -18,12 +18,15 @@
 ;==============================================================================
 
 CHIP_512K       equ     $80000
+BLOCK3          equ     $5E800                  ; block 3 (frames.s) runs here: in the memory the
+BLOCK3_LIMIT    equ     $611B0                  ;   original's mirrored copies took, which only it uses
+                                                ;   (build_disk.py reads BLOCK3: the 512K cache ends here)
 
 	include	"tracks.i"                      ; TRACKS_STORED (build_disk.py)
 
 ; EnhInit - at start-up (Init), before the game starts
-EnhInit:        bsr.w   CacheInit
-        bsr.w   MirInit
+EnhInit:        jsr     OneInit                 ; (first: the chip RAM it takes)
+        bsr.w   CacheInit
         bra.w   MakeTitleText
 
 ; the track cache: where, how many tracks it holds, how many it holds now, and for each of the
@@ -37,14 +40,19 @@ CacheMap:       dcb.b   160,0
 ;------------------------------------------------------------------------------
 ; CacheInit - choose the track cache's memory: the largest of the chip RAM above 512K, the slow
 ; RAM region and the fast RAM region; as many whole tracks as fit (at most the tracks on the
-; disk). Nothing else in the game uses that memory.
+; disk). Nothing else in the game uses that memory (the chip RAM after the one-blit frames,
+; when they are there: frames.s, OneMode 0).
 CacheInit:
         lea     EnhMachine(pc),a1
         moveq   #0,d4                           ; the best: size
         moveq   #0,d5                           ;           base
         moveq   #0,d6                           ;           kind
-        move.l  MI_CHIP+4(a1),d1                ; chip RAM above 512K
+        move.l  MI_CHIP+4(a1),d1                ; chip RAM above 512K (after the frames)
         move.l  #CHIP_512K,d0
+        tst.w   OneMode
+        bne.b   .chip
+        move.l  OneEnd,d0
+.chip:
         moveq   #1,d2
         bsr.b   .consider
         movem.l MI_SLOW(a1),d0-d1               ; slow RAM
@@ -286,17 +294,20 @@ TitleText:      dcb.b   2*(4+40+1)+1,$ff
 BobMinterm      equ     BobMinterm_+2           ; sub_0B8B4's ori.w #$fca,d7: BlitBob changes it
 
 	include	"scroller.s"
-	include	"mirror.s"
 	include	"smooth.s"
 	include	"menu.s"
 
 ; sub_0B8B4: a BOB's 4 blits
 EnhBob:         tst.b   ScrActive
         bne.w   ScrBob
+        tst.l   OneCur
+        bne.w   EnhBob4
         move.l  a1,-(a7)
         adda.w  d5,a1
         adda.l  d4,a1
         jmp     l_0B8BA
+
+EnhBob4:        jmp     OneBob4                 ; (frames.s: the frame in one-blit form)
 
 ; sub_0C744: a character at a character column
 EnhPrintCol:    tst.b   ScrActive

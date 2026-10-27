@@ -24,7 +24,7 @@ The files (ids: FID_ in boot_4489.s):
   3  the extension module (src/ext.s, assembled at EXT_BASE): the rest of the boot, the
      machine's memory on the title, the track cache; loaded by the bootblock
 """
-import json, hashlib, os, struct, subprocess, sys
+import json, hashlib, os, re, struct, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ENH = os.path.normpath(os.path.join(HERE, '..'))
@@ -85,28 +85,68 @@ def write_trackmap(tracks, tracks_offset):
         f'TRACKS_STORED\tequ\t{len(tracks)}\t\t; the original disk\'s tracks on this disk (the game reads them)\n')
 
 
-def write_mirrors():
-    """mirrors.i: for each level, the frames it was seen to draw mirrored (a bit each, frame 0 in
-    the first byte's top bit), built into the mirror cache as it starts (src/mirror.s)"""
+BOB_DIRECTORY, BOB_FRAMES, MIR_FIRST = 0x39AA6, 289, 0x122
+ONE_FRAMES = MIR_FIRST + BOB_FRAMES             # frames 0-288, mirrored 290-578 (src/frames.s)
+ONE_LIVE = 0x24                                 # the oxygen meter's frame: the game redraws it, never copied
+ONE_CACHE = int(re.search(r'^BLOCK3\s+equ\s+\$(\w+)', open(os.path.join(ENH, 'src', 'enhanced.s')).read(),
+                          re.M).group(1), 16) - 0x4A3A6     # the 512K cache: dat_4A3A6 to BLOCK3 (src/enhanced.s)
+ONE_WARM_SHARE = 0.85                           # of it filled as a level starts (the rest: for misses)
+COUNTS = os.path.join(HERE, 'frame_counts.json')
+
+
+def one_sizes(orig_main):
+    """each main-bank frame's one-blit size (frames.s: 16 x its width in words x its height),
+    for frames 0-578 (289: none; the mirrored ones the size of their unmirrored frame)"""
+    rd = lambda a: struct.unpack_from('>H', orig_main, run_addr(a))[0]
+    size = {}
+    for f in range(BOB_FRAMES):
+        e = BOB_DIRECTORY + 16 * f
+        data = 0x22AA6 + struct.unpack_from('>L', orig_main, run_addr(e))[0]
+        size[f] = size[f + MIR_FIRST] = 16 * rd(data) * rd(data + 2)
+    return size
+
+
+def warm_list(lv, size, obs, counts):
+    """the frames to build as level lv starts on a 512K machine: those it is known to draw, the
+    most drawn (tools/frame_counts.json, from the emulator) first, as many as fit in ONE_WARM_SHARE
+    of the cache"""
+    seen = {f for f in obs[str(lv)]['frames'] if f in size} - {ONE_LIVE, ONE_LIVE + MIR_FIRST}
+    c = counts.get(str(lv), {})
+    seen |= {int(f) for f in c if int(f) in size}
+    order = sorted(seen, key=lambda f: (-c.get(str(f), 0), f))
+    out, used = [], 0
+    for f in order:
+        if used + size[f] > ONE_CACHE * ONE_WARM_SHARE:
+            continue
+        out.append(f)
+        used += size[f]
+    return out, used
+
+
+def write_frames(orig_main):
+    """frames.i: ONE_ALL (all the one-blit frames' bytes) and OneWarm (per level, the frames
+    built into the 512K cache as it starts: a bit each, frame 0 the first byte's bit 7)"""
     obs = json.load(open(os.path.join(ORIG, 'assets', 'levels', 'observed.json')))
-    nf, first = 289, 0x122
-    L = ['; written by enhanced/tools/build_disk.py from original/assets/levels/observed.json:',
-         '; for each level, the frames it draws mirrored (a bit each, frame 0 the first byte\'s bit 7)',
-         'MirWarm:']
-    total = []
+    counts = json.load(open(COUNTS)) if os.path.exists(COUNTS) else {}
+    size = one_sizes(orig_main)
+    L = ['; written by enhanced/tools/build_disk.py (src/frames.s)',
+         f'ONE_ALL\tequ\t{sum(size.values())}\t\t; every main-bank frame in one-blit form, mirrored too',
+         '; per level, the frames built into the 512K cache as it starts (a bit each, frame 0 the',
+         '; first byte\'s bit 7): those it is known to draw, the most drawn as many as fit',
+         'OneWarm:']
     for lv in range(20):
-        fs = {f - first for f in obs[str(lv)]['frames'] if first <= f < first + nf}
-        bits = bytearray((nf + 7) // 8)
+        fs, used = warm_list(lv, size, obs, counts)
+        bits = bytearray((ONE_FRAMES + 7) // 8)
         for f in fs:
             bits[f // 8] |= 0x80 >> (f % 8)
-        L.append('\tdc.b\t' + ','.join(f'${b:02X}' for b in bits) + f'\t; level {lv}: {len(fs)} frames')
-    L.append('\teven')
-    open(os.path.join(OUT, 'mirrors.i'), 'w').write('\n'.join(L) + '\n')
+        L.append('\tdc.b\t' + ','.join(f'${b:02X}' for b in bits) + f'\t; level {lv}: {len(fs)} frames, {used} bytes')
+    L += ['OneWarmEnd:', '\teven']
+    open(os.path.join(OUT, 'frames.i'), 'w').write('\n'.join(L) + '\n')
 
 
-def game(tracks_offset, tracks):
+def game(tracks_offset, tracks, orig_main):
     write_trackmap(tracks, tracks_offset)
-    write_mirrors()
+    write_frames(orig_main)
     return assemble(os.path.join(ENH, 'src', 'nzs_game.s'), os.path.join(OUT, 'nzs_game.bin'), OUT,
                     [OUT, os.path.join(ENH, 'src'), ORIG], listing=os.path.join(OUT, 'nzs_game.lst'))
 
@@ -135,7 +175,8 @@ BLOCK2, PROGRAM_END = 0x3214, 0x52FA7
 
 
 def layout(main, orig_main):
-    """the program's layout as the original's: the same length, and every label of block 2 and
+    """the program's layout as the original's: the same length up to block 3 (stored after it),
+    and every label of block 2 and
     after ($3214-) that the enhanced source still has at the same address (block 1 is the
     enhanced game's own: the code there may move, as long as block 1 keeps its size). The
     program's data and much of its code are reached at fixed addresses (self-modifying code,
@@ -145,7 +186,42 @@ def layout(main, orig_main):
     e = symbols(os.path.join(OUT, 'nzs_game.lst'))
     common = [n for n, v in o.items() if BLOCK2 <= v < PROGRAM_END and n in e and not n.startswith('.')]
     moved = [n for n in common if e[n] != o[n]]
-    return len(main) == len(orig_main) and not moved, len(common), moved
+    block3 = e['Block3_End'] - e['Block3']              # block 3 (src/frames.s) stored after it
+    return e['Block3_Stored'] in (PROGRAM_END, PROGRAM_END + 1) and \
+        len(main) == e['Block3_Stored'] - 0x400 + block3 and not moved, len(common), moved
+
+
+def inplace_ok(packed, n):
+    """ext.s's Unpack, step for step on a copy of memory: the packed file loaded at the
+    program's start, moved up (its length counts the 8-byte header, from just after it) to end
+    where the program will, then unpacked forwards from the start -> whether that gives the
+    program (the output must not overwrite packed bytes not yet read)"""
+    d3, d1 = struct.unpack_from('>LL', packed, 0)
+    size = max(n, len(packed)) + 16
+    mem = bytearray(size)
+    mem[0:len(packed)] = packed
+    a1, a0 = 8 + d1 + 1, d3 + 1
+    while True:                             # .up: move.b -(a1),-(a0); subq.l #1,d1; bpl
+        a1 -= 1; a0 -= 1
+        mem[a0] = mem[a1]
+        d1 -= 1
+        if d1 < 0:
+            break
+    a1, a0 = a0, 0
+    esc = mem[a1]; a1 += 1
+    while True:
+        b = mem[a1]; a1 += 1
+        if b == esc:
+            v, c = mem[a1], mem[a1 + 1]; a1 += 2
+            for _ in range(c + 1):
+                mem[a0] = v; a0 += 1; d3 -= 1
+            if d3 < 0:
+                break
+        else:
+            mem[a0] = b; a0 += 1; d3 -= 1
+            if d3 < 0:
+                break
+    return bytes(mem[:n])
 
 
 def original_track(t):
@@ -164,7 +240,7 @@ def build():
     for i, n in ((1, len(screen)), (2, len(track_data))):
         offsets[i] = off
         off = (off + n + 1) & ~1
-    main = game(offsets[2], tracks)
+    main = game(offsets[2], tracks, orig_main)
     ext = assemble(os.path.join(ENH, 'src', 'ext.s'), os.path.join(OUT, 'ext.bin'), OUT, [OUT, os.path.join(ENH, 'src')])
     offsets[3] = off
     off = (off + len(ext) + 1) & ~1
@@ -172,6 +248,11 @@ def build():
     packed = pack.pack(main)
     if pack.unpack(packed) != main:
         raise SystemExit('build_disk.py: packing the game went wrong')
+    got = inplace_ok(packed, len(main))
+    if got != main:
+        bad = [i for i in range(len(main)) if got[i] != main[i]]
+        raise SystemExit(f'build_disk.py: the game does not unpack in place (ext.s: Unpack): '
+                         f'{len(bad)} bytes wrong from ${0x400 + bad[0]:X}')
     end = (off + len(packed) + 1) & ~1
     if end > DISK:
         raise SystemExit(f'the files do not fit on the disk: {end} bytes')
