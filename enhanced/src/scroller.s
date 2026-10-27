@@ -75,6 +75,20 @@ TILES           equ     dat_3CB26               ; 16 x 16 tiles, 128 bytes (4 pl
 	fail	scroller.s: the restore lists run past 512K
 	endc
 
+; RINGMOD Dn - Dn.w (a world line, 0-1535) mod 192, the ring's line, in Dn.w: 3 compares, no division
+RINGMOD         macro
+        cmp.w   #4*SCR_RING,\1
+        blo.b   .r1\@
+        sub.w   #4*SCR_RING,\1
+.r1\@:          cmp.w   #2*SCR_RING,\1
+        blo.b   .r2\@
+        sub.w   #2*SCR_RING,\1
+.r2\@:          cmp.w   #SCR_RING,\1
+        blo.b   .r3\@
+        sub.w   #SCR_RING,\1
+.r3\@:
+        endm
+
 ; the state
 ScrActive:      dc.b    0                       ; the scroller's display is on
 ScrSkipWait:    dc.b    0
@@ -108,32 +122,31 @@ ScrRestTab:     dc.l    SCR_RESTORE_A,SCR_RESTORE_B
 ; in the scroller's display the game's copper list's values from its BPLCON1 to its colours
 ; (sprite pointers, colours: SetPalette and the fades change them at any time) copied into the
 ; scroller's two lists, which hold the same instructions at SCR_COPBLK: so they take effect from
-; the next frame, as in the game's own list. (BPLCON1, the fine scroll, is each list's own.)
+; the next frame, as in the game's own list. (BPLCON1, the fine scroll, is each list's own.) The
+; block's layout never changes, so it is copied as it is, 34 longs a list, unrolled. (A list
+; not built yet is in memory kept for it: nothing reads it until it is built.)
 SCR_COPBLK      equ     44                      ; DMACON, 8 pointers, 2 modulos: 11 x 4 bytes
+SCR_GAMEBLK     equ     35                      ; the game's list from BPLCON1 to its split's WAIT:
+                                                ;   BPLCON1, 16 sprite pointers, 2 sprite colours,
+                                                ;   16 colours (a fixed layout: 35 MOVEs; checked
+                                                ;   at the end of nzs_game.s)
 EnhVBL:         add.l   d1,(dat_0DD66).l
         addq.w  #1,ScrFrames
         tst.b   ScrActive
-        beq.b   .o
-        movem.l d0-d1/a0-a2,-(a7)
-        lea     SCR_COPPER_A+SCR_COPBLK,a1
-        bsr.b   .copy
-        lea     SCR_COPPER_B+SCR_COPBLK,a1
-        bsr.b   .copy
-        movem.l (a7)+,d0-d1/a0-a2
+        beq.w   .o
+        movem.l a0-a1,-(a7)
+        lea     CopperList+36,a0                ; (after its BPLCON1: each list keeps its own)
+        lea     SCR_COPPER_A+SCR_COPBLK+4,a1
+        rept    SCR_GAMEBLK-1
+        move.l  (a0)+,(a1)+
+        endr
+        lea     CopperList+36,a0
+        lea     SCR_COPPER_B+SCR_COPBLK+4,a1
+        rept    SCR_GAMEBLK-1
+        move.l  (a0)+,(a1)+
+        endr
+        movem.l (a7)+,a0-a1
 .o:             rts
-.copy:          lea     CopperList+32,a0
-.i:             move.w  (a0)+,d0
-        btst    #0,d0
-        bne.b   .end                            ; (the split's WAIT)
-        cmp.w   (a1)+,d0
-        bne.b   .end                            ; (a list not built yet)
-        move.w  (a0)+,d1
-        cmp.w   #$0102,d0
-        beq.b   .skip
-        move.w  d1,(a1)
-.skip:          addq.l  #2,a1
-        bra.b   .i
-.end:           rts
 
 ; EnhDIW - the level 3 interrupt's write of DIWSTRT (the screen shake, $64(a6)): the copper
 ; lists' ring wraps follow the window's first line
@@ -515,10 +528,12 @@ ScrAddr:        move.w  d7,d1
         lea     ScrDrawY(pc),a1
         move.w  (a1,d1.w),d2
         add.w   d4,d2                           ; the world line
-        and.l   #$ffff,d2
-        divu    #SCR_RING,d2
-        swap    d2
-        mulu    #SCR_LINE,d2                    ; its ring line x 168
+        RINGMOD d2
+        add.w   d2,d2
+        lea     ScrRingOffs(pc),a1
+        moveq   #0,d0
+        move.w  (a1,d2.w),d0
+        move.l  d0,d2                           ; its ring line x 168
         lea     ScrDrawC(pc),a1
         moveq   #0,d0
         move.w  (a1,d1.w),d0
@@ -554,9 +569,7 @@ ScrRingLeft:    move.w  d7,d1
         move.w  (a1,d1.w),d1
         movea.l (a7)+,a1
         add.w   d4,d1
-        and.l   #$ffff,d1
-        divu    #SCR_RING,d1
-        swap    d1
+        RINGMOD d1
         neg.w   d1
         add.w   #SCR_RING,d1
         rts
@@ -680,6 +693,14 @@ ScrBobBlit:     lea     CUSTOM,a2
 ScrBobVars:     dcb.b   18,0
 	even
 
+; a ring line's offset in a buffer: line x 168 (all below 32K: words)
+ScrRingOffs:
+RO_N            set     0
+        rept    SCR_RING
+        dc.w    RO_N*SCR_LINE
+RO_N            set     RO_N+1
+        endr
+
 ;------------------------------------------------------------------------------
 ; ScrEnter - into the scroller's display (the first pass of the game loop): the panels taken
 ; from the game's two screens (lines 176-199: lives, score, oxygen, as the game drew them), the
@@ -787,8 +808,7 @@ ScrCopper:      move.w  d7,d6
         lea     ScrDrawY(pc),a1
         moveq   #0,d1
         move.w  (a1,d6.w),d1
-        divu    #SCR_RING,d1
-        swap    d1                              ; the first line's ring line
+        RINGMOD d1                              ; the first line's ring line
         move.w  d1,d5
         mulu    #SCR_LINE,d1
         lea     ScrDrawC(pc),a1
@@ -806,19 +826,13 @@ ScrCopper:      move.w  d7,d6
         bsr.w   .ptrs
         move.l  #$01080000+SCR_LINE-40,(a0)+
         move.l  #$010A0000+SCR_LINE-40,(a0)+
-        lea     CopperList+32,a1                ; the game's: BPLCON1 .. the colours
-.copy:          move.w  (a1)+,d0
-        btst    #0,d0
-        bne.b   .copied                         ; (its split WAIT)
-        move.w  d0,(a0)+
-        cmp.w   #$0102,d0
-        bne.b   .val
-        move.w  $3c(a6),(a0)+                   ; the fine scroll
-        addq.l  #2,a1
-        bra.b   .copy
-.val:           move.w  (a1)+,(a0)+
-        bra.b   .copy
-.copied:        move.w  #SCR_RING,d0            ; the ring's wrap
+        move.w  #$0102,(a0)+                    ; the game's: BPLCON1 (the fine scroll) .. the
+        move.w  $3c(a6),(a0)+                   ;   colours
+        lea     CopperList+36,a1
+        rept    SCR_GAMEBLK-1
+        move.l  (a1)+,(a0)+
+        endr
+        move.w  #SCR_RING,d0                    ; the ring's wrap
         sub.w   d5,d0
         lea     ScrWrapLine(pc),a1
         cmp.w   #SCR_FIELD,d0

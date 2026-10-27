@@ -36,6 +36,9 @@
  *                         there (held 4-20 passes, and given to the game at once: its word at $63DB0);
  *                         a snapshot PREFIX_nnnn every EVERY passes (0: none), at SNAPADDR (default
  *                         ADDR) in that pass; then the frame finished
+ *   profile 1 / 0         count the CPU cycles spent at each instruction (until the next one: a
+ *                         wait loop's time is its instructions'), from now / stop
+ *   profdump FILE         write them: "pc cycles", one line an instruction
  *   blittime 1            the blitter busy (DMACONR bit 14) for 2 CPU cycles a memory cycle of each blit
  *                         (one a channel a word, at least 2), so the CPU waits for it as on an A500
  *                         (the bitplanes' and the CPU's own use of chip memory not counted)
@@ -317,8 +320,14 @@ static int track_read(void) {
     return ok;
 }
 
+static unsigned *prof; static unsigned prof_pc; static long prof_cyc;   /* profile: CPU cycles by pc */
 void instr_hook(unsigned int pc) {
     pc &= 0xFFFFFF;
+    if (prof) {
+        long c = cyc_now();
+        if (prof_pc < RAM) prof[prof_pc >> 1] += (unsigned)(c - prof_cyc);
+        prof_pc = pc; prof_cyc = c;
+    }
     if (pc < RAM) cover[pc >> 3] |= 1 << (pc & 7);
     if (pc == until_pc) { until_hit = 1; m68k_end_timeslice(); }
     if (pc == set_d1_pc) m68k_set_reg(M68K_REG_D1, set_d1_val);
@@ -468,6 +477,13 @@ int main(int argc, char **argv) {
         }
         else if (!strcmp(cmd, "trace")) { trace_pc = strtoul(a1, 0, 0); }
         else if (!strcmp(cmd, "blittime")) { blit_timed = atoi(a1); }
+        else if (!strcmp(cmd, "profile")) {                  /* profile 1: start counting, 0: stop */
+            if (atoi(a1)) { if (!prof) prof = calloc(RAM / 2, sizeof *prof); prof_pc = RAM; prof_cyc = cyc_now(); }
+            else { free(prof); prof = 0; } }
+        else if (!strcmp(cmd, "profdump")) {                 /* profdump FILE: "pc cycles" for each */
+            FILE *o = fopen(a1, "w");
+            if (o && prof) for (unsigned i = 0; i < RAM / 2; i++) if (prof[i]) fprintf(o, "%X %u\n", i * 2, prof[i]);
+            if (o) fclose(o); }
         else if (!strcmp(cmd, "setd1")) { set_d1_pc = strtoul(a1, 0, 0); set_d1_val = strtoul(a2, 0, 0); }
         else if (!strcmp(cmd, "passes")) {
             char b[6][400] = {{0}};

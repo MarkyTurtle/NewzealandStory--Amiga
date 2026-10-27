@@ -12,8 +12,9 @@ jumped, the first pass). The emulator counts the CPU's time; with --blittime the
 (the CPU waits for each blit as long as an A500's blitter takes; the bitplanes' share of chip
 memory still not counted), nearer a real A500.
 
-Then levels 1 and 4 again with a snapshot at each frame: every object M draws must be half-way
-between where the S frames before and after it draw it (BlitBob's $8 / $A).
+Then levels 1 and 4 again with a snapshot at each frame: every object on the screen in the S
+frames before and after an M must be drawn half-way between them in M (BlitBob's $8 / $A; M
+does not pass objects far off the screen to BlitBob, so theirs are left as they were).
 
 Writes enhanced/build/test_smooth/summary.txt.
 """
@@ -83,6 +84,9 @@ def midpoints(syms, lv, passes, seed, pre, tmp):
                     a, b, c = s0[i][j], mm[i][j], s1[i][j]
                     if abs(c - a) > 40:
                         continue                    # (jumped: drawn where it is)
+                    lo, hi = (-64, 384) if j == 0 else (-64, 240)
+                    if not (lo <= a <= hi and lo <= c <= hi):
+                        continue                    # (off the screen: M leaves far objects alone)
                     if abs(2 * b - a - c) <= 2:
                         good += 1
                     else:

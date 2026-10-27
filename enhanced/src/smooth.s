@@ -179,7 +179,7 @@ SmoothMid:      movem.l d0-d7/a0-a6,-(a7)
         asr.w   #1,d0
         move.w  d0,$30(a6)
         jsr     sub_0B55C                       ; drawn: the background, the BOBs; the flip
-        jsr     l_0B14E
+        bsr.w   SmoothObjects
         st.b    SmoothPendM
         jsr     sub_0BC8C
         move.l  (a7)+,$2e(a6)                   ; everything back
@@ -206,6 +206,55 @@ SmoothMid:      movem.l d0-d7/a0-a6,-(a7)
 .skip:          addq.l  #1,SmoothSkips
         bsr.w   SmoothRecord
         movem.l (a7)+,d0-d7/a0-a6
+        rts
+
+;------------------------------------------------------------------------------
+; SmoothObjects - M's BOBs: the game's l_0B14E (every object, last slot first, through BlitBob),
+; but an object far off the screen is not passed to BlitBob at all. BlitBob would only clip it
+; away after setting its fields for the logic ($8-$E, $2C), and S, drawn next, sets them for the
+; logic as the game does. (A frame reaches at most 186 pixels from its object: SMOOTH_FAR.)
+SMOOTH_FAR      equ     256
+SmoothObjects:  lea     (mem_6535C).l,a5
+        moveq   #SMOOTH_SLOTS-1,d7
+.o:             tst.l   $18(a5)
+        beq.b   .next
+        move.w  $12(a5),d1
+        beq.b   .next
+        move.l  (a5),d0
+        sub.w   $30(a6),d0                      ; y on the screen
+        cmp.w   #-SMOOTH_FAR,d0
+        blt.b   .next
+        cmp.w   #SCR_FIELD+SMOOTH_FAR,d0
+        bgt.b   .next
+        swap    d0
+        sub.w   $2e(a6),d0                      ; x
+        cmp.w   #-SMOOTH_FAR,d0
+        blt.b   .next
+        cmp.w   #320+SMOOTH_FAR,d0
+        bgt.b   .next
+        swap    d0
+        subq.w  #1,d1                           ; as l_0B14E from here: the frame, mirrored
+        tst.b   $10(a5)
+        beq.b   .m
+        add.w   $88(a6),d1
+.m:             movem.l d7/a5,-(a7)
+        tst.w   $54(a6)                         ; (the kiwi flashing after a life: l_0B198)
+        beq.b   .draw
+        tst.w   $56(a6)
+        bne.b   .draw
+        move.w  $1c(a5),d7
+        beq.b   .skip                           ; the kiwi
+        cmp.w   #$21,d7
+        blt.b   .draw
+        cmp.w   #$29,d7
+        bgt.b   .draw
+        lea     (mem_643BA).l,a4                ; what he rides
+        cmpa.l  $26(a4),a5
+        beq.b   .skip
+.draw:          jsr     BlitBob
+.skip:          movem.l (a7)+,d7/a5
+.next:          lea     -SMOOTH_SIZE(a5),a5
+        dbra    d7,.o
         rts
 
 ;------------------------------------------------------------------------------

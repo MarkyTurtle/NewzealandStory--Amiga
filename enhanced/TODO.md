@@ -27,6 +27,15 @@ then merged.
 
 ### BOBs in one blit
 
+**Measured first** (`nzsemu`'s `profile`, on level 2-1 at 50 Hz with the blitter timed): the
+BOBs' blits and the waits for them are about a tenth of a pass; the CPU work around them
+(`BlitBob`'s clipping, called for every object) and the copper lists were more, and are now
+faster (`README.md`, *Faster drawing*): 99 % of passes at 50 Hz in the emulator. A BOB in one
+blit would save its CPU setup (about 25 lines a pass) but needs its frames stored with the mask
+repeated for each plane: 1.6 times the bank, about 150 KB with the mirrored copies built on
+demand - only on a machine with more than 512K of chip RAM. Worth it if WinUAE shows the passes
+left at 25 Hz matter.
+
 The BOBs are still drawn as the original draws them - one cookie-cut blit per plane, 4 a BOB,
 from frames stored as a mask and 4 planes - and are now most of the blitting left. On the
 interleaved buffers a BOB can be one blit if its frame is line-interleaved with its mask
