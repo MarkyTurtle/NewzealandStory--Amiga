@@ -77,6 +77,10 @@ fewer.
 
 ### Title menu, two-button joysticks and a cheat
 
+Done (branch `feature/options-menu`): the title menu's title and options pages, the input
+settings (jump on up / on button 2 / button 1 jumps and 2 fires) and the cheat switch
+(`README.md`, *The title menu*). Left: the test page and its tests (below).
+
 Along the lines of the enhanced Ghosts'n Goblins' title menu (`enhanced/docs/SCROLLER.md` there,
 *The title menu*, *Two-button joysticks*, *The test page's tests*). Each on its own branch.
 

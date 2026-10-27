@@ -293,6 +293,7 @@ ReadJoystick:
         bne.b   l_02AA0                         ; 02A9A
         bset    #$7,d0                          ; 02A9C
 l_02AA0:
+        bsr.w   EnhJoy                          ; enhanced: the input setting (menu.s)
         move.w  d0,(dat_03184).l                ; 02AA0
         move.l  (a7)+,d2                        ; 02AA6
         rts                                     ; 02AA8
@@ -582,7 +583,7 @@ l_04016:
         lea.l   (GamePalette).l,a0              ; 0405E
         bsr.w   SetPalette                      ; 04064
         move.w  #$1e,(a6)                       ; 04068
-        bsr.w   sub_0B9F0                       ; 0406C
+        bsr.w   EnhTitleWait                    ; 0406C  enhanced: the title menu (menu.s)
         tst.w   (a6)                            ; 04070
         bne.b   l_04084                         ; 04072
         bsr.w   sub_045FC                       ; 04074

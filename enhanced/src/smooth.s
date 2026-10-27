@@ -40,6 +40,14 @@ SMOOTH_SIZE     equ     $3a
 SMOOTH_JUMP     equ     32                      ; a move larger than this: not interpolated
 SMOOTH_MARGIN   equ     12                      ; lines
 SMOOTH_LEAST    equ     64                      ; the least SmoothNeed eases off to
+; buffers, in the scroller's memory after its restore lists (scroller.s: SCR_FREE, up to $80000)
+SmoothPos       equ     SCR_FREE                ; each object's position (x.w, y.w) in the last frame
+SmoothAct       equ     SmoothPos+4*SMOOTH_SLOTS ; ... and whether it was there (bytes)
+SmoothSave      equ     SmoothAct+SMOOTH_SLOTS+1 ; while M is drawn: each object's position, $2E
+SMOOTH_BUFEND   equ     SmoothSave+6*SMOOTH_SLOTS+1
+	ifgt	SMOOTH_BUFEND-$80000
+	fail	smooth.s: the buffers run past 512K
+	endc
 
 SmoothOn:       dc.b    1                       ; 0: as before (25 frames a second)
 SmoothAnimOnly: dc.b    0                       ; sub_0B1C2: animate only, do not draw
@@ -55,9 +63,6 @@ SmoothSkips:    dc.l    0
 SmoothStart:    dc.w    0                       ; the frame SmoothMid began in, and its line
 SmoothStartL:   dc.w    0
 SmoothCam:      dc.l    0                       ; the camera ($2E(a6), $30(a6)) in the last pass's frame
-SmoothPos:      dcb.l   SMOOTH_SLOTS,0          ; each object's position (x.w, y.w) then
-SmoothAct:      dcb.b   SMOOTH_SLOTS+1,0        ; ... and whether it was there
-SmoothSave:     dcb.b   SMOOTH_SLOTS*6,0        ; while M is drawn: each object's position, $2E
 	even
 
 ;------------------------------------------------------------------------------
@@ -80,8 +85,8 @@ SmoothSince:    move.w  d2,-(a7)
 ; SmoothRecord - every object's position and the camera kept: this pass's frame (S)
 SmoothRecord:   movem.l d0/d7/a0-a2/a5,-(a7)
         lea     (mem_64380).l,a5
-        lea     SmoothPos(pc),a0
-        lea     SmoothAct(pc),a1
+        lea     SmoothPos,a0
+        lea     SmoothAct,a1
         moveq   #SMOOTH_SLOTS-1,d7
 .o:             move.l  (a5),(a0)+
         tst.l   $18(a5)
@@ -134,9 +139,9 @@ SmoothMid:      movem.l d0-d7/a0-a6,-(a7)
         blt.w   .late
 ; M: the objects and the camera half-way
         lea     (mem_64380).l,a5
-        lea     SmoothPos(pc),a0
-        lea     SmoothAct(pc),a1
-        lea     SmoothSave(pc),a2
+        lea     SmoothPos,a0
+        lea     SmoothAct,a1
+        lea     SmoothSave,a2
         moveq   #SMOOTH_SLOTS-1,d7
 .obj:           move.l  (a5),(a2)+              ; kept: the position, $2E (BlitBob sets it)
         move.w  $2e(a5),(a2)+
@@ -184,7 +189,7 @@ SmoothMid:      movem.l d0-d7/a0-a6,-(a7)
         jsr     sub_0BC8C
         move.l  (a7)+,$2e(a6)                   ; everything back
         lea     (mem_64380).l,a5
-        lea     SmoothSave(pc),a2
+        lea     SmoothSave,a2
         moveq   #SMOOTH_SLOTS-1,d7
 .back:          move.l  (a2)+,(a5)
         move.w  (a2)+,$2e(a5)

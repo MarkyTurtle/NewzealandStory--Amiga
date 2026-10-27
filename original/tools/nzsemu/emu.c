@@ -15,7 +15,8 @@
  *
  * SCRIPT, one command a line (# comments):
  *   frames N              run N frames (PAL: 312 lines of 455 CPU cycles)
- *   joy [u][d][l][r][f]   hold these joystick directions / fire (port 1); "joy" alone: none
+ *   joy [u][d][l][r][f][2] hold these joystick directions / fire / the second button (port 2: pin 9,
+ *                         POTGOR bit 14); "joy" alone: none
  *   random N SEED         N frames with a random joystick (held 8-40 frames at a time)
  *   key CODE              press and release a raw key (hex)
  *   poke ADDR VAL [b|w|l] write memory
@@ -62,7 +63,7 @@ static uint8_t cover[RAM / 8];
 static const char *trackdir;
 static FILE *logf;
 static unsigned long frame, line_no;
-static unsigned joy;                  /* bits: 1 up 2 down 4 left 8 right 16 fire */
+static unsigned joy;                  /* bits: 1 up 2 down 4 left 8 right 16 fire 32 button 2 */
 static unsigned until_pc = 0xFFFFFFFF; static int until_hit;
 static unsigned trace_pc = 0xFFFFFFFF;
 static unsigned set_d1_pc = 0xFFFFFFFF, set_d1_val;
@@ -200,7 +201,7 @@ static unsigned custom_read(unsigned r) {
         unsigned r1 = joy & 8 ? 1 : 0, l = joy & 4 ? 1 : 0, d = joy & 2 ? 1 : 0, u = joy & 1 ? 1 : 0;
         return (l << 9) | ((l ^ u) << 8) | (r1 << 1) | (r1 ^ d); }
     case 0x010: return adkcon;
-    case 0x016: return 0xFF00;                               /* POTGOR: right buttons up */
+    case 0x016: return joy & 32 ? 0xBF00 : 0xFF00;           /* POTGOR: port 2's second button (DATRY) */
     case 0x01A: return 0;                                    /* DSKBYTR */
     case 0x01C: return intena;
     case 0x01E:
@@ -432,7 +433,7 @@ int main(int argc, char **argv) {
         char cmd[32] = "", a1[256] = "", a2[64] = "", a3[16] = "";
         if (sscanf(ln, "%31s %255s %63s %15s", cmd, a1, a2, a3) < 1 || cmd[0] == '#') continue;
         if (!strcmp(cmd, "frames")) { long n = strtol(a1, 0, 0); for (long i = 0; i < n; i++) run_frame(); }
-        else if (!strcmp(cmd, "joy")) { joy = 0; for (char *p = a1; *p; p++) joy |= *p == 'u' ? 1 : *p == 'd' ? 2 : *p == 'l' ? 4 : *p == 'r' ? 8 : *p == 'f' ? 16 : 0; }
+        else if (!strcmp(cmd, "joy")) { joy = 0; for (char *p = a1; *p; p++) joy |= *p == 'u' ? 1 : *p == 'd' ? 2 : *p == 'l' ? 4 : *p == 'r' ? 8 : *p == 'f' ? 16 : *p == '2' ? 32 : 0; }
         else if (!strcmp(cmd, "random")) {
             long n = strtol(a1, 0, 0); rng = strtoul(a2, 0, 0);
             for (long i = 0; i < n;) { joy = rnd() & 31; if ((joy & 3) == 3) joy &= ~2; if ((joy & 12) == 12) joy &= ~4;

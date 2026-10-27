@@ -28,6 +28,7 @@ tried: real hardware.
 | `src/nzs_game.s` | **The game's source**, edited by hand since October 2026 (made from `original/nzs_main.s` by `tools/fork_source.py`): the original's, with the debug monitor removed and jumps put over the start of the routines the enhanced code takes over (each marked `enhanced:`) |
 | `src/enhanced.s` | The enhanced game's own code, in block 1 where the monitor was: the track cache, the title's memory lines, the entries for the routines taken over |
 | `src/scroller.s` | The scroller (below) |
+| `src/menu.s` | The title menu (start, options: input, cheat) and the joystick's second button |
 | `src/smooth.s` | 50 frames a second: the in-between frame drawn each pass (below) |
 | `src/mirror.s` | The mirrored BOB frames: all built at start-up, or on a 512K machine built on demand into a cache (below) |
 | `src/diskload.s` | The game's disk reading on this disk, in place of the original's `TrackWrite` / `TrackRead`, with the track cache in front of the disk |
@@ -37,6 +38,7 @@ tried: real hardware.
 | `tools/build_disk.py` | Builds the disk; checks that every label of block 2 on is where the original has it |
 | `tools/test_boot.py` | Boots the disk in an emulator (Unicorn) from Kickstart's call to the game's start, on four memory configurations, then calls the game's `TrackRead` as the game does, twice (the second time from the cache when it fits) |
 | `tools/test_scroller.py` | Runs the original and the enhanced game side by side in `original/tools/nzsemu` and compares their displays pixel for pixel (`original/tools/display.py`); `--chip` for the machine's chip RAM |
+| `tools/test_menu.py` | The title menu, its settings and the joystick's input settings in play |
 | `tools/test_fly.py` | The cheat's fly mode on F1, with and without the cheat |
 | `tools/test_smooth.py` | Plays every level at 50 Hz and at 25 Hz: how many in-between frames are drawn, and that the game keeps its speed; `--blittime` makes the emulator's CPU wait for the blitter as an A500's does |
 | `tools/test_mirror.py` | Plays every level with the mirror cache, with it cold, and with all frames mirrored at start-up, and compares the frames built in play and where each pass's drawing ends |
@@ -304,6 +306,42 @@ was already built. With nothing built ahead, a pass that needs a new frame takes
 
 **Tested** (`tools/test_scroller.py`, with and without `--chip 0x100000`): pixel for pixel the
 same display as the original's, on all 20 levels, with the cache and without.
+
+## The title menu and two-button joysticks (`src/menu.s`)
+
+The title keeps its text, the kiwi, the memory lines and the credits; above the kiwi, where the
+original has nothing, a menu:
+
+| Page | Items |
+|---|---|
+| title | `START GAME`, `OPTIONS` |
+| options | `INPUT: JUMP ON UP` / `JUMP ON BUTTON 2` / `JUMP 1 FIRE 2`, `CHEAT: OFF` / `ON`, `EXIT` |
+
+Up and down move (round), fire chooses; on `INPUT` and `CHEAT` left, right and fire change the
+setting. The chosen item shows as `> ... <` in white. `EnhTitleWait` takes the place of the
+title's wait (`sub_0B9F0`, from `$406C`): it keeps the original's time-out to the attract
+sequence (not on the options page) and the typed cheat code; `START GAME` starts the game as the
+original's fire did. The menu reads the joystick from the hardware, so it works the same
+whatever the input setting.
+
+**The input setting** (`JoyMode`) changes what `ReadJoystick` gives the game (`EnhJoy`): the
+second button is port 2's pin 9 (`POTINP` bit 14, low when pressed; `POTGO` `$FF00`).
+* `JUMP ON UP`: the original's controls (the default).
+* `JUMP ON BUTTON 2`: button 2 is up - it jumps, and swims up; the stick's up does nothing.
+* `JUMP 1 FIRE 2`: button 1 jumps, button 2 fires.
+
+**The cheat** setting is the original's own (*The cheat*, below): on, 1,000 lives, tune 10;
+off, 3. Typing the code on either page turns it on as well. The settings last until the machine
+is reset.
+
+To make room in block 1, the 50 Hz buffers moved to the scroller's free memory after its
+restore lists (`$7FB80`), and the mirror cache's queue to the memory the cache frees
+(`$563A6`, used only with it).
+
+**Tested** (`tools/test_menu.py`, 25 cases): starting a game, moving round, each setting and
+`EXIT`, the title's time-out and none on the options page, the typed code on both pages, and in
+play each input setting with up, button 1 and button 2 (what the game reads at `$63DB0`).
+`nzsemu`'s `joy 2` holds the second button.
 
 ## The cheat
 

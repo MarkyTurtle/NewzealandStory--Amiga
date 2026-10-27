@@ -144,6 +144,7 @@ EnhTitleText:
         move.l  a0,-(a7)
         lea     TitleText(pc),a0
         jsr     sub_0C6A8
+        bsr.w   MenuStart                       ; (menu.s)
         movea.l (a7)+,a0
         rts
 
@@ -288,6 +289,7 @@ BobMinterm      equ     BobMinterm_+2           ; sub_0B8B4's ori.w #$fca,d7: Bl
 	include	"scroller.s"
 	include	"mirror.s"
 	include	"smooth.s"
+	include	"menu.s"
 
 ; sub_0B8B4: a BOB's 4 blits
 EnhBob:         tst.b   ScrActive

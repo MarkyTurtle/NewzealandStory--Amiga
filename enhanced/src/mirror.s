@@ -37,6 +37,8 @@ MIR_FRAMES      equ     289                     ; the main bank's frames
 MIR_BUILT       equ     MIR_BASE-BobData        ; a directory offset from here: built (in the cache)
 MIR_TABLE       equ     dat_4A2A6               ; a byte's bits reversed (sub_0C048)
 MIR_WARM_BYTES  equ     (MIR_FRAMES+7)/8        ; a level's frames to build at its start: a bit each
+MirQueue        equ     MIR_END                 ; the queue of frames in the cache (MIR_FRAMES+1 words):
+                                                ;   in the memory the cache frees (only used with it)
 
 	include	"mirrors.i"                     ; MirWarm: 20 levels x MIR_WARM_BYTES (build_disk.py)
 
@@ -45,7 +47,6 @@ MirLevel:       dc.w    -1                      ; the level the cache was warmed
 MirPos:         dc.l    0                       ; where the next frame goes
 MirHead:        dc.w    0                       ; the queue of frames in the cache, oldest first:
 MirCount:       dc.w    0                       ;   its head (an index) and how many
-MirQueue:       dcb.w   MIR_FRAMES+1,0          ; (frame numbers, mirrored: from MIR_FIRST)
 	even
 
 ;------------------------------------------------------------------------------
@@ -178,7 +179,7 @@ MirEmpty:       move.w  d0,-(a7)
 
 ; MirDrop - the oldest frame in the cache dropped: its entry pointed back at its unmirrored
 ; frame. -> a0 = where it was. Uses d1-d2, a0-a1.
-MirDrop:        lea     MirQueue(pc),a1
+MirDrop:        lea     MirQueue,a1
         move.w  MirHead(pc),d1
         add.w   d1,d1
         move.w  (a1,d1.w),d2                    ; the frame
@@ -201,7 +202,7 @@ MirDrop:        lea     MirQueue(pc),a1
 ; Uses d1-d2, a1.
 MirOldest:      move.w  MirCount(pc),d1
         beq.b   .no
-        lea     MirQueue(pc),a1
+        lea     MirQueue,a1
         move.w  MirHead(pc),d1
         add.w   d1,d1
         move.w  (a1,d1.w),d2
@@ -254,7 +255,7 @@ MirBuild:       lea     CUSTOM,a6
         move.l  a4,d1
         sub.l   #BobData,d1
         move.l  d1,(a3)                         ; its entry: the copy
-        lea     MirQueue(pc),a1                 ; the newest in the queue
+        lea     MirQueue,a1                 ; the newest in the queue
         move.w  MirHead(pc),d1
         add.w   MirCount(pc),d1
         cmp.w   #MIR_FRAMES+1,d1
