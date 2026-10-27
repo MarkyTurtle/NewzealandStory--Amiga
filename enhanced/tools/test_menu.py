@@ -129,6 +129,13 @@ def main():
             check(r['mode'] == mode and bool(r['joy'] & 4) == bool(up) and bool(r['joy'] & 0x80) == bool(fire),
                   f'in play, input {mode}: {dict(u="up", f="button 1")[hold] if hold != "2" else "button 2"} -> '
                   + ('up (jump)' if up else 'fire' if fire else 'nothing'))
+    cheat_game = opts + tap('d') + tap('f') + tap('u') * 2 + tap('f') + tap('u') + game + 'frames 100\n'
+    for start, key, skips, what in ((cheat_game, 0x51, True, 'the cheat on, F2: the next level'),
+                                    (cheat_game, 0x5F, False, 'the cheat on, HELP: no longer skips'),
+                                    (title + game + 'frames 100\n', 0x51, False, 'no cheat, F2: nothing')):
+        r = run(start + f'key {key:x}\nframes 12\nframes 400\n')
+        lv = struct.unpack_from('>H', open(r['prefix'] + '.mem', 'rb').read(), 0x641C0)[0]  # $8(a6)
+        check((lv == 16) == skips and lv in (0, 16), f'{what} (level word {lv})')
     for f in os.listdir(tmp):
         os.remove(os.path.join(tmp, f))
     os.rmdir(tmp)

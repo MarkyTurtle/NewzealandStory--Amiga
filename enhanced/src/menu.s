@@ -30,8 +30,8 @@
 
 MENU_X          equ     5                       ; the lines: 30 characters from column 5
 MENU_W          equ     30
-MENU_Y          equ     $3a                     ; the first line (4 lines, 10 apart: between the
-MENU_DY         equ     10                      ;   copyright lines and the kiwi)
+MENU_Y          equ     $7a                     ; the first line (4 lines, 9 apart: between the
+MENU_DY         equ     9                       ;   kiwi's feet and the credits, 'CONVERSION' at $A0)
 MENU_LINES      equ     4
 MENU_COL        equ     $07                     ; an item
 MENU_COL_SEL    equ     $0f                     ; the chosen item
@@ -113,8 +113,9 @@ MenuDraw:       movem.l d0-d7/a0-a3,-(a7)
         addq.w  #1,d4
         cmp.w   #MENU_LINES,d4
         blo.b   .line
-        st.b    (a2)
-        lea     MenuText(pc),a0
+        st.b    -1(a2)                          ; the end: $FF in place of the last line's 0 (a 0
+        lea     MenuText(pc),a0                 ;   then $FF would start one more line: its x $FF
+                                                ;   and whatever came next printed at the left)
         jsr     sub_0C6A8
         lea     MemBlank(pc),a0                 ; under the kiwi: the machine's memory lines
         cmpi.w  #1,MenuPage                     ;   on the options page, nothing on the others

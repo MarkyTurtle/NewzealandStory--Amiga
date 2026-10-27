@@ -216,8 +216,8 @@ MakeTitleText:
 .ram:           dc.b    ' RAM',0
 	even
 
-TITLE_Y1        equ     $7E                     ; under the kiwi, above 'CONVERSION' ($A0)
-TITLE_Y2        equ     $8A
+TITLE_Y1        equ     $46                     ; above the kiwi, under the copyright lines (the menu,
+TITLE_Y2        equ     $52                     ;   menu.s, is under him)
 TITLE_COL1      equ     $01                     ; the colours (the printer's $02 command)
 TITLE_COL2      equ     $07
 
@@ -331,13 +331,32 @@ EnhClear:       bsr.w   ScrLeave
 ; game's starting lives, l_04F46+2, 1,000: MOTHERFUCKENKIWIBASTARD typed on the title), F1 swaps
 ; the kiwi's handler for sub_08FD4 (he moves 4 pixels a step with the joystick, through
 ; anything; his handler kept at $5C(a6)) and F1 again gives it back (sub_08FD4 itself); then as
-; the original: a0 = l_04F46, d0 = the starting lives.
+; the original: a0 = l_04F46, d0 = the starting lives. The cheat's level skip, the original's HELP
+; key (tested next, at $43C8, from the 1,000 lives), is moved to F2: with the cheat on, F2 newly
+; pressed goes to the next level here (l_054AE) and d0 is given as 3, so the HELP test finds no
+; cheat.
 EnhCheatKeys:   movem.l d1-d7/a1-a5,-(a7)
         jsr     sub_0900A                       ; (checks the cheat and F1 itself)
         movem.l (a7)+,d1-d7/a1-a5
         lea     l_04F46,a0
-        move.w  $2(a0),d0
+        cmpi.w  #1000,$2(a0)
+        bne.b   .orig
+        moveq   #$51,d0                         ; the cheat's level skip: F2 (newly pressed)
+        jsr     (JT_KeyTest).w
+        sne.b   d0
+        move.b  SkipHeld(pc),d1
+        move.b  d0,SkipHeld
+        not.b   d1
+        and.b   d1,d0
+        beq.b   .help
+        addq.l  #4,a7                           ; (as the original's bne.w l_054AE: the next level)
+        jmp     l_054AE
+.help:          moveq   #3,d0                   ; (not 1,000: the original's HELP test after this
+        rts                                     ;   finds no cheat)
+.orig:          move.w  $2(a0),d0
         rts
+SkipHeld:       dc.b    0
+	even
 
 ; sub_0BCDA: the game's display set up
 EnhDisplay:     bsr.w   ScrLeave

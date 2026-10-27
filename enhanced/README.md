@@ -117,7 +117,7 @@ from the disk; the levels that share their graphics tracks (4-7, 12-14) read onl
 holds 93 of the 96 tracks; with more, all of them. With no memory beyond 512K of chip RAM, the
 game reads every level from the disk as the original did.
 
-The title menu's **options page** shows the machine and what the game makes of it, under the kiwi
+The title menu's **options page** shows the machine and what the game makes of it, above the kiwi
 (the title itself showed it until the menu came: *The title menu*):
 
 ```
@@ -310,13 +310,13 @@ same display as the original's, on all 20 levels, with the cache and without.
 
 ## The title menu and two-button joysticks (`src/menu.s`)
 
-The title keeps its text, the kiwi, the memory lines and the credits; above the kiwi, where the
-original has nothing, a menu:
+The title keeps its text, the kiwi and the credits; under the kiwi, between his feet and the
+credits, where the original has nothing, a menu (4 lines, 9 apart):
 
 | Page | Items |
 |---|---|
 | title | `START GAME`, `OPTIONS` |
-| options | `INPUT: JUMP ON UP` / `JUMP ON BUTTON 2` / `JUMP 1 FIRE 2`, `CHEAT: OFF` / `ON`, `SOUND TEST`, `EXIT`; under the kiwi, the machine's memory lines (*The machine's memory*) |
+| options | `INPUT: JUMP ON UP` / `JUMP ON BUTTON 2` / `JUMP 1 FIRE 2`, `CHEAT: OFF` / `ON`, `SOUND TEST`, `EXIT`; above the kiwi, the machine's memory lines (*The machine's memory*) |
 | sound test | `MUSIC: 01`-`12`, `EFFECT: 01 KIWI JUMP`-`12 EXPLOSION`, `MUSIC OFF`, `EXIT` |
 
 Up and down move (round), fire chooses; on `INPUT` and `CHEAT` left, right and fire change the
@@ -354,7 +354,8 @@ play each input setting with up, button 1 and button 2 (what the game reads at `
 ## The cheat
 
 The original's cheat - `MOTHERFUCKENKIWIBASTARD` typed on the title screen - starts the game
-with 1,000 lives, and in play the HELP key skips to the next level. The original also has a fly
+with 1,000 lives, and in play the HELP key skips to the next level - in the enhanced game **F2**
+does instead (pressed, not held: one level a press), and HELP does nothing. The original also has a fly
 mode for it that nothing calls (`sub_0900A`): the enhanced game calls it at the end of each pass
 of the game loop (`EnhCheatKeys`, at `$43C0`, where the original tests HELP). With the cheat on,
 **F1** makes the kiwi fly: he moves 4 pixels a step with the joystick, in any direction, through
@@ -362,7 +363,8 @@ the scenery (`sub_08FD4` takes his handler's place, kept at `$5C(a6)`); F1 again
 handler back: in the air he falls). He is not invulnerable while flying: an enemy still kills
 him (1,000 lives...).
 
-**Tested** (`tools/test_fly.py`): with the cheat, F1 then up flies him up through the scenery
+**Tested** (`tools/test_menu.py`): with the cheat F2 goes to the next level, HELP does not;
+without it F2 does nothing. (`tools/test_fly.py`): with the cheat, F1 then up flies him up through the scenery
 and F1 again gives his handler back; without it F1 does nothing. (In WinUAE: type the code on
 the title, start, press F1.)
 

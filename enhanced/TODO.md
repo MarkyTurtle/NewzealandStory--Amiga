@@ -124,7 +124,8 @@ title waits; each right key plays a sound, the whole code plays tune 10 and sets
 starting lives (the immediate at `l_04F46+2`, normally 3) to 1,000. That number is also the
 cheat's switch:
 * in play, the game loop (`$43C0`) tests the HELP key (raw `$5F`, worked out from the 1,000)
-  and skips to the next level (`l_054AE`);
+  and skips to the next level (`l_054AE`) - the enhanced game moves this to F2 (raw `$51`,
+  on a new press) in `EnhCheatKeys` and gives the HELP test 3, so HELP does nothing;
 * `sub_0900A` would turn F1 (raw `$50`, held: `sub_0903A`) into a free-moving kiwi through the
   walls (`sub_08FD4`: his handler swapped, 4 pixels a step with the joystick) and back - but
   nothing calls it: left in, unused.
