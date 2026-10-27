@@ -324,6 +324,20 @@ EnhClear:       bsr.w   ScrLeave
         lea     dat_0C18A,a0
         jmp     l_0BB7E
 
+;------------------------------------------------------------------------------
+; EnhCheatKeys - $43C0, at the end of each pass of the game loop, where the original tests its
+; cheat's HELP key: first the original's fly mode, which it never calls. With the cheat on (the
+; game's starting lives, l_04F46+2, 1,000: MOTHERFUCKENKIWIBASTARD typed on the title), F1 swaps
+; the kiwi's handler for sub_08FD4 (he moves 4 pixels a step with the joystick, through
+; anything; his handler kept at $5C(a6)) and F1 again gives it back (sub_08FD4 itself); then as
+; the original: a0 = l_04F46, d0 = the starting lives.
+EnhCheatKeys:   movem.l d1-d7/a1-a5,-(a7)
+        jsr     sub_0900A                       ; (checks the cheat and F1 itself)
+        movem.l (a7)+,d1-d7/a1-a5
+        lea     l_04F46,a0
+        move.w  $2(a0),d0
+        rts
+
 ; sub_0BCDA: the game's display set up
 EnhDisplay:     bsr.w   ScrLeave
         move.l  #$70000,$20(a6)

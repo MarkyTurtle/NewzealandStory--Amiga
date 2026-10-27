@@ -855,8 +855,8 @@ l_0439C:
         move.w  #$3c,(a6)                       ; 043B8
         bsr.w   sub_050F4                       ; 043BC
 l_043C0:
-        lea.l   l_04F46(pc),a0                  ; 043C0
-        move.w  $2(a0),d0                       ; 043C4
+        jsr     (EnhCheatKeys).l                ; 043C0  enhanced: + the fly mode on F1 (enhanced.s)
+        nop                                     ; 043C6
         eori.w  #$3b7,d0                        ; 043C8
         move.w  d0,d1                           ; 043CC
         addq.w  #$1,d1                          ; 043CE

@@ -37,6 +37,7 @@ tried: real hardware.
 | `tools/build_disk.py` | Builds the disk; checks that every label of block 2 on is where the original has it |
 | `tools/test_boot.py` | Boots the disk in an emulator (Unicorn) from Kickstart's call to the game's start, on four memory configurations, then calls the game's `TrackRead` as the game does, twice (the second time from the cache when it fits) |
 | `tools/test_scroller.py` | Runs the original and the enhanced game side by side in `original/tools/nzsemu` and compares their displays pixel for pixel (`original/tools/display.py`); `--chip` for the machine's chip RAM |
+| `tools/test_fly.py` | The cheat's fly mode on F1, with and without the cheat |
 | `tools/test_smooth.py` | Plays every level at 50 Hz and at 25 Hz: how many in-between frames are drawn, and that the game keeps its speed; `--blittime` makes the emulator's CPU wait for the blitter as an A500's does |
 | `tools/test_mirror.py` | Plays every level with the mirror cache, with it cold, and with all frames mirrored at start-up, and compares the frames built in play and where each pass's drawing ends |
 | `tools/fork_source.py` | How `src/nzs_game.s` was made (kept for the record) |
@@ -303,6 +304,21 @@ was already built. With nothing built ahead, a pass that needs a new frame takes
 
 **Tested** (`tools/test_scroller.py`, with and without `--chip 0x100000`): pixel for pixel the
 same display as the original's, on all 20 levels, with the cache and without.
+
+## The cheat
+
+The original's cheat - `MOTHERFUCKENKIWIBASTARD` typed on the title screen - starts the game
+with 1,000 lives, and in play the HELP key skips to the next level. The original also has a fly
+mode for it that nothing calls (`sub_0900A`): the enhanced game calls it at the end of each pass
+of the game loop (`EnhCheatKeys`, at `$43C0`, where the original tests HELP). With the cheat on,
+**F1** makes the kiwi fly: he moves 4 pixels a step with the joystick, in any direction, through
+the scenery (`sub_08FD4` takes his handler's place, kept at `$5C(a6)`); F1 again lands him (his
+handler back: in the air he falls). He is not invulnerable while flying: an enemy still kills
+him (1,000 lives...).
+
+**Tested** (`tools/test_fly.py`): with the cheat, F1 then up flies him up through the scenery
+and F1 again gives his handler back; without it F1 does nothing. (In WinUAE: type the code on
+the title, start, press F1.)
 
 ## The game's disk reading (`src/diskload.s`)
 

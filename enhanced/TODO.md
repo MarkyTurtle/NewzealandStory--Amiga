@@ -125,8 +125,8 @@ cheat's switch:
   nothing calls it: left in, unused.
 
 `CHEAT` on the options page sets the same immediate (1,000 or 3), so the menu and the typed code
-agree, and both features come with it; shown on the title when on. Perhaps also: `sub_0900A`
-called from the kiwi's handler, so the original's own fly mode works with the cheat on.
+agree, and both features come with it; shown on the title when on. Done (branch
+`feature/fly-mode`): the fly mode works with the cheat on (`README.md`, *The cheat*).
 
 **The test page's tests.**
 * *Sound test:* the 12 songs and the 18 effects by number (`PlaySong`, `PlaySample`), fire
