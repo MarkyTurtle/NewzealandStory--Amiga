@@ -138,13 +138,12 @@ CopyTrack:      move.w  #TRACK_BYTES/16-1,d1
 
 ;------------------------------------------------------------------------------
 ; EnhTitleText - a0 = the title's text (dat_0C0A2): printed by the game's printer, then the
-; machine's lines (MakeTitleText) under the kiwi, above the credits. Keeps a0 as the printer.
+; menu (menu.s), whose options page shows the machine's lines (MakeTitleText) under the kiwi,
+; above the credits. Keeps a0 as the printer.
 EnhTitleText:
         jsr     sub_0C6A8
         move.l  a0,-(a7)
-        lea     TitleText(pc),a0
-        jsr     sub_0C6A8
-        bsr.w   MenuStart                       ; (menu.s)
+        bsr.w   MenuStart                       ; (menu.s: and the memory lines, on its options page)
         movea.l (a7)+,a0
         rts
 

@@ -117,7 +117,8 @@ from the disk; the levels that share their graphics tracks (4-7, 12-14) read onl
 holds 93 of the 96 tracks; with more, all of them. With no memory beyond 512K of chip RAM, the
 game reads every level from the disk as the original did.
 
-The **title screen** shows the machine and what the game makes of it, under the kiwi:
+The title menu's **options page** shows the machine and what the game makes of it, under the kiwi
+(the title itself showed it until the menu came: *The title menu*):
 
 ```
 CHIP 512K  SLOW 512K  FAST 0K
@@ -315,7 +316,7 @@ original has nothing, a menu:
 | Page | Items |
 |---|---|
 | title | `START GAME`, `OPTIONS` |
-| options | `INPUT: JUMP ON UP` / `JUMP ON BUTTON 2` / `JUMP 1 FIRE 2`, `CHEAT: OFF` / `ON`, `EXIT` |
+| options | `INPUT: JUMP ON UP` / `JUMP ON BUTTON 2` / `JUMP 1 FIRE 2`, `CHEAT: OFF` / `ON`, `EXIT`; under the kiwi, the machine's memory lines (*The machine's memory*) |
 
 Up and down move (round), fire chooses; on `INPUT` and `CHEAT` left, right and fire change the
 setting. The chosen item shows as `> ... <` in white. `EnhTitleWait` takes the place of the

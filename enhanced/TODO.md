@@ -7,7 +7,7 @@ then merged.
 
 * **The machine's memory** (branch `feature/memory-config`): the bootblock's machine
   description (chip / slow / fast RAM, PAL / NTSC, CPU), a track cache in the largest memory
-  beyond 512K of chip RAM, and the memory shown on the title screen (`README.md`, *The
+  beyond 512K of chip RAM, and the memory shown on the title menu's options page (`README.md`, *The
   machine's memory*).
 * **The source edited by hand** (branch `feature/scroller`): `src/nzs_game.s`, the debug monitor
   removed from block 1 and the enhanced code in its place; block 2 checked label by label.

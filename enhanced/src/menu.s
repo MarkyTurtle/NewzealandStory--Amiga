@@ -5,7 +5,9 @@
 ; (where the original has nothing) a menu of two pages, three lines:
 ;
 ;   title     START GAME / OPTIONS
-;   options   INPUT: JUMP ON UP / JUMP ON BUTTON 2 / JUMP 1 FIRE 2,  CHEAT: OFF / ON,  EXIT
+;   options   INPUT: JUMP ON UP / JUMP ON BUTTON 2 / JUMP 1 FIRE 2,  CHEAT: OFF / ON,  EXIT; and
+;             under the kiwi the machine's memory lines (MakeTitleText), which the title no
+;             longer shows
 ;
 ; Up and down move (round), fire (button 1) chooses; on INPUT and CHEAT left, right and fire
 ; change the setting. The item chosen shows as > ... < in white. EnhTitleWait takes the place of
@@ -107,8 +109,21 @@ MenuDraw:       movem.l d0-d7/a0-a3,-(a7)
         st.b    (a2)
         lea     MenuText(pc),a0
         jsr     sub_0C6A8
+        lea     MemBlank(pc),a0                 ; under the kiwi: the machine's memory lines
+        tst.w   MenuPage                        ;   on the options page, nothing on the title
+        beq.b   .mem
+        lea     TitleText(pc),a0
+.mem:           jsr     sub_0C6A8
         movem.l (a7)+,d0-d7/a0-a3
         rts
+
+; MemBlank - the memory lines' place (MakeTitleText: TITLE_Y1, TITLE_Y2) cleared: 36 spaces each
+MemBlank:       dc.b    2,TITLE_Y1,2,MENU_COL
+        dcb.b   36,' '
+        dc.b    0,2,TITLE_Y2,2,MENU_COL
+        dcb.b   36,' '
+        dc.b    $ff
+	even
 
 ; MenuItem - d4 = the line -> a1 = its text in LineBuf (0 terminated), or 0 for none. Uses
 ; d0-d1, a0, a3.
