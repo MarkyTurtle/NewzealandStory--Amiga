@@ -46,7 +46,7 @@ def run(syms, lv, passes, seed, mode, tmp):
           f'snap {tmp}/{tag}_b\n')
     p = os.path.join(tmp, tag + '.txt')
     open(p, 'w').write(s)
-    subprocess.run([EMU, os.path.join(ENH, 'build', 'nzs_game.bin'), os.path.join(ORIG, 'disk', 'files', 'tracks'), p],
+    subprocess.run([EMU, os.path.join(ENH, 'build', 'nzs_game.bin'), os.path.join(ENH, 'build', 'loads'), p],
                    check=True, stdout=subprocess.DEVNULL)
     a, b = (open(os.path.join(tmp, f'{tag}_{x}.mem'), 'rb').read() for x in 'ab')
     d = lambda sym: struct.unpack_from('>L', b, syms[sym])[0] - struct.unpack_from('>L', a, syms[sym])[0]

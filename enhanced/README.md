@@ -5,7 +5,7 @@
 > [4489_byteloader](https://github.com/MarkyTurtle/4489_byteloader) instead of Rob Northen's
 > Copylock-protected boot chain, with improvements: a scroller that updates only what moves (a
 > corkscrew with a vertical ring, double-buffered, with a pristine buffer), and the machine's
-> memory used for a track cache, the sprites (BOBs) drawn in one blit each from frames kept
+> memory used for a cache of the level files, the sprites (BOBs) drawn in one blit each from frames kept
 > ready for it (on a 512K machine in a cache filled level by level), and 50 frames a second in play. Nothing on it is copy-protected: any emulator or real drive
 > reads it, and it can be written to a real floppy with any ADF tool.
 
@@ -26,12 +26,12 @@ tried: real hardware.
 | File | What it is |
 |---|---|
 | `src/nzs_game.s` | **The game's source**, edited by hand since October 2026 (made from `original/nzs_main.s` by `tools/fork_source.py`): the original's, with the debug monitor removed and jumps put over the start of the routines the enhanced code takes over (each marked `enhanced:`) |
-| `src/enhanced.s` | The enhanced game's own code, in block 1 where the monitor was: the track cache, the title's memory lines, the entries for the routines taken over |
+| `src/enhanced.s` | The enhanced game's own code, in block 1 where the monitor was: the file cache, the title's memory lines, the entries for the routines taken over |
 | `src/scroller.s` | The scroller (below) |
 | `src/menu.s` | The title menu (start, options: input, cheat) and the joystick's second button |
 | `src/smooth.s` | 50 frames a second: the in-between frame drawn each pass (below) |
 | `src/frames.s` | The BOB frames in one-blit form, mirrored ones too: all built once with more than 512K of chip RAM, or on a 512K machine a cache filled level by level (below); block 3 of the program |
-| `src/diskload.s` | The game's disk reading on this disk, in place of the original's `TrackWrite` / `TrackRead`, with the track cache in front of the disk |
+| `src/diskload.s` | The game's disk reading on this disk, in place of the original's `TrackWrite` / `TrackRead`, reading the level files, with the file cache in front of the disk |
 | `src/boot_4489.s` | The bootblock: surveys the machine's memory, finds the boot drive, loads the extension module and goes on in it |
 | `src/ext.s`, `src/ext.i` | The extension module: the part of the boot the bootblock has no room for (loading screen, program, the machine description handed to the game) |
 | `src/byteloader.i` | The 4489_byteloader, as published (used by both) |
@@ -56,10 +56,10 @@ the `$4489` sync, no filesystem (Workbench shows it as NDOS):
 | `$00000` | 1,024 | the bootblock: `'DOS',0`, checksum, root block 880, then the code |
 | `$00400` | 144 | the file table: `'NZSF'`, version.w (1), count.w, 8 bytes zero, then for each file id its disk offset and length (longs) |
 | `$00600` | 16,896 | file 1: the loading screen (the original file) |
-| `$04800` | 540,672 | file 2: the 96 tracks of the original disk the game reads while it runs (level data), one after another |
-| `$88800` | 432 | file 3: the extension module (`src/ext.s`), loaded to `$65400` |
-| after it | about 275 KB | file 0: the game, packed in the original's format |
-| | about 64 KB | free |
+| `$04800` | 455,490 | file 2: the 40 level files, one after another: each load the game makes while it runs, cut from the original disk's tracks (*The game's disk reading*) |
+| `$73B42` | 432 | file 3: the extension module (`src/ext.s`), loaded to `$65400` |
+| after it | about 276 KB | file 0: the game, packed in the original's format |
+| | about 147 KB | free |
 
 (`build_disk.py` prints the exact offsets.)
 
@@ -93,7 +93,7 @@ The module (`ExtBoot`) then:
 7. loads the game to `$400` and unpacks it in place, as the track 90 loader's `Unpack`; writes
    the machine description and the boot drive into the game's header (`EnhHeader`, `$426`);
 8. enters the game at `$400` with `d0 = a0 = $400`, as the track 90 loader did. The game's
-   start-up (`Init`) sets up the track cache and the title's memory lines (`EnhInit`).
+   start-up (`Init`) sets up the file cache and the title's memory lines (`EnhInit`).
 
 A load that fails is tried again; after 8 failures COLOR00 turns red while it goes on trying.
 Memory while loading: the game `$400-$52FA6`, the loader and its buffers `$60000-$63FFF`
@@ -111,22 +111,25 @@ has (the bootblock's description) and uses the largest of:
 | slow RAM (`$C00000-$DBFFFF`) | an A500 with a trapdoor expansion |
 | fast RAM (any other region) | a CPU card, a side expansion, an A1200 with fast RAM |
 
-for the **track cache** (`CacheGet` / `CachePut` in `enhanced.s`, called by `TrackRead`): every track the
-game reads from the disk is kept there while there is room, first come, first served, and read
-from memory the next time. A level played again (after a game over, the next game) reads nothing
-from the disk; the levels that share their graphics tracks (4-7, 12-14) read only their map. 512K
-holds 93 of the 96 tracks; with more, all of them. With no memory beyond 512K of chip RAM, the
-game reads every level from the disk as the original did.
+for the **file cache** (`FileGet` / `FilePut` in `enhanced.s`, called by `TrackRead`): every
+level file the game reads from the disk (*The game's disk reading*) is kept there while there is
+room, first come, first served, and read from memory the next time. A level played again (after
+a game over, the next game) reads nothing from the disk; the levels that share their world data
+(4-7, 12-14) read only their map. All the level files are 445 KB, so 512K of slow or fast RAM
+holds every one of them (the track cache before it held 93 of the 96 tracks, 528 KB); a 1MB
+machine without other memory has 216 KB after the BOB frames (*BOBs in one blit*). With no memory
+beyond 512K of chip RAM, the game reads every level from the disk as the original did.
 
 The title menu's **options page** shows the machine and what the game makes of it, above the kiwi
 (the title itself showed it until the menu came: *The title menu*):
 
 ```
 CHIP 512K  SLOW 512K  FAST 0K
-TRACK CACHE 93 OF 96 IN SLOW RAM
+FILE CACHE 444K IN SLOW RAM
 ```
 
-(`NO TRACK CACHE` on a plain 512K machine). The game's title text call (`$404C`) calls
+(`FILE CACHE 216K OF 444K IN CHIP RAM` on a 1MB machine, where it holds part of them; `NO FILE
+CACHE` on a plain 512K machine). The game's title text call (`$404C`) calls
 `EnhTitleText`, which prints the original's text and then these two lines with the game's own
 printer (`sub_0C6A8`).
 
@@ -138,7 +141,7 @@ the scroller's buffers start there.
 
 **One program for every machine**, as decided for Ghosts'n Goblins: the same disk on every
 Amiga, scaling up at run time. The chip RAM above 512K also holds the BOB frames in one-blit form
-(*BOBs in one blit*), the track cache taking what they leave. Next (`TODO.md`): moving the
+(*BOBs in one blit*), the file cache taking what they leave. Next (`TODO.md`): moving the
 program itself into slow / fast RAM to free chip RAM on an expanded A500.
 
 ## The scroller (`src/scroller.s`)
@@ -313,8 +316,8 @@ it would not change.
 
 * **More than 512K of chip RAM, with room for them all** (`ONE_ALL`, 296 KB; A500+, A600,
   A1200): all built once, at the first new game (about 0.7 seconds), from `$80000`. The track
-  cache gets the chip RAM after them, if that is the largest memory (a 1MB machine: 39 tracks
-  instead of 92).
+  cache gets the chip RAM after them, if that is the largest memory (a 1MB machine: 216 KB of
+  the 445 KB of level files).
 * **512K:** a cache from `$4A3A6` (where the original built its mirrored copies) to block 3,
   81 KB. It is a ring: a frame goes at the next free place and the oldest frames in its way are
   dropped (no search, nothing to fragment). As a level starts (`EnhLevelStart`, at `$41FE`) the
@@ -356,7 +359,7 @@ give the program back. Block 1 has 1.5 KB free again (the old `mirror.s` moved o
 
 **Tested** (`tools/test_scroller.py`): pixel for pixel the same display as the original's on
 all 20 levels at 512K, and with 1MB of chip RAM; the title and the game's own display the same
-as before. `tools/test_boot.py`: the track cache after the frames on a 1MB machine.
+as before. `tools/test_boot.py`: the file cache after the frames on a 1MB machine.
 
 ## The title menu and two-button joysticks (`src/menu.s`)
 
@@ -420,18 +423,42 @@ the title, start, press F1.)
 ## The game's disk reading (`src/diskload.s`)
 
 The original game reads its level data from the disk at the start of each level (5 tracks of
-packed data and 1 more, 2 more on some levels) and at the end of the game, by **track number**
-through the jump table's `TrackRead` (`../original/disk/DISKMAP.md`). `diskload.s` takes the
-place of the original's `TrackWrite` and `TrackRead`:
+packed world data and 1 more, 2 more on some levels) and at the end of the game, by **track
+number** through the jump table's `TrackRead` (`../original/disk/DISKMAP.md`): whole tracks, of
+which a load uses part - the world data's packed stream fills 12-27 KB of its 28 KB, a map
+1-4 KB of its 5.5 KB, and the rest is what happened to be on the disk (some loads even overlap:
+levels 4-7's maps are in level 4's world data tracks). `diskload.s` takes the place of the
+original's `TrackWrite` and `TrackRead`.
+
+**The level files** (`build_disk.py`: `level_files`). Each distinct load the game makes (40 of
+them, from `original/tools/disk/game_tracks.py`) is a file on this disk with just the bytes the
+game uses:
+* a level's world data: its packed stream - the length in its header - and the 8 bytes after
+  it, which `UnpackLevel` moves with it;
+* a level's map: its 128-byte header and its rows of 64 tiles;
+* a boss's frames and the ending: the tracks without their trailing zeros.
+
+445 KB against the tracks' 528 KB. `build/loadtable.i` (`LoadTable`) lists for each file the
+first track and count the game asks for, its offset on the disk and its length.
 
 * `TrackRead`: same arguments and results (d0 = track, d1 = count, a0 = where; d0 = 0 if read,
-  -1 if not). Each original track is looked up in `TrackMap` - its place among the tracks
-  stored on this disk (`build/trackmap.i`, written by `build_disk.py`) - then taken from the
-  track cache if it is there (`CacheGet`), otherwise read with the byteloader from the drive
-  booted from, into the MFM buffer at `$68000` where the original read its tracks, and offered
-  to the cache (`CachePut`). All registers are kept; the byteloader leaves the interrupts,
-  CIA timers, blitter and copper alone, so the music and display go on while a level loads;
+  -1 if not). The load is looked up in `LoadTable` (-1 for one the disk has no file for), taken
+  from the file cache if it is there (`FileGet`), otherwise read with the byteloader from the
+  drive booted from, through the MFM buffer at `$68000` where the original read its tracks, and
+  offered to the cache (`FilePut`); the rest of the tracks asked for is filled with zeros. All
+  registers are kept; the byteloader leaves the interrupts, CIA timers, blitter and copper
+  alone, so the music and display go on while a level loads;
 * `TrackWrite` returns -1: only the built-in debug monitor's `W` command used it.
+
+**Tested.** The boss frames and the ending come back exactly as the original's (their tails were
+zeros). For the world data and maps, the bytes after them were what the disk had: to check that
+the game never reads them, `build_disk.py --poison N` fills them with N in the emulator's copies
+of the loads (`build/loads/`, from which `original/tools/nzsemu` now answers a load - the tests
+play the enhanced game with what it really loads), and `nzsemu`'s new `readwatch` logged no
+read of them on any of the 20 levels in 240 passes each; `tools/test_scroller.py` with `$A5`
+there: every frame the same as the original's, and the two games in step as long as with zeros.
+`tools/test_boot.py`: the eight loads through the real `TrackRead` and the byteloader, each its
+file and zeros, and from the cache the second time, on every memory configuration.
 
 ## The source
 

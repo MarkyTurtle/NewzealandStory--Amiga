@@ -39,7 +39,7 @@ class Run:
         self.n += 1
         p = os.path.join(self.tmp, f'r{self.n}')
         open(p + '.txt', 'w').write(script + f'snap {p}\n')
-        out = subprocess.run([EMU, os.path.join(ENH, 'build', 'nzs_game.bin'), os.path.join(ORIG, 'disk', 'files', 'tracks'),
+        out = subprocess.run([EMU, os.path.join(ENH, 'build', 'nzs_game.bin'), os.path.join(ENH, 'build', 'loads'),
                               p + '.txt'], check=True, capture_output=True, text=True).stdout
         m = open(p + '.mem', 'rb').read()
         w = lambda a: struct.unpack_from('>H', m, a)[0]
