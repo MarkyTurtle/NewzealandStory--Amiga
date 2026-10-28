@@ -30,6 +30,9 @@
 ; BlitBob takes each frame's address from EnhBobFrame (at $B7CC), which leaves the frame's
 ; one-blit form in OneCur (0: the other banks - the boss's, the ending's, the story's - and the
 ; oxygen meter's frame, which the game redraws each pass: drawn as the original draws them).
+; Nothing is built in the 512K cache before the first game starts (EnhMirrorInit, after the
+; intro): the program's own tail there holds the intro's mirrored frames, which the original
+; leaves alone until then; the title's frames are drawn as the original draws them.
 ;==============================================================================
 
 ONE_LO          equ     dat_4A3A6               ; 512K: the cache, from where the original built
@@ -50,6 +53,7 @@ ONE_TEMP_SIZE   equ     2408                    ;   (the largest stored frame: 2
 OneCur:         dc.l    0                       ; the frame BlitBob is drawing, in one-blit form (0: none)
 OneMode:        dc.w    1                       ; 0: all built once (chip RAM above 512K); 1: the cache
 OneBuilt:       dc.w    0                       ; OneMode 0: built
+OneReady:       dc.w    0                       ; a game has started (EnhMirrorInit): the cache in use
 OneLevel:       dc.w    -1                      ; the level the cache was filled for ($8(a6))
 OneBase:        dc.l    ONE_LO                  ; the memory: from
 OneEnd:         dc.l    ONE_LO_END              ;   to
@@ -99,6 +103,7 @@ EnhMirrorInit:
         move.w  d0,-$c(a3)
         lea     $10(a4),a4
         dbra    d7,.entry
+        move.w  #1,OneReady
         tst.w   OneMode
         bne.w   OneEmpty
         tst.w   OneBuilt
@@ -149,6 +154,8 @@ EnhBobFrame:    clr.l   OneCur
         bne.b   .have
         tst.w   OneMode
         beq.b   .none                           ; (all built: not one of them)
+        tst.w   OneReady
+        beq.b   .none                           ; (no game yet: the intro's frames are there)
         movem.l d0-d7/a0-a6,-(a7)
         move.w  15*4+2(a7),d0                   ; (the frame, pushed above)
         bsr.w   OneMiss

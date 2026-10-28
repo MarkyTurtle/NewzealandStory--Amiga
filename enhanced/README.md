@@ -322,7 +322,10 @@ it would not change.
   drawn first, as many as fit in 85 % of it (`build_disk.py`, from `tools/frame_counts.json`:
   4 plays of 400 passes a level in the emulator, and the frames seen in
   `../original/assets/levels/observed.json`). A frame drawn and not in the cache is built there
-  and then (`OneMiss`).
+  and then (`OneMiss`). Nothing is built there before the first game starts: the program's
+  own tail at `$4A3A6` holds the intro's mirrored frames (the walrus carrying off the kiwis),
+  which the original leaves alone until then, so the title draws its frames as the original
+  does.
 
 **Building a frame** (`OneCopy`): the blitter lays it out, 8 blits (A to D): the mask 4 times,
 each to every 4th row of the mask block, then each plane to every 4th row of the plane block.
