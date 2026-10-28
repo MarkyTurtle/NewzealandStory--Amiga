@@ -19,70 +19,34 @@ then merged.
   in-between frame drawn each pass with the camera and every object half-way; a busy pass drops
   to 25 Hz for that pass, never slower (`README.md`, *50 frames a second*). Tested in WinUAE.
 * **Mirrored frames on demand** (branch `feature/mirror-cache`): on a 512K machine the mirrored
-  BOB frames are built when first drawn into a 48 KB ring cache, a level's known ones built as it
-  starts; 43 KB of chip RAM freed (`$563A6-$611B0`), no cost in play in the emulator
-  (`README.md`, *The mirrored frames*). Tested in WinUAE.
+  BOB frames built when first drawn into a 48 KB ring cache, a level's known ones built as it
+  starts. Tested in WinUAE. Replaced by the next:
+* **BOBs in one blit** (branch `feature/one-blit`): every main-bank frame, mirrored ones too, kept
+  in a one-blit form (the mask repeated for each plane's row, the planes interleaved): all built
+  once with more than 512K of chip RAM (296 KB from `$80000`); on 512K an 81 KB cache, filled as
+  each level starts with the frames it draws most (`tools/frame_counts.py`), the rest built when
+  first drawn. The code is block 3 (`src/frames.s`, at `$5E800`). 99.7 % of passes at 50 Hz with
+  the blitter timed, from 99.0 % (`README.md`, *BOBs in one blit*).
 
 ## Next
 
-### BOBs in one blit
+### Memory: the program in slow / fast RAM
 
-**Measured first** (`nzsemu`'s `profile`, on level 2-1 at 50 Hz with the blitter timed): the
-BOBs' blits and the waits for them are about a tenth of a pass; the CPU work around them
-(`BlitBob`'s clipping, called for every object) and the copper lists were more, and are now
-faster (`README.md`, *Faster drawing*): 99 % of passes at 50 Hz in the emulator. A BOB in one
-blit would save its CPU setup (about 25 lines a pass) but needs its frames stored with the mask
-repeated for each plane: 1.6 times the bank, about 150 KB with the mirrored copies built on
-demand - only on a machine with more than 512K of chip RAM. Worth it if WinUAE shows the passes
-left at 25 Hz matter.
-
-The BOBs are still drawn as the original draws them - one cookie-cut blit per plane, 4 a BOB,
-from frames stored as a mask and 4 planes - and are now most of the blitting left. On the
-interleaved buffers a BOB can be one blit if its frame is line-interleaved with its mask
-repeated for each plane's row (the A channel's modulo can't read one mask row 4 times).
-`DeinterleaveBobs` (`$4E92`) could make that form instead of mask + planes, at start-up and for
-each level's extra BOBs.
-
-**Sprite masks: memory.** The main bank is 94,208 bytes (`$22AA6-$39AA6`), of which the masks
-are about 18.8 KB. Repeating each mask 4 times costs about 56 KB more, plus the same for the
-per-level banks. Options:
-1. *1 MB machines:* pre-mask everything at load time and keep it in memory.
-2. *512K:* as in the enhanced Ghosts'n Goblins, a cache of masked frames. Pre-build the
-   frames that are always on screen (the kiwi, his arrows, common enemies) and build the rest
-   on demand into a fixed-size cache, evicting the least recently used.
-3. Fallback: a BOB whose masked form isn't built is drawn as now (4 blits, the mask as it is).
-
-On 512K the scroller's buffers fill `$65400-$7FFFF`; the mirror cache freed 43 KB at
-`$563A6-$611B0` (the place for a cache of masked frames); beyond that the masks need the
-program moved to slow / fast RAM (below) or chip RAM above 512K.
-
-The blitter only reaches chip RAM. On an A500 with a trapdoor 512K (slow RAM at `$C00000`), a
-cache there would need a CPU copy into chip RAM before blitting. That RAM is better used as a
-file cache (below), freeing chip RAM for the masks.
-
-One program for every machine: work out the memory at boot (the bootblock) and scale back at
-run time, as decided for Ghosts'n Goblins.
-
-### Memory on 512K: the BOB frames
-
-Done: the mirrored frames on demand (above), 43 KB freed at `$563A6-$611B0`. Left: from the
-code, a level can show 122-256 of the 289 frames (41-85 KB), so keeping only a level's or a
-world's unmirrored frames would save little more (`../original/docs/LEVELS.md`). The freed
-memory is for the pre-masked BOBs (*BOBs in one blit*, above).
-
-### Memory: next uses
-
-* Chip RAM above 512K: the pre-masked interleaved BOBs (above), all of them at start-up.
-* Slow / fast RAM on an A500: move the program (code and tables) there, as the Ghosts'n Goblins
-  enhanced game does (`EnhRelocate`: assembled at two addresses to make a relocation table), and
-  use the chip RAM it frees for masks; the cache takes the rest of the region.
+On an A500 with 512K of chip RAM and an expansion (a trapdoor's slow RAM, or fast RAM), move
+the program's code and tables there, as the Ghosts'n Goblins enhanced game does (`EnhRelocate`:
+assembled at two addresses to make a relocation table), and give the chip RAM it frees to the
+one-blit frames' cache; the track cache takes the rest of the expansion. Only the CPU reads code
+and tables; the BOBs, samples, music, copper lists, tiles and screens stay in chip RAM. From the
+listing: code and its tables are about 61 KB at `$400-$F33E` (block 1 and the start of block 2)
+plus block 3; everything after `$F33E` (about 275 KB) is data. To check first: that the
+custom chips read nothing in what moves (the emulator to report any copper, sprite, audio or
+blitter read there).
 
 ### Frame rate
 
-Done (branch `feature/50hz`): 50 frames a second by drawing an in-between frame each pass
-(`README.md`, *50 frames a second*). Left: the passes busy enough to drop to 25 Hz (about 1 in
-30 on an A500, more on the busiest levels) - drawing the BOBs in one blit (above) is the way to
-fewer.
+Done (branches `feature/50hz`, `feature/fast-bobs`, `feature/one-blit`): 50 frames a second by
+drawing an in-between frame each pass, the drawing made faster, and the BOBs drawn in one blit:
+99.7 % of the passes at 50 Hz in the emulator with the blitter timed, on 512K and 1MB alike.
 
 ### Title menu, two-button joysticks and a cheat
 

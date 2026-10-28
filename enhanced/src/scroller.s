@@ -601,7 +601,20 @@ ScrBob:         movem.l d0/d2-d6/a0-a6,-(a7)
         add.w   d1,d1
         add.w   d6,d1
         move.w  d1,16(a5)                       ; +16 a source line: 2w + modulo
-        bsr.w   ScrMap                          ; d7 buffer, d4 y, d5 x byte
+        move.l  OneCur,d0                       ; the frame in one-blit form (frames.s):
+        beq.b   .four                           ;   4 rows a line, the planes 4 rows after
+        movea.l d0,a1
+        adda.w  d5,a1
+        lsl.l   #2,d4
+        adda.l  d4,a1
+        move.l  a1,12(a5)                       ; +12 the mask's first line
+        lsl.w   #2,d1
+        move.w  d1,16(a5)                       ; +16 a line: 4 rows
+        move.l  8(a5),d0
+        add.l   d0,d0
+        add.l   d0,d0
+        move.l  d0,8(a5)                        ; +8 from the mask to the planes
+.four:          bsr.w   ScrMap                  ; d7 buffer, d4 y, d5 x byte
         move.w  4(a5),d6                        ; lines left
 .part:          cmp.w   #SCR_FIELD,d4
         bcc.b   .panel
@@ -662,6 +675,8 @@ ScrBob:         movem.l d0/d2-d6/a0-a6,-(a7)
 ; ScrBobBlit - one part: a1 = the screen, d3 = lines, d1 = the screen modulo, d2 = the planes'
 ; distance; ScrBobVars as set. Uses d0-d1, a0, a2-a4.
 ScrBobBlit:     lea     CUSTOM,a2
+        tst.l   OneCur
+        bne.b   .one
         movea.l 12(a5),a3                       ; the mask
         movea.l a3,a4
         adda.l  8(a5),a4                        ; plane 0
@@ -689,6 +704,32 @@ ScrBobBlit:     lea     CUSTOM,a2
         adda.w  d2,a0
         dbra    d7,.plane
         movem.l (a7)+,d5/d7
+        rts
+; one blit of 4 rows a line (frames.s): A the mask's rows, B the planes' rows, C = D the
+; screen's rows, each plane's row a row of the blit (the screen's modulo: the planes' distance)
+.one:           movea.l 12(a5),a3
+        movea.l a3,a4
+        adda.l  8(a5),a4
+        move.w  d2,d1
+        sub.w   2(a5),d1
+        sub.w   2(a5),d1
+        bsr.w   ScrBlitWait
+        move.w  BobMinterm,d0
+        or.w    (a5),d0
+        move.w  d0,BLTCON0(a2)
+        move.w  d3,d0
+        lsl.w   #8,d0                           ; (4 rows a line, << 6)
+        or.w    2(a5),d0
+        move.w  (a5),BLTCON1(a2)
+        move.w  6(a5),BLTAMOD(a2)
+        move.w  6(a5),BLTBMOD(a2)
+        move.w  d1,BLTCMOD(a2)
+        move.w  d1,BLTDMOD(a2)
+        move.l  a3,BLTAPTH(a2)
+        move.l  a4,BLTBPTH(a2)
+        move.l  a1,BLTCPTH(a2)
+        move.l  a1,BLTDPTH(a2)
+        move.w  d0,BLTSIZE(a2)
         rts
 
 ScrBobVars:     dcb.b   18,0

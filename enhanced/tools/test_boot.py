@@ -56,6 +56,10 @@ MISSING = [(0, 1), (1, 1), (100, 1), (89, 2)]
 EXT_BASE = build_disk.EXT_BASE
 MEMLIST = 0x2000                        # the memory headers exec lists (overwritten by the game later)
 TRACK = 5632
+# the one-blit BOB frames (src/frames.s): with room in the chip RAM above 512K, all of them from
+# $80000, and the track cache after them
+ONE_ALL = int(next(l.split()[2] for l in open(os.path.join(build_disk.OUT, 'frames.i')) if l.startswith('ONE_ALL')))
+ONE_END = (0x80000 + ONE_ALL + 3) & ~3
 # name: [(lower, upper, attributes)] as exec lists them (MEMF_CHIP 2, MEMF_FAST 4), and what the
 # extension module must make of it: (cache kind, its base, its tracks, the title's two lines)
 MACHINES = {
@@ -63,7 +67,8 @@ MACHINES = {
     'A500 512K + 512K slow': ([(0xC00020, 0xC80000, 4), (0x400, 0x80000, 2)],
                               (2, 0xC00020, 93, 'CHIP 512K  SLOW 512K  FAST 0K', 'TRACK CACHE 93 OF 96 IN SLOW RAM')),
     'A500+ 1MB chip (Kickstart 1.3 lists $FE800)': ([(0x400, 0xFE800, 2)],
-                              (1, 0x80000, 92, 'CHIP 1024K  SLOW 0K  FAST 0K', 'TRACK CACHE 92 OF 96 IN CHIP RAM')),
+                              (1, ONE_END, (0xFE800 - ONE_END) // TRACK, 'CHIP 1024K  SLOW 0K  FAST 0K',
+                               f'TRACK CACHE {(0xFE800 - ONE_END) // TRACK} OF 96 IN CHIP RAM')),
     'A500 512K + 512K slow + 2MB fast': ([(0x200000, 0x400000, 5), (0xC00020, 0xC80000, 4), (0x400, 0x80000, 2)],
                               (3, 0x200000, 96, 'CHIP 512K  SLOW 512K  FAST 2048K', 'TRACK CACHE 96 OF 96 IN FAST RAM')),
 }

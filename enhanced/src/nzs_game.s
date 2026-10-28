@@ -493,8 +493,13 @@ Relocate:
 l_0322E:
         move.l  (a0)+,(a1)+                     ; 0322E
         dbra    d0,l_0322E                      ; 03230
-        jmp     (Block1).w                      ; 03234
-	dcb.b	48,$00
+        lea.l   (Block3_Stored).l,a0            ; enhanced: block 3 to where it runs (frames.s)
+        move.w  #(Block3_End-Block3)/4-1,d0
+        movea.l #Block3,a1
+.block3:        move.l  (a0)+,(a1)+
+        dbra    d0,.block3
+        jmp     (Block1).w
+	dcb.b	$3268-*,$00
 sub_03268:		; (no references found: found by the code sweep)
         move.w  #$7fff,(CUSTOM+INTENA).l        ; 03268
         lea.l   JT_KeyTest(pc),a0               ; 03270
@@ -27241,4 +27246,18 @@ dat_4CCC8:
 ; enhanced (scroller.s): the game's copper list's block from BPLCON1 to the split, SCR_GAMEBLK MOVEs
 	ifne	(dat_0C366-CopperList-32)/4-SCR_GAMEBLK
 	fail	scroller.s: SCR_GAMEBLK is not the game's copper list's block
+	endc
+
+;===============================================================================
+; Block 3 (enhanced): stored after block 2, runs at BLOCK3; Relocate copies it there
+;===============================================================================
+	even
+Block3_Stored:
+	org	BLOCK3
+Block3:
+	include	"frames.s"
+	cnop	0,4
+Block3_End:
+	ifgt	Block3_End-ONE_TEMP
+	fail	block 3 is over its room (to ONE_TEMP, frames.s)
 	endc
