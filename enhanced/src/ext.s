@@ -31,11 +31,32 @@ ExtHeader:      dc.b    'NZSX'                  ; EXT_MAGIC
 ; a2 = the file table, a5 = LoadIt (d0 = offset, d1 = length, a0 = destination; keeps a0-a5).
 ; What the bootblock used to do itself, as the track 90 loader did: the loading screen, the
 ; program loaded to $400 and unpacked, entered with d0 = a0 = $400. Before entering it: the
-; machine description kept, the drive booted from written into the game, the track cache set
-; up and the title's memory lines made.
+; machine description kept, the CPU's caches off (above a 68000), the drive booted from written
+; into the game.
 ExtBoot:
         movea.l a1,a3                           ; (the machine description)
         movea.l a2,a4                           ; (the file table)
+; the CPU (exec's AttnFlags; cumulative: a 68030 sets the 68020's and 68010's bits too): above a
+; 68000 the caches off - the game changes its own code as it runs (BlitBob's minterm before each
+; BOB, DeinterleaveBobs' displacements, BlitBob's bank addresses), which a 68020's instruction
+; cache would not see - and the vectors at 0 (the VBR), where the game writes them. (68010+
+; instructions as words: assembled for the 68000.)
+        move.w  MI_ATTN(a3),d0
+        btst    #0,d0                           ; a 68010 or later?
+        beq.b   .cpu
+        moveq   #0,d1
+        btst    #1,d0                           ; a 68020 or later: CACR
+        beq.b   .vbr
+        move.w  d0,d2
+        andi.w  #$0088,d2                       ; a 68040 / 68060: its caches written back first
+        beq.b   .cacr
+        dc.w    $f4f8                           ; cpusha bc
+.cacr:          dc.w    $4e7b,$1002             ; movec d1,cacr: every cache off
+.vbr:           dc.w    $4e7b,$1801             ; movec d1,vbr: the vectors at 0
+.cpu:
+; AGA (an A1200): FMODE 0, the bitplanes and sprites fetched as on an A500 (the register does not
+; exist on the older chips: the write does nothing there)
+        clr.w   $1fc(a0)                        ; FMODE
 ; the display as the track 90 loader set it up ($76ACE): black, the screen cleared, 4 planes
         lea     $180(a0),a1                     ; all 32 colours black
         moveq   #31,d0

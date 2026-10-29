@@ -25,7 +25,7 @@ from a unit of another device (DF0 then).
 """
 import os, struct, sys
 from unicorn import Uc, UC_ARCH_M68K, UC_MODE_BIG_ENDIAN, UC_HOOK_MEM_READ, UC_HOOK_MEM_WRITE, UC_HOOK_CODE
-from unicorn.m68k_const import (UC_CPU_M68K_M68000, UC_M68K_REG_A0, UC_M68K_REG_A1, UC_M68K_REG_A6,
+from unicorn.m68k_const import (UC_CPU_M68K_M68000, UC_CPU_M68K_M68020, UC_M68K_REG_D3, UC_M68K_REG_D4, UC_M68K_REG_A0, UC_M68K_REG_A1, UC_M68K_REG_A6,
                                 UC_M68K_REG_A7, UC_M68K_REG_D0, UC_M68K_REG_D1, UC_M68K_REG_D2,
                                 UC_M68K_REG_SR, UC_M68K_REG_PC)
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -80,13 +80,16 @@ MACHINES = {
                                f'FILE CACHE {(0xFE800 - ONE_END) // 1024}K OF {LK}K IN CHIP RAM')),
     'A500 512K + 512K slow + 2MB fast': ([(0x200000, 0x400000, 5), (0xC00020, 0xC80000, 4), (0x400, 0x80000, 2)],
                               (3, 0x200000, 0x200000, 'CHIP 512K  SLOW 512K  FAST 2048K', f'FILE CACHE {LK}K IN FAST RAM')),
+    'A1200 (68020) 2MB chip': ([(0x400, 0x200000, 2)],
+                              (1, ONE_END, 0x200000 - ONE_END, 'CHIP 2048K  SLOW 0K  FAST 0K', f'FILE CACHE {LK}K IN CHIP RAM')),
 }
+ATTN = {'A1200 (68020) 2MB chip': 0x0003}   # exec's AttnFlags (bit 0 68010, bit 1 68020); 0 for the rest
 
 
 class Machine:
-    def __init__(self, regions=()):
+    def __init__(self, regions=(), attn=0):
         u = self.u = Uc(UC_ARCH_M68K, UC_MODE_BIG_ENDIAN)
-        u.ctl_set_cpu_model(UC_CPU_M68K_M68000)
+        u.ctl_set_cpu_model(UC_CPU_M68K_M68020 if attn & 2 else UC_CPU_M68K_M68000)
         u.mem_map(0, 0x80000); u.mem_map(0xBFD000, 0x2000); u.mem_map(0xDFF000, 0x1000)
         for lo, hi, attr in regions:                        # memory beyond the first 512K of chip RAM
             lo = max(lo & ~0xFFF, 0x80000) if attr & 2 else lo & ~0xFFF
@@ -100,9 +103,26 @@ class Machine:
     def w32(self, a, v): self.u.mem_write(a, struct.pack('>L', v & 0xFFFFFFFF))
 
 
-def memlist(w, regions):
+# 68020 control registers, through code (Unicorn's own access to CACR / VBR does not work): set the
+# instruction cache on and the VBR to $7E000; read them into d3, d4. Run at $1C0, regs kept but d1-d4.
+MOVEC_SET = '72014e7b1002243c0007e0004e7b2801'        # moveq #1,d1; movec d1,cacr; move.l #$7E000,d2; movec d2,vbr
+MOVEC_GET = '4e7a30024e7a4801'                        # movec cacr,d3; movec vbr,d4
+
+
+def movec(u, which):
+    code = bytes.fromhex(globals()[which])
+    keep = [u.reg_read(r) for r in (UC_M68K_REG_PC, UC_M68K_REG_SR, UC_M68K_REG_A7)]
+    u.reg_write(UC_M68K_REG_SR, 0x2700)
+    u.mem_write(0x1C0, code)
+    u.emu_start(0x1C0, 0x1C0 + len(code))
+    out = u.reg_read(UC_M68K_REG_D3), u.reg_read(UC_M68K_REG_D4)
+    u.reg_write(UC_M68K_REG_SR, keep[1]); u.reg_write(UC_M68K_REG_A7, keep[2]); u.reg_write(UC_M68K_REG_PC, keep[0])
+    return out
+
+
+def memlist(w, regions, attn=0):
     """exec's MemList (ExecBase + $142) with a header per region; VBlankFrequency, AttnFlags"""
-    w(EXEC + 0x212, '>B', 50); w(EXEC + 0x128, '>H', 0)
+    w(EXEC + 0x212, '>B', 50); w(EXEC + 0x128, '>H', attn)
     nodes = [MEMLIST + 0x20 * k for k in range(len(regions))]
     w(EXEC + 0x142, '>LLL', nodes[0], 0, nodes[-1])           # lh_Head, lh_Tail, lh_TailPred
     for k, (lo, hi, attr) in enumerate(regions):
@@ -124,9 +144,10 @@ def title_lines(u):
 
 def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None, machine='A500 512K'):
     regions, (kind, cbase, csize, line1, line2) = MACHINES[machine]
-    m = Machine(regions); u = m.u
+    attn = ATTN.get(machine, 0)
+    m = Machine(regions, attn); u = m.u
     w = lambda a, f, *v: u.mem_write(a, struct.pack(f, *v))
-    memlist(w, regions)
+    memlist(w, regions, attn)
     u.mem_write(BOOTBUF, adf[:1024])
     w(EXEC - 0x1BC, '>HL', 0x4EF9, OPENDEVICE)                 # jmp OPENDEVICE
     w(OPENDEVICE, '>H', 0x4E75)                                  # rts
@@ -153,6 +174,8 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
     u.reg_write(UC_M68K_REG_A6, EXEC)
     u.reg_write(UC_M68K_REG_SR, 0x2000)
     u.reg_write(UC_M68K_REG_A7, 0x7F000)
+    if attn & 2:                                    # a 68020 as Kickstart could leave it: its instruction
+        movec(u, 'MOVEC_SET')                       #   cache on, the vectors elsewhere
     # (in supervisor mode already: the privilege-violation trick is not exercised here)
     u.emu_start(BOOTBUF + 0x0C, 0x400, count=600_000_000)
     pc = u.reg_read(UC_M68K_REG_PC)
@@ -193,7 +216,7 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
     chip = next((lo, hi) for lo, hi, at in reversed(regions) if at & 2)
     slow = next(((lo, hi) for lo, hi, at in reversed(regions) if not at & 2 and 0xC00000 <= lo < 0xDC0000), (0, 0))
     fast = next(((lo, hi) for lo, hi, at in reversed(regions) if not at & 2 and not 0xC00000 <= lo < 0xDC0000), (0, 0))
-    want_mi = b'NZSM' + struct.pack('>BBH', 1, 50, 0) + struct.pack('>6LL', *chip, *slow, *fast, unit if not foreign else 0)
+    want_mi = b'NZSM' + struct.pack('>BBH', 1, 50, attn) + struct.pack('>6LL', *chip, *slow, *fast, unit if not foreign else 0)
     checks += [('the extension module at $65400', bytes(u.mem_read(EXT_BASE, 16)) == ext[:16]),
                ('the machine description and the boot drive in the game\'s header (chip, slow, fast RAM, PAL)',
                 mi == want_mi and bootdrive == (unit if not foreign else 0))]
@@ -210,6 +233,10 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
     orig_track = build_disk.original_track
     u.emu_start(0x400, GAME_ENTRY, count=20_000_000)
     relocated = u.reg_read(UC_M68K_REG_PC) == GAME_ENTRY
+    if attn & 2:
+        cacr, vbr = movec(u, 'MOVEC_GET')
+        checks.append((f'above a 68000: the caches off and the vectors at 0 for the game (CACR {cacr}, VBR ${vbr:X}; '
+                       f'set to 1 and $7E000 before the boot)', cacr == 0 and vbr == 0))
     cache = struct.unpack('>LLLH', bytes(u.mem_read(SYMS['CacheBase'], 14)))     # base, size, used, kind
     lines = title_lines(u)
     checks += [(f'the file cache: {["no", "chip", "slow", "fast"][kind]} RAM, ${cbase:X}, {csize} bytes',

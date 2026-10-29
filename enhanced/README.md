@@ -86,7 +86,11 @@ protection. The bootblock:
 
 The module (`ExtBoot`) then:
 
-5. keeps the machine description in its header;
+5. keeps the machine description in its header; above a 68000 (exec's AttnFlags) turns the CPU's
+   caches off (on a 68040 / 68060 written back first) and sets the vector base to 0: the game
+   changes its own code as it runs (BlitBob's minterm before each BOB, `DeinterleaveBobs`'
+   displacements), which a 68020's instruction cache would not see, and writes its vectors at 0.
+   On an A1200 it also sets FMODE to 0 (the bitplanes and sprites fetched as on an A500);
 6. shows the loading screen as the track 90 loader did: black, 4 planes at `$78000` (`$2000`
    apart), `BPLCON0 $4200`, `DDFSTRT $38`, `DDFSTOP $D0`, `DIWSTRT $3C81`, `DIWSTOP $04C1`, the
    same copper list; the file loaded to `$70000` and decoded there, its colours doubled;
