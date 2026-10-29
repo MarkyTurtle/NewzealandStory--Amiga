@@ -169,7 +169,7 @@ MenuItem:       lea     LineBuf(pc),a0
 .cheat:         lea     .tcheat(pc),a1
         bsr.w   PutStrA
         lea     .toff(pc),a3
-        cmpi.w  #1000,LIVES
+        cmpi.w  #1000,LIVES  ; (reads the self-modified immediate)
         bne.w   .put
         lea     .ton(pc),a3
         bra.w   .put
@@ -482,17 +482,17 @@ EnhTitleWait:   movem.l d0-d7/a0-a5,-(a7)
         moveq   #0,d0
 .ms:            move.w  d0,JoyMode
         bra.w   .draw
-.cheat:         cmpi.w  #1000,LIVES
+.cheat:         cmpi.w  #1000,LIVES  ; (reads the self-modified immediate)
         beq.w   .off
         bsr.w   CheatOn
         bra.w   .draw
-.off:           move.w  #3,LIVES
+.off:           move.w  #3,LIVES  ; SMC -> l_04F46+2, the game's starting lives (an immediate)
 .draw:          bsr.w   MenuDraw
         bra.w   .loop
 .out:           movem.l (a7)+,d0-d7/a0-a5
         rts
 
 ; CheatOn - the cheat on, as the original's typed code: 1,000 lives, tune 10
-CheatOn:        move.w  #1000,LIVES
+CheatOn:        move.w  #1000,LIVES  ; SMC -> l_04F46+2, the game's starting lives (an immediate)
         moveq   #$a,d0
         jmp     PlaySong

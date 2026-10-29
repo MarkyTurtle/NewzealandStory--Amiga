@@ -1,6 +1,8 @@
 ; The New Zealand Story (Ocean 1989, Amiga conversion by Choice Software:
 ; code C. Gordon, graphics S. Connor) - main program
 ;
+; Made by original/tools/disasm/make.py from its config; edited by hand since October 2026.
+;
 ; Packed on tracks 94-143; the track 90 loader unpacks it to $400 and jumps to $400.
 ; Assemble: vasmm68k_mot -Fbin -m68000 -no-opt -o main.bin nzs_main.s
 ;
@@ -21,16 +23,45 @@ Block1_Stored:					; block 1 as loaded (file $0004)
 ;===============================================================================
 	org	$400
 Block1:
+
+;-------------------------------------------------------------------------------
+; JT_Init - The jump table at $400 (block 1): six bra.w the rest of the program calls through fixed
+; addresses - Init, KeyTest, ReadJoystick, TrackRead, TrackWrite, GetKey. JT_Init is also the top
+; of the stack (the stack grows down from $400).
+;-------------------------------------------------------------------------------
 JT_Init:
         bra.w   Init                            ; 00400
+
+;-------------------------------------------------------------------------------
+; JT_KeyTest - Jump table: KeyTest (d0 = raw key code -> Z clear if held).
+;-------------------------------------------------------------------------------
 JT_KeyTest:
         bra.w   KeyTest                         ; 00404
+
+;-------------------------------------------------------------------------------
+; JT_ReadJoystick - Jump table: ReadJoystick (called from the vertical blank).
+;-------------------------------------------------------------------------------
 JT_ReadJoystick:
         bra.w   ReadJoystick                    ; 00408
+
+;-------------------------------------------------------------------------------
+; JT_TrackRead - Jump table: TrackRead (d0 = track, d1 = tracks, a0 = where, d2 = drive).
+; LoadTracks reads every level through it.
+;-------------------------------------------------------------------------------
 JT_TrackRead:
         bra.w   TrackRead                       ; 0040C
+
+;-------------------------------------------------------------------------------
+; JT_TrackWrite - Jump table: TrackWrite (only the monitor's W command uses it).
+;-------------------------------------------------------------------------------
 JT_TrackWrite:
         bra.w   TrackWrite                      ; 00410
+
+;-------------------------------------------------------------------------------
+; JT_GetKey - Jump table: GetKey (-> d0 = the lowest held key's character). After it, the system
+; layer's variables: the drive last used ($420), the text cursor ($422 column, $424 line, as words;
+; $423 / $425 as bytes for the printers), and TrackRead's 308-byte sector header buffer ($426).
+;-------------------------------------------------------------------------------
 JT_GetKey:
         bra.w   GetKey                          ; 00414
 dat_00418:
@@ -47,11 +78,29 @@ dat_00425:
 	dc.b	$00
 dat_00426:
 	dcb.b	308,$00
+
+;-------------------------------------------------------------------------------
+; Init - entered from the jump table after Relocate: interrupts off, then a privilege violation
+; that lands in sub_00576 in supervisor mode (vector $20 pointed there first: the program may be
+; entered in user mode).
+;-------------------------------------------------------------------------------
 Init:
         lea.l   CUSTOM,a0                       ; 0055A
         move.w  #$7fff,(CUSTOM+INTENA).l        ; 00560
         move.l  #sub_00576,$20.l                ; 00568
         ori.w   #$700,sr                        ; 00572
+
+;-------------------------------------------------------------------------------
+; sub_00576 - SysStart - the system layer's start-up. Builds the monitor's text screen line table
+; (dat_03110: 25 lines of $140 bytes), points ExecBase ($4) at a fake exec library (dat_02F9E) with
+; its checksum, points every exception vector at sub_0158C (keeping the trace vector, $24), the
+; interrupt autovectors at UnusedInterrupt and trap #14 at ErrorTrap, turns both drives' motors off
+; and sets a6 to the saved PC (dat_031D8). Then l_0062C: the keyboard on (sub_011AE) and sub_0158C,
+; which jumps to mon_GoAddress - GameStart ($4000): the game. The debug monitor's prompt (l_00644:
+; registers, then each command key through sub_0069E) is reached only from the exception handlers
+; and the keyboard's break key, never in play; its last command (l_00678) jumps into Kickstart
+; ($F80000).
+;-------------------------------------------------------------------------------
 sub_00576:
         lea.l   JT_Init(pc),a7                  ; 00576
         clr.l   d0                              ; 0057A
@@ -123,6 +172,12 @@ l_00678:
         move.l  (a7)+,(dat_00422).l             ; 00690
         move.l  (a7)+,d0                        ; 00696
         jmp     $f80000.l                       ; 00698
+
+;-------------------------------------------------------------------------------
+; sub_0069E - MonCommand - d0 = the command key, a0 = MonitorCommandKeys: finds the key in the
+; list, echoes it and jumps through MonitorCommandTable (keys MRWDJGV, Return, -, 1-4, X, Tab, H,
+; N, S, Z). (No reference found: reached from sub_00576's loop through the table address $6D2.)
+;-------------------------------------------------------------------------------
 sub_0069E:		; (no references found: found by the code sweep)
         tst.b   (a0)                            ; 0069E
         beq.w   l_00678                         ; 006A0
@@ -159,6 +214,11 @@ MonitorCommandTable:
         dc.l    sub_0079A                       ; 00712
         dc.l    sub_0082C                       ; 00716
         dc.l    sub_01606                       ; 0071A
+
+;-------------------------------------------------------------------------------
+; sub_0071E - Monitor H (hunt) - asks for L/W/B/T (long, word, byte or text) and the value, then
+; searches memory from a6 for it (sub_0079A) and lists the place found.
+;-------------------------------------------------------------------------------
 sub_0071E:
         lea.l   dat_00814(pc),a0                ; 0071E
         bsr.w   sub_01B5C                       ; 00722
@@ -194,6 +254,11 @@ l_00758:
         beq.b   l_0079C                         ; 00790
         move.b  d0,(dat_031E8).l                ; 00792
         bra.b   l_0079C                         ; 00798
+
+;-------------------------------------------------------------------------------
+; sub_0079A - Monitor hunt, the search: from a6 on, the first byte of the value (dat_031E8), then
+; the rest (dat_031E6 bytes); lists memory there (sub_016A0). l_007D8 reads a text to hunt for.
+;-------------------------------------------------------------------------------
 sub_0079A:
         addq.l  #$1,a6                          ; 0079A
 l_0079C:
@@ -242,12 +307,22 @@ dat_00814:
 	dc.b	$00,$16
 	dc.b	'HUNT FOR L/W/B/T '
 	dc.b	$BF,$00,$00,$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_0082C - Monitor N - sets the drive (0-3) the disk commands use (trk_Drive).
+;-------------------------------------------------------------------------------
 sub_0082C:
         moveq   #$4,d0                          ; 0082C
         bsr.w   sub_017D6                       ; 0082E
         andi.w  #$3,d0                          ; 00832
         move.w  d0,(trk_Drive).l                ; 00836
         bra.w   l_01108                         ; 0083C
+
+;-------------------------------------------------------------------------------
+; sub_00840 - Monitor W - writes tracks: address (8 hex digits, or the last), first track, count;
+; TrackWrite; on an error prints its message, the drive and the track (dat_00908's texts). Asks for
+; confirmation with key $63 (Ctrl) held.
+;-------------------------------------------------------------------------------
 sub_00840:
         moveq   #$63,d0                         ; 00840
         bsr.w   KeyTest                         ; 00842
@@ -296,6 +371,10 @@ l_008A6:
         bsr.w   sub_019B2                       ; 008D4
         bsr.w   sub_008E0                       ; 008D8
         bra.w   l_01108                         ; 008DC
+
+;-------------------------------------------------------------------------------
+; sub_008E0 - Monitor: clears the rest of the text line (spaces to column 40), keeping the cursor.
+;-------------------------------------------------------------------------------
 sub_008E0:
         move.w  #$27,d0                         ; 008E0
         sub.w   dat_00422(pc),d0                ; 008E4
@@ -330,6 +409,11 @@ dat_0097C:
 dat_00985:
 	dc.b	' ON DRIVE '
 	dc.b	$FF
+
+;-------------------------------------------------------------------------------
+; sub_00990 - DriveReady - selects trk_Drive, motor on, side 0, and waits for the drive's READY
+; (CIA-A PRA bit 5) for up to dat_0C350 loops -> d0 = 0, or -5 (drive not ready).
+;-------------------------------------------------------------------------------
 sub_00990:
         ori.b   #$f8,(CIAB_PRB).l               ; 00990
         bclr    #$7,(CIAB_PRB).l                ; 00998
@@ -349,6 +433,11 @@ l_009BC:
 l_009D6:
         moveq   #-5,d0                          ; 009D6
         rts                                     ; 009D8
+
+;-------------------------------------------------------------------------------
+; sub_009DA - MotorOff - deselects every drive, then selects trk_Drive with the motor bit off and
+; deselects it: its motor stops. Keeps every register.
+;-------------------------------------------------------------------------------
 sub_009DA:
         ori.b   #$78,(CIAB_PRB).l               ; 009DA
         bset    #$7,(CIAB_PRB).l                ; 009E2
@@ -359,6 +448,12 @@ sub_009DA:
         bset    d0,(CIAB_PRB).l                 ; 009FA
         move.w  (a7)+,d0                        ; 00A00
         rts                                     ; 00A02
+
+;-------------------------------------------------------------------------------
+; TrackWrite - d0 = first track, d1 = tracks, a0 = data, d2 = drive -> d0 = 0, or negative: the
+; error. Encodes each track as 11 AmigaDOS sectors (MFM, $4489 sync, headers and checksums) at
+; $68000 and writes it (sub_00B6C). Only the monitor's W command uses it.
+;-------------------------------------------------------------------------------
 TrackWrite:
         move.l  a7,(dat_0156E).l                ; 00A04
         st.b    (dat_00420).l                   ; 00A0A
@@ -460,6 +555,11 @@ l_00B3C:
         bsr.w   sub_009DA                       ; 00B64
         clr.l   d0                              ; 00B68
         rts                                     ; 00B6A
+
+;-------------------------------------------------------------------------------
+; sub_00B6C - DiskWriteDMA - writes the track encoded at $68000 by disk DMA (d0 = DSKLEN with the
+; length), waiting for the CIA-B index pulse first and for the disk block interrupt after.
+;-------------------------------------------------------------------------------
 sub_00B6C:
         move.l  #$68000,(CUSTOM+DSKPTH).l       ; 00B6C
         move.w  #$8010,(CUSTOM+DMACON).l        ; 00B76
@@ -487,6 +587,14 @@ dat_00BDC:
 dat_00C0C:
 	dc.b	$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 	dc.b	$00,$00,$00,$00,$00,$00,$00,$00
+
+;-------------------------------------------------------------------------------
+; TrackRead - d0 = first track, d1 = tracks, a0 = where, d2 = drive -> d0 = 0, or negative: -1 no
+; sync, -2 checksum, -3 no disk response, -5 drive not ready. The original's own reader: each track
+; by disk DMA into $68000 (sync $4489, a whole revolution), its 11 AmigaDOS sectors decoded
+; (sub_00DA8) into place, up to 5 / 10 tries; the motor off at the end. The game reads every level
+; through the jump table's entry (LoadTracks). (The enhanced game replaces it: diskload.s.)
+;-------------------------------------------------------------------------------
 TrackRead:
         move.l  a7,(dat_0156E).l                ; 00C24
         move.w  d0,-(a7)                        ; 00C2A
@@ -580,6 +688,12 @@ l_00D8C:
         move.l  d0,(dat_03186).l                ; 00D9A
         movea.l (dat_0156E).l,a7                ; 00DA0
         rts                                     ; 00DA6
+
+;-------------------------------------------------------------------------------
+; sub_00DA8 - DecodeSector - one AmigaDOS sector from the MFM at a0: its header decoded to a4, the
+; track checked (the head re-seeked if wrong), its data decoded to the track's buffer at its sector
+; number, checksum checked -> d0 = 0, or -1 / -2.
+;-------------------------------------------------------------------------------
 sub_00DA8:
         movea.l a4,a1                           ; 00DA8
         move.w  #$4,d1                          ; 00DAA
@@ -635,6 +749,10 @@ l_00E40:
 l_00E52:
         clr.l   d0                              ; 00E52
         rts                                     ; 00E54
+
+;-------------------------------------------------------------------------------
+; sub_00E56 - Checksum - d1 + 1 words from a1 added -> d0.
+;-------------------------------------------------------------------------------
 sub_00E56:
         clr.l   d0                              ; 00E56
         clr.l   d2                              ; 00E58
@@ -643,6 +761,10 @@ l_00E5A:
         add.l   d2,d0                           ; 00E5C
         dbra    d1,l_00E5A                      ; 00E5E
         rts                                     ; 00E62
+
+;-------------------------------------------------------------------------------
+; sub_00E64 - MfmDecode - d1 bytes: odd bits from a0, even bits from a0 + d1, combined to a1.
+;-------------------------------------------------------------------------------
 sub_00E64:
         lea.l   (a0,d1.w),a2                    ; 00E64
         subq.w  #$1,d1                          ; 00E68
@@ -657,6 +779,11 @@ l_00E6A:
         dbra    d1,l_00E6A                      ; 00E7C
         movea.l a2,a0                           ; 00E80
         rts                                     ; 00E82
+
+;-------------------------------------------------------------------------------
+; sub_00E84 - MfmEncode - d1 bytes from a0 to MFM: odd bits to a1, even bits to a1 + d1, each
+; byte's clock bits set (sub_00EB2 / sub_00EAC) from the previous byte.
+;-------------------------------------------------------------------------------
 sub_00E84:
         lea.l   (a1,d1.w),a2                    ; 00E84
         subq.w  #$1,d1                          ; 00E88
@@ -673,9 +800,18 @@ l_00E8A:
         dbra    d1,l_00E8A                      ; 00EA4
         movea.l a2,a1                           ; 00EA8
         rts                                     ; 00EAA
+
+;-------------------------------------------------------------------------------
+; sub_00EAC - MfmEncode's clock bits for the even half (the previous byte at -1(a2)).
+;-------------------------------------------------------------------------------
 sub_00EAC:
         move.b  -$1(a2),d2                      ; 00EAC
         bra.b   l_00EB6                         ; 00EB0
+
+;-------------------------------------------------------------------------------
+; sub_00EB2 - MfmEncode's clock bits for the odd half (the previous byte at -1(a1)): a clock bit is
+; set where neither neighbouring data bit is.
+;-------------------------------------------------------------------------------
 sub_00EB2:
         move.b  -$1(a1),d2                      ; 00EB2
 l_00EB6:
@@ -691,6 +827,11 @@ l_00EB6:
         or.b    d3,d0                           ; 00ECE
         rts                                     ; 00ED0
 	dc.b	$33,$C0,$00,$00,$30,$F4,$4E,$75
+
+;-------------------------------------------------------------------------------
+; sub_00EDA - SeekReset - when the drive is not the one last used (dat_00420) or not yet
+; calibrated: steps the head to track 0 (from the assumed $52) and records the drive.
+;-------------------------------------------------------------------------------
 sub_00EDA:
         move.w  trk_Drive(pc),d0                ; 00EDA
         cmp.w   dat_00420(pc),d0                ; 00EDE
@@ -701,6 +842,12 @@ l_00EEE:
         move.w  d0,(dat_00420).l                ; 00EEE
         clr.w   (trk_CurrentTrack).l            ; 00EF4
         move.w  #$52,(dat_030F4).l              ; 00EFA
+
+;-------------------------------------------------------------------------------
+; sub_00F02 - Seek - steps the head of trk_Drive to trk_CurrentTrack's cylinder and selects its
+; side (bit 0 of the track); a step pulse and a delay loop each; recalibrates when it finds track 0
+; early.
+;-------------------------------------------------------------------------------
 sub_00F02:
         move.w  trk_CurrentTrack(pc),d0         ; 00F02
         bset    #$2,(CIAB_PRB).l                ; 00F06
@@ -736,6 +883,11 @@ l_00F6A:
 l_00F94:
         st.b    (dat_00FAA).l                   ; 00F94
         rts                                     ; 00F9A
+
+;-------------------------------------------------------------------------------
+; sub_00F9C - (No reference found.) The calibrated flag of trk_Drive (dat_00FAA, a word per drive)
+; -> d0.
+;-------------------------------------------------------------------------------
 sub_00F9C:		; (no references found: found by the code sweep)
         move.w  (trk_Drive).l,d0                ; 00F9C
         add.w   d0,d0                           ; 00FA2
@@ -745,6 +897,11 @@ dat_00FAA:
 	dc.b	$00,$00,$00,$00,$00,$00,$00,$00
 dat_00FB2:
 	dc.b	$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_00FB4 - Monitor: receive data through the parallel port (CIA-A) to an address: a length long
+; then the bytes, a handshake per byte (sub_01036), COLOR00 flashing as it goes.
+;-------------------------------------------------------------------------------
 sub_00FB4:
         moveq   #$8,d0                          ; 00FB4
         bsr.w   sub_017D6                       ; 00FB6
@@ -778,6 +935,10 @@ l_01008:
         move.b  #$10,$d00(a1)                   ; 01012
         move.w  #$fff,(CUSTOM+COLOR00).l        ; 01018
         bra.w   l_01108                         ; 01020
+
+;-------------------------------------------------------------------------------
+; sub_01024 - Parallel receive: a long, 4 bytes high first -> d2.
+;-------------------------------------------------------------------------------
 sub_01024:
         move.w  #$3,d1                          ; 01024
 l_01028:
@@ -786,6 +947,11 @@ l_01028:
         move.b  d0,d2                           ; 0102E
         dbra    d1,l_01028                      ; 01030
         rts                                     ; 01034
+
+;-------------------------------------------------------------------------------
+; sub_01036 - Parallel receive: waits for the strobe (dat_0105E, set by the level 2 interrupt),
+; flashes COLOR00, -> d0 = the byte on CIA-A PRB.
+;-------------------------------------------------------------------------------
 sub_01036:
         tst.b   (dat_0105E).l                   ; 01036
         beq.b   sub_01036                       ; 0103C
@@ -798,6 +964,12 @@ dat_0105C:
 	dc.b	$00,$00
 dat_0105E:
 	dc.b	$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_01060 - Monitor V (view) - shows memory as a 4-plane 320 x 200 picture: plane size and
+; address asked (dat_015B4 / dat_015B8), a copper list of its own (dat_0110E, a grey palette),
+; until a key.
+;-------------------------------------------------------------------------------
 sub_01060:
         moveq   #$8,d0                          ; 01060
         bsr.w   sub_017D6                       ; 01062
@@ -854,6 +1026,12 @@ dat_0110E:
 	dc.b	$01,$90,$08,$88,$01,$92,$09,$99,$01,$94,$0A,$AA,$01,$96,$0B,$BB
 	dc.b	$01,$98,$0C,$CC,$01,$9A,$0D,$DD,$01,$9C,$0E,$EE,$01,$9E,$0F,$FF
 	dc.b	$FF,$FF,$FF,$FE
+
+;-------------------------------------------------------------------------------
+; sub_01172 - MonitorEnter - after an exception or an unused interrupt: interrupts and DMA off, the
+; monitor's display (sub_01202), the keyboard back on (sub_011AE), interrupts allowed again, the
+; screen cleared.
+;-------------------------------------------------------------------------------
 sub_01172:
         movem.l d0/a0,-(a7)                     ; 01172
         lea.l   CUSTOM,a0                       ; 01176
@@ -867,6 +1045,11 @@ sub_01172:
         move.l  #$ffffffff,(dat_0310C).l        ; 0119E
         movem.l (a7)+,d0/a0                     ; 011A8
         rts                                     ; 011AC
+
+;-------------------------------------------------------------------------------
+; sub_011AE - KeyboardOn - the level 2 vector at Level2_Ports, CIA-A's serial port interrupt on
+; (the keyboard), INTENA ports and master, ADKCON, DMA master + bitplanes + copper.
+;-------------------------------------------------------------------------------
 sub_011AE:
         lea.l   CUSTOM,a0                       ; 011AE
         move.l  #Level2_Ports,$68.l             ; 011B4
@@ -881,6 +1064,11 @@ sub_011AE:
         move.w  #$b500,ADKCON(a0)               ; 011F4
         move.w  #$8380,DMACON(a0)               ; 011FA
         rts                                     ; 01200
+
+;-------------------------------------------------------------------------------
+; sub_01202 - MonitorDisplay - a0 = CUSTOM: one bitplane at $78000 (BPLCON0 $1200), the window,
+; white on black, the sprites' data cleared, its copper list (dat_030AE).
+;-------------------------------------------------------------------------------
 sub_01202:
         move.w  #$1200,$100(a0)                 ; 01202
         clr.w   $102(a0)                        ; 01208
@@ -902,9 +1090,19 @@ sub_01202:
         move.l  #dat_030AE,$80(a0)              ; 01252
         move.w  d0,$88(a0)                      ; 0125A
         rts                                     ; 0125E
+
+;-------------------------------------------------------------------------------
+; sub_01260 - KeyBufferClear - empties the monitor's key buffer (dat_030C0).
+;-------------------------------------------------------------------------------
 sub_01260:
         clr.b   (dat_030C0).l                   ; 01260
         rts                                     ; 01266
+
+;-------------------------------------------------------------------------------
+; sub_01268 - MonGetKey - shows the cursor, waits for a key in the monitor's buffer (filled by
+; Level2_Ports), takes it -> d0 = its character upper-cased (high word: the raw key); ESC goes back
+; to the monitor's prompt.
+;-------------------------------------------------------------------------------
 sub_01268:
         bsr.w   sub_02B4A                       ; 01268
 l_0126C:
@@ -939,6 +1137,14 @@ l_0129A:
         beq.w   l_0062C                         ; 012D0
         tst.w   d0                              ; 012D4
         rts                                     ; 012D6
+
+;-------------------------------------------------------------------------------
+; Level2_Ports - the level 2 interrupt (CIA-A): the parallel strobe (dat_0105E), and the keyboard:
+; each key's raw code read from the serial port and acknowledged, the key map (dat_03174, a bit per
+; key: KeyTest, GetKey) updated, and in the monitor the character (dat_013E4, shifted with either
+; Shift: dat_03180) queued (dat_030C0). Key $7F (the Help-row key mapped to $7F) breaks into the
+; monitor from anywhere, saving the registers and the PC.
+;-------------------------------------------------------------------------------
 Level2_Ports:
         move.l  d0,-(a7)                        ; 012D8
         move.w  #$8,(CUSTOM+INTREQ).l           ; 012DA
@@ -1037,6 +1243,11 @@ dat_013E4:
 	dcb.b	48,$00
 	dc.b	$48,$E7,$C0,$80,$41,$FA,$1C,$8A,$70,$03,$42,$81,$82,$98,$51,$C8
 	dc.b	$FF,$FC,$4A,$81,$67,$00,$FF,$EE,$4C,$DF,$01,$03,$4E,$75
+
+;-------------------------------------------------------------------------------
+; sub_01502 - Monitor R - reads tracks: address, first track, count (Ctrl held to confirm),
+; TrackRead, then lists the memory read.
+;-------------------------------------------------------------------------------
 sub_01502:
         moveq   #$63,d0                         ; 01502
         bsr.w   KeyTest                         ; 01504
@@ -1072,17 +1283,34 @@ l_01520:
         bra.w   l_01108                         ; 0156A
 dat_0156E:
 	dc.b	$00,$00,$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_01572 - Monitor: a no-op command (the rte after it is never reached). dat_01578: set by
+; ErrorTrap.
+;-------------------------------------------------------------------------------
 sub_01572:
         bra.w   l_01108                         ; 01572
 	dc.b	$4E,$73
 dat_01578:
 	dc.b	$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_0157A - Monitor G - go: the address typed (or the last) -> mon_GoAddress, then jumps there
+; (sub_0158C's
+; l_01592).
+;-------------------------------------------------------------------------------
 sub_0157A:
         clr.l   (dat_0310C).l                   ; 0157A
         moveq   #$8,d0                          ; 01580
         bsr.w   sub_017D6                       ; 01582
         tst.l   d0                              ; 01586
         bne.w   l_01592                         ; 01588
+
+;-------------------------------------------------------------------------------
+; sub_0158C - MonGo - jumps to mon_GoAddress ($4000: GameStart, unless the G command changed it),
+; the monitor flags cleared. Every exception vector points here at start-up, so any exception
+; restarts the game. (dat_015A8 - dat_015B8: the monitor commands' last addresses.)
+;-------------------------------------------------------------------------------
 sub_0158C:
         move.l  (mon_GoAddress).l,d0            ; 0158C
 l_01592:
@@ -1101,6 +1329,11 @@ dat_015B4:
 	dc.b	$00,$00,$20,$00
 dat_015B8:
 	dc.b	$00,$07,$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_015BC - Monitor M (memory) - a6 = the address typed (even unless a byte size was chosen),
+; then lists memory there. l_015E0: changes a register in the register list (the 1-4 commands).
+;-------------------------------------------------------------------------------
 sub_015BC:
         moveq   #$8,d0                          ; 015BC
         bsr.w   sub_017D6                       ; 015BE
@@ -1122,6 +1355,11 @@ l_015E0:
         move.l  d0,(a1)                         ; 015FC
         bsr.w   sub_017F2                       ; 015FE
         bra.w   l_01108                         ; 01602
+
+;-------------------------------------------------------------------------------
+; sub_01606 - Monitor D (disassemble) - 24 lines from a6, each the address and the instruction
+; (sub_01D1E); a key for the next page.
+;-------------------------------------------------------------------------------
 sub_01606:
         st.b    (dat_030BE).l                   ; 01606
 l_0160C:
@@ -1143,6 +1381,11 @@ l_01618:
         dbra    d2,l_01618                      ; 01644
         bsr.w   sub_01268                       ; 01648
         bra.w   l_0160C                         ; 0164C
+
+;-------------------------------------------------------------------------------
+; sub_01650 - Monitor: memory dump, 24 lines of 8 bytes and their characters (sub_016D6); a key
+; pages on, "-" back.
+;-------------------------------------------------------------------------------
 sub_01650:
         st.b    (dat_030BE).l                   ; 01650
         bsr.w   sub_017DA                       ; 01656
@@ -1159,15 +1402,28 @@ l_0165A:
 l_0167E:
         cmp.b   #$d,d0                          ; 0167E
         bne.w   l_0165A                         ; 01682
+
+;-------------------------------------------------------------------------------
+; sub_01686 - Monitor X - back to the saved PC (dat_031D8) and the prompt.
+;-------------------------------------------------------------------------------
 sub_01686:
         movea.l (dat_031D8).l,a6                ; 01686
         bsr.w   sub_017DA                       ; 0168C
         bra.w   l_00644                         ; 01690
+
+;-------------------------------------------------------------------------------
+; sub_01694 - a6 made even (the 24-bit address).
+;-------------------------------------------------------------------------------
 sub_01694:
         move.l  a6,d0                           ; 01694
         andi.l  #$fffffe,d0                     ; 01696
         movea.l d0,a6                           ; 0169C
         rts                                     ; 0169E
+
+;-------------------------------------------------------------------------------
+; sub_016A0 - MonList - one line at a6: the address, the instruction (sub_01D1E), then (in its
+; loop) 8 more.
+;-------------------------------------------------------------------------------
 sub_016A0:
         move.l  #$c,(dat_00422).l               ; 016A0
         move.l  a6,-(a7)                        ; 016AA
@@ -1183,6 +1439,11 @@ sub_016A0:
         movea.l (a7)+,a6                        ; 016CE
         bsr.w   sub_01780                       ; 016D0
         moveq   #$7,d2                          ; 016D4
+
+;-------------------------------------------------------------------------------
+; sub_016D6 - MonDump - 8 lines from a6: the address, 8 bytes in hex and as characters (sub_01742);
+; wraps at $FF8000.
+;-------------------------------------------------------------------------------
 sub_016D6:
         move.l  a6,-(a7)                        ; 016D6
 l_016D8:
@@ -1217,6 +1478,10 @@ l_01720:
         dbra    d2,l_016D8                      ; 0173A
         movea.l (a7)+,a6                        ; 0173E
         rts                                     ; 01740
+
+;-------------------------------------------------------------------------------
+; sub_01742 - MonDump's characters: 8 bytes from d3 as printable characters, '.' for the rest.
+;-------------------------------------------------------------------------------
 sub_01742:
         move.w  #$1e,(dat_00422).l              ; 01742
         movea.l d3,a0                           ; 0174A
@@ -1236,6 +1501,10 @@ l_01772:
 l_0177A:
         dbra    d1,l_01752                      ; 0177A
         rts                                     ; 0177E
+
+;-------------------------------------------------------------------------------
+; sub_01780 - New line (CR, LF) on the monitor's text screen. Keeps d0.
+;-------------------------------------------------------------------------------
 sub_01780:
         move.l  d0,-(a7)                        ; 01780
         move.l  #$d,d0                          ; 01782
@@ -1244,29 +1513,65 @@ sub_01780:
         bsr.w   sub_02B5E                       ; 01792
         move.l  (a7)+,d0                        ; 01796
         rts                                     ; 01798
+
+;-------------------------------------------------------------------------------
+; sub_0179A - Monitor Return - lists again at the last address (dat_030F0).
+;-------------------------------------------------------------------------------
 sub_0179A:
         movea.l (dat_030F0).l,a6                ; 0179A
 l_017A0:
         bsr.w   sub_01694                       ; 017A0
         bsr.w   sub_016A0                       ; 017A4
         bra.w   l_01108                         ; 017A8
+
+;-------------------------------------------------------------------------------
+; sub_017AC - Monitor "-": back one word and lists.
+;-------------------------------------------------------------------------------
 sub_017AC:
         subq.l  #$2,a6                          ; 017AC
         bra.b   l_017A0                         ; 017AE
+
+;-------------------------------------------------------------------------------
+; sub_017B0 - Monitor 1: back $40 bytes and lists.
+;-------------------------------------------------------------------------------
 sub_017B0:
         suba.l  #$40,a6                         ; 017B0
         bra.b   l_017A0                         ; 017B6
+
+;-------------------------------------------------------------------------------
+; sub_017B8 - Monitor 2: on $10 bytes and lists.
+;-------------------------------------------------------------------------------
 sub_017B8:
         adda.l  #$10,a6                         ; 017B8
         bra.w   l_017A0                         ; 017BE
+
+;-------------------------------------------------------------------------------
+; sub_017C2 - Monitor 3: on $40 bytes and lists.
+;-------------------------------------------------------------------------------
 sub_017C2:
         adda.l  #$40,a6                         ; 017C2
         bra.w   l_017A0                         ; 017C8
+
+;-------------------------------------------------------------------------------
+; sub_017CC - Monitor 4: back $10 bytes and lists.
+;-------------------------------------------------------------------------------
 sub_017CC:
         suba.l  #$10,a6                         ; 017CC
         bra.w   l_017A0                         ; 017D2
+
+;-------------------------------------------------------------------------------
+; sub_017D6 - The monitor's hex number input as it stands: it saves registers and falls into
+; sub_017DA (the screen cleared) and returns with them still on the stack - broken. The monitor's
+; commands call it for every address or number (moveq #n,d0 = the digits). The game never runs the
+; monitor.
+;-------------------------------------------------------------------------------
 sub_017D6:
         movem.l d1-d3/a0-a2,-(a7)               ; 017D6
+
+;-------------------------------------------------------------------------------
+; sub_017DA - ClearText - clears the monitor's text screen ($78000, 8,000 bytes) and homes the
+; cursor.
+;-------------------------------------------------------------------------------
 sub_017DA:
         movea.l #$78000,a0                      ; 017DA
         move.w  #$7cf,d0                        ; 017E0
@@ -1275,6 +1580,12 @@ l_017E4:
         dbra    d0,l_017E4                      ; 017E6
         clr.l   (dat_00422).l                   ; 017EA
         rts                                     ; 017F0
+
+;-------------------------------------------------------------------------------
+; sub_017F2 - ShowRegisters - the monitor's register display: D0-D7 and A0-A7 (dat_03186) with the
+; 4 bytes each address register points at, the PC (dat_031D8), the SR (dat_031DC) as flags and the
+; interrupt level.
+;-------------------------------------------------------------------------------
 sub_017F2:
         move.w  #$2,d0                          ; 017F2
 l_017F6:
@@ -1382,6 +1693,11 @@ l_018E8:
         bsr.w   sub_019BC                       ; 0196E
         movem.l (a7)+,d0/a0                     ; 01972
         rts                                     ; 01976
+
+;-------------------------------------------------------------------------------
+; sub_01978 - Prints the flag letter at a0 if the carry is set, a space if not; a0 to the next
+; letter.
+;-------------------------------------------------------------------------------
 sub_01978:
         bcs.w   l_01986                         ; 01978
         move.l  d0,-(a7)                        ; 0197C
@@ -1395,25 +1711,46 @@ l_0198A:
         addq.l  #$1,a0                          ; 0198E
         move.l  (a7)+,d0                        ; 01990
         rts                                     ; 01992
+
+;-------------------------------------------------------------------------------
+; sub_01994 - PrintHex6 - d0's low 24 bits as 6 hex digits.
+;-------------------------------------------------------------------------------
 sub_01994:
         swap    d0                              ; 01994
         bsr.w   sub_019B2                       ; 01996
         swap    d0                              ; 0199A
         bra.w   sub_019A8                       ; 0199C
+
+;-------------------------------------------------------------------------------
+; sub_019A0 - PrintHex8 - d0 as 8 hex digits.
+;-------------------------------------------------------------------------------
 sub_019A0:
         swap    d0                              ; 019A0
         bsr.w   sub_019A8                       ; 019A2
         swap    d0                              ; 019A6
+
+;-------------------------------------------------------------------------------
+; sub_019A8 - PrintHex4 - d0's low word as 4 hex digits.
+;-------------------------------------------------------------------------------
 sub_019A8:
         move.w  d0,-(a7)                        ; 019A8
         lsr.w   #$8,d0                          ; 019AA
         bsr.w   sub_019B2                       ; 019AC
         move.w  (a7)+,d0                        ; 019B0
+
+;-------------------------------------------------------------------------------
+; sub_019B2 - PrintHex2 - d0's low byte as 2 hex digits.
+;-------------------------------------------------------------------------------
 sub_019B2:
         move.w  d0,-(a7)                        ; 019B2
         lsr.w   #$4,d0                          ; 019B4
         bsr.w   sub_019BC                       ; 019B6
         move.w  (a7)+,d0                        ; 019BA
+
+;-------------------------------------------------------------------------------
+; sub_019BC - PrintHex1 - d0's low 4 bits as a hex digit. After it the monitor's texts (exception
+; names, the banner "CBM Amiga Monitor V3.5", the register headings).
+;-------------------------------------------------------------------------------
 sub_019BC:
         movem.l d0,-(a7)                        ; 019BC
         andi.w  #$f,d0                          ; 019C0
@@ -1423,6 +1760,10 @@ sub_019BC:
         rts                                     ; 019D0
 dat_019D2:
 	dc.b	'0123456789ABCDEF'
+
+;-------------------------------------------------------------------------------
+; sub_019E2 - ToUpper - d0 = a character: a-z upper-cased.
+;-------------------------------------------------------------------------------
 sub_019E2:
         cmp.b   #$61,d0                         ; 019E2
         bcs.w   l_02B5C                         ; 019E6
@@ -1500,10 +1841,20 @@ dat_01B3E:
 	dc.b	$AA
 dat_01B4D:
 	dc.b	$18,$0A,$49,$50,$4C,$BA,$00
+
+;-------------------------------------------------------------------------------
+; sub_01B54 - PrintText - the text at a0 in the printer's form (characters, bit 7 set on the last),
+; at the cursor.
+;-------------------------------------------------------------------------------
 sub_01B54:
         movem.l d0-d2/a0,-(a7)                  ; 01B54
         clr.l   d0                              ; 01B58
         bra.b   l_01B6E                         ; 01B5A
+
+;-------------------------------------------------------------------------------
+; sub_01B5C - PrintAt - the text at a0: column and line bytes, then characters (a byte 0 starts
+; another column and line; bit 7 set on the last; $FF ends).
+;-------------------------------------------------------------------------------
 sub_01B5C:
         movem.l d0-d2/a0,-(a7)                  ; 01B5C
         clr.l   d0                              ; 01B60
@@ -1525,6 +1876,11 @@ l_01B82:
 l_01B94:
         movem.l (a7)+,d0-d2/a0                  ; 01B94
         rts                                     ; 01B98
+
+;-------------------------------------------------------------------------------
+; sub_01B9A - (Reached from sub_01BAC / sub_01C10 when an exception comes while the monitor is
+; entered.) The saved registers cleared and the program restarted (Init).
+;-------------------------------------------------------------------------------
 sub_01B9A:		; (no references found: found by the code sweep)
         lea.l   dat_03186(pc),a0                ; 01B9A
         move.w  #$f,d0                          ; 01B9E
@@ -1532,6 +1888,12 @@ l_01BA2:
         clr.l   (a0)+                           ; 01BA2
         dbra    d0,l_01BA2                      ; 01BA4
         bra.w   Init                            ; 01BA8
+
+;-------------------------------------------------------------------------------
+; sub_01BAC - BusErrorHandler - "Bus Error at" the address, the access word, the saved PC and SR;
+; the PC moved back to the instruction that faulted (the first word matching the access); the
+; monitor's prompt. (Installed by sub_00576 through the vector table: no direct reference.)
+;-------------------------------------------------------------------------------
 sub_01BAC:		; (no references found: found by the code sweep)
         tst.w   (dat_030BC).l                   ; 01BAC
         bne.w   sub_01B9A                       ; 01BB2
@@ -1563,6 +1925,10 @@ l_01C02:
         move.l  a6,(dat_031D8).l                ; 01C02
         bsr.w   sub_01260                       ; 01C08
         bra.w   l_00644                         ; 01C0C
+
+;-------------------------------------------------------------------------------
+; sub_01C10 - AddressErrorHandler - "Address Error at", as the bus error.
+;-------------------------------------------------------------------------------
 sub_01C10:		; (no references found: found by the code sweep)
         tst.w   (dat_030BC).l                   ; 01C10
         bne.w   sub_01B9A                       ; 01C16
@@ -1573,6 +1939,11 @@ sub_01C10:		; (no references found: found by the code sweep)
         bsr.w   sub_01B5C                       ; 01C2C
         movea.l (a7)+,a0                        ; 01C30
         bra.w   l_01BCE                         ; 01C32
+
+;-------------------------------------------------------------------------------
+; sub_01C36 - IllegalHandler - "Illegal instruction": the registers saved, the PC and SR from the
+; stack, the monitor's prompt. l_01C40 is the common end of the exception handlers that follow.
+;-------------------------------------------------------------------------------
 sub_01C36:		; (no references found: found by the code sweep)
         bsr.w   sub_01172                       ; 01C36
         move.l  a0,-(a7)                        ; 01C3A
@@ -1586,55 +1957,102 @@ l_01C40:
         movea.l (dat_031D8).l,a6                ; 01C5C
         bsr.w   sub_01260                       ; 01C62
         bra.w   l_00644                         ; 01C66
+
+;-------------------------------------------------------------------------------
+; sub_01C6A - ZeroDivideHandler - "Division by 0".
+;-------------------------------------------------------------------------------
 sub_01C6A:		; (no references found: found by the code sweep)
         bsr.w   sub_01172                       ; 01C6A
         move.l  a0,-(a7)                        ; 01C6E
         lea.l   dat_01A4B(pc),a0                ; 01C70
         bra.w   l_01C40                         ; 01C74
+
+;-------------------------------------------------------------------------------
+; sub_01C78 - ChkHandler - "CHK instruction".
+;-------------------------------------------------------------------------------
 sub_01C78:		; (no references found: found by the code sweep)
         bsr.w   sub_01172                       ; 01C78
         move.l  a0,-(a7)                        ; 01C7C
         lea.l   dat_01A5B(pc),a0                ; 01C7E
         bra.w   l_01C40                         ; 01C82
+
+;-------------------------------------------------------------------------------
+; sub_01C86 - TrapvHandler - "TRAPV instruction".
+;-------------------------------------------------------------------------------
 sub_01C86:		; (no references found: found by the code sweep)
         bsr.w   sub_01172                       ; 01C86
         move.l  a0,-(a7)                        ; 01C8A
         lea.l   dat_01A6D(pc),a0                ; 01C8C
         bra.w   l_01C40                         ; 01C90
+
+;-------------------------------------------------------------------------------
+; sub_01C94 - PrivilegeHandler - "Privilege violation".
+;-------------------------------------------------------------------------------
 sub_01C94:		; (no references found: found by the code sweep)
         bsr.w   sub_01172                       ; 01C94
         move.l  a0,-(a7)                        ; 01C98
         lea.l   dat_01A81(pc),a0                ; 01C9A
         bra.w   l_01C40                         ; 01C9E
+
+;-------------------------------------------------------------------------------
+; sub_01CA2 - LineFHandler - "Line F emulator".
+;-------------------------------------------------------------------------------
 sub_01CA2:		; (no references found: found by the code sweep)
         bsr.w   sub_01172                       ; 01CA2
         move.l  a0,-(a7)                        ; 01CA6
         lea.l   dat_01A97(pc),a0                ; 01CA8
         bra.w   l_01C40                         ; 01CAC
+
+;-------------------------------------------------------------------------------
+; UnusedInterrupt - every interrupt autovector at start-up: "Uninitialised interrupt" and the
+; monitor.
+;-------------------------------------------------------------------------------
 UnusedInterrupt:
         bsr.w   sub_01172                       ; 01CB0
         move.l  a0,-(a7)                        ; 01CB4
         lea.l   dat_01AA9(pc),a0                ; 01CB6
         bra.w   l_01C40                         ; 01CBA
+
+;-------------------------------------------------------------------------------
+; sub_01CBE - SpuriousHandler - "Spurious interrupt".
+;-------------------------------------------------------------------------------
 sub_01CBE:		; (no references found: found by the code sweep)
         bsr.w   sub_01172                       ; 01CBE
         move.l  a0,-(a7)                        ; 01CC2
         lea.l   dat_01AC3(pc),a0                ; 01CC4
         bra.w   l_01C40                         ; 01CC8
+
+;-------------------------------------------------------------------------------
+; sub_01CCC - UnusedTrapHandler - "Unused trap".
+;-------------------------------------------------------------------------------
 sub_01CCC:		; (no references found: found by the code sweep)
         bsr.w   sub_01172                       ; 01CCC
         move.l  a0,-(a7)                        ; 01CD0
         lea.l   dat_01AD8(pc),a0                ; 01CD2
         bra.w   l_01C40                         ; 01CD6
+
+;-------------------------------------------------------------------------------
+; ErrorTrap - trap #14: "TRAP #14" and the monitor (the message after the trap is the caller's);
+; sets dat_01578.
+;-------------------------------------------------------------------------------
 ErrorTrap:
         bsr.w   sub_01172                       ; 01CDA
         move.l  a0,-(a7)                        ; 01CDE
         lea.l   dat_01AE6(pc),a0                ; 01CE0
         st.b    (dat_01578).l                   ; 01CE4
         bra.w   l_01C40                         ; 01CEA
+
+;-------------------------------------------------------------------------------
+; sub_01CEE - Disassembler: prints ','.
+;-------------------------------------------------------------------------------
 sub_01CEE:
         moveq   #$2c,d0                         ; 01CEE
         bra.w   sub_02B5E                       ; 01CF0
+
+;-------------------------------------------------------------------------------
+; sub_01CF4 - Disassembler: pads with spaces to the next 8-column tab from the line's start
+; (dat_01D1C).
+;-------------------------------------------------------------------------------
 sub_01CF4:
         move.w  (dat_01D1C).l,d0                ; 01CF4
         addq.w  #$8,d0                          ; 01CFA
@@ -1650,6 +2068,11 @@ l_01D10:
         rts                                     ; 01D1A
 dat_01D1C:
 	dc.b	$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_01D1E - Disassemble - one instruction at a6 (a6 moved past it): through DisasmOpcodeTable by
+; the opcode's top 4 bits.
+;-------------------------------------------------------------------------------
 sub_01D1E:
         move.w  (dat_00422).l,(dat_01D1C).l     ; 01D1E
         move.w  (a6),d0                         ; 01D28
@@ -1675,6 +2098,11 @@ DisasmOpcodeTable:
         dc.l    sub_023C6                       ; 01D6E
         dc.l    sub_024CC                       ; 01D72
         dc.l    sub_02698                       ; 01D76
+
+;-------------------------------------------------------------------------------
+; sub_01D7A - Disassembler, line 0: ORI/ANDI/SUBI/ADDI/EORI/CMPI, to CCR/SR, BTST/BCHG/BCLR/BSET,
+; MOVEP.
+;-------------------------------------------------------------------------------
 sub_01D7A:
         move.w  (a6),d0                         ; 01D7A
         andi.w  #$38,d0                         ; 01D7C
@@ -1810,6 +2238,12 @@ l_01EF4:
         move.w  (a6)+,d0                        ; 01F0A
         bra.w   sub_026E0                       ; 01F0C
 	dc.b	$4E,$75
+
+;-------------------------------------------------------------------------------
+; sub_01F12 - Disassembler, line 4: the miscellaneous instructions (CHK, LEA, NEG, CLR, NOT, EXT,
+; SWAP, PEA, TST, TAS, MOVEM, TRAP, LINK, UNLK, MOVE USP, RESET, NOP, STOP, RTE, RTS, TRAPV, RTR,
+; JSR, JMP, MOVE to / from SR and CCR).
+;-------------------------------------------------------------------------------
 sub_01F12:
         move.w  (a6)+,d0                        ; 01F12
         move.w  d0,d3                           ; 01F14
@@ -1955,6 +2389,11 @@ l_020D0:
         bra.w   sub_019A8                       ; 020DE
 l_020E2:
         lea.l   dat_02914(pc),a0                ; 020E2
+
+;-------------------------------------------------------------------------------
+; sub_020E6 - Disassembler, line 4 continued: the operand forms of the instructions above, MOVEM's
+; register lists (sub_021DC).
+;-------------------------------------------------------------------------------
 sub_020E6:
         bsr.w   sub_01B54                       ; 020E6
         bsr.w   sub_01CF4                       ; 020EA
@@ -2026,6 +2465,10 @@ l_021B2:
         bsr.w   sub_01CEE                       ; 021B6
         move.w  -$4(a6),d0                      ; 021BA
         bra.w   sub_026E0                       ; 021BE
+
+;-------------------------------------------------------------------------------
+; sub_021C2 - Disassembler: "MOVEM." and the size letter.
+;-------------------------------------------------------------------------------
 sub_021C2:
         lea.l   dat_028F4(pc),a0                ; 021C2
         bsr.w   sub_01B54                       ; 021C6
@@ -2036,11 +2479,20 @@ sub_021C2:
 l_021D4:
         bsr.w   sub_02B5E                       ; 021D4
         bra.w   sub_01CF4                       ; 021D8
+
+;-------------------------------------------------------------------------------
+; sub_021DC - Disassembler: a MOVEM register list (D then A registers, ranges with "-", "/"
+; between).
+;-------------------------------------------------------------------------------
 sub_021DC:
         moveq   #$44,d4                         ; 021DC
         moveq   #$0,d3                          ; 021DE
         bsr.w   sub_021E6                       ; 021E0
         moveq   #$41,d4                         ; 021E4
+
+;-------------------------------------------------------------------------------
+; sub_021E6 - Disassembler: one register run of a MOVEM list (d4 = 'D' or 'A').
+;-------------------------------------------------------------------------------
 sub_021E6:
         moveq   #$7,d7                          ; 021E6
         moveq   #$2f,d2                         ; 021E8
@@ -2093,6 +2545,10 @@ l_02244:
         bra.b   l_021EA                         ; 0224A
 l_0224C:
         rts                                     ; 0224C
+
+;-------------------------------------------------------------------------------
+; sub_0224E - Disassembler, line C: AND, MULU / MULS, ABCD, EXG.
+;-------------------------------------------------------------------------------
 sub_0224E:
         move.w  (a6),d0                         ; 0224E
         andi.w  #$c0,d0                         ; 02250
@@ -2144,6 +2600,10 @@ l_022DA:
         bsr.w   sub_01B54                       ; 022DA
         bsr.w   sub_01CF4                       ; 022DE
         bra.w   l_02466                         ; 022E2
+
+;-------------------------------------------------------------------------------
+; sub_022E6 - Disassembler, line 8: OR, DIVU / DIVS, SBCD.
+;-------------------------------------------------------------------------------
 sub_022E6:
         move.w  (a6),d0                         ; 022E6
         andi.w  #$c0,d0                         ; 022E8
@@ -2168,6 +2628,10 @@ l_02322:
         bsr.w   sub_01B54                       ; 02322
         bsr.w   sub_01CF4                       ; 02326
         bra.w   l_02466                         ; 0232A
+
+;-------------------------------------------------------------------------------
+; sub_0232E - Disassembler, line B: CMP, CMPA, CMPM, EOR.
+;-------------------------------------------------------------------------------
 sub_0232E:
         lea.l   dat_029F7(pc),a0                ; 0232E
         btst    #$0,(a6)                        ; 02332
@@ -2217,9 +2681,17 @@ l_023B4:
         bsr.w   sub_01B54                       ; 023B4
         move.w  #$0,-(a7)                       ; 023B8
         bra.w   l_023E2                         ; 023BC
+
+;-------------------------------------------------------------------------------
+; sub_023C0 - Disassembler, line 9: SUB (and SUBA, SUBX through sub_023C6).
+;-------------------------------------------------------------------------------
 sub_023C0:
         lea.l   dat_029EA(pc),a0                ; 023C0
         bra.b   l_023CA                         ; 023C4
+
+;-------------------------------------------------------------------------------
+; sub_023C6 - Disassembler, lines 9 and D: ADD / SUB, ADDA / SUBA, ADDX / SUBX.
+;-------------------------------------------------------------------------------
 sub_023C6:
         lea.l   dat_02A22(pc),a0                ; 023C6
 l_023CA:
@@ -2307,6 +2779,10 @@ l_024A6:
         move.w  (a6)+,d1                        ; 024B0
         rol.w   #$7,d1                          ; 024B2
         bra.w   sub_0270E                       ; 024B4
+
+;-------------------------------------------------------------------------------
+; sub_024B8 - Disassembler: a shift's direction letter (L or R) and size.
+;-------------------------------------------------------------------------------
 sub_024B8:
         moveq   #$52,d0                         ; 024B8
         btst    #$0,(a6)                        ; 024BA
@@ -2316,6 +2792,10 @@ l_024C2:
         bsr.w   sub_02B5E                       ; 024C2
         moveq   #$2e,d0                         ; 024C6
         bra.w   sub_02B5E                       ; 024C8
+
+;-------------------------------------------------------------------------------
+; sub_024CC - Disassembler, line E: the shifts and rotates (ASd, LSd, ROXd, ROd).
+;-------------------------------------------------------------------------------
 sub_024CC:
         move.w  (a6),d0                         ; 024CC
         andi.w  #$c0,d0                         ; 024CE
@@ -2367,6 +2847,10 @@ l_02552:
         move.w  (a6)+,d0                        ; 02570
         moveq   #$1,d7                          ; 02572
         bra.w   sub_026E0                       ; 02574
+
+;-------------------------------------------------------------------------------
+; sub_02578 - Disassembler, line 6: Bcc, BRA, BSR and their targets.
+;-------------------------------------------------------------------------------
 sub_02578:
         move.b  (a6),d0                         ; 02578
         andi.w  #$f,d0                          ; 0257A
@@ -2411,6 +2895,10 @@ l_025DC:
         movea.l a6,a0                           ; 025E2
         move.w  (a6)+,d0                        ; 025E4
         bra.w   l_025C8                         ; 025E6
+
+;-------------------------------------------------------------------------------
+; sub_025EA - Disassembler, line 5: ADDQ / SUBQ, Scc, DBcc.
+;-------------------------------------------------------------------------------
 sub_025EA:
         move.w  (a6),d0                         ; 025EA
         lsr.w   #$6,d0                          ; 025EC
@@ -2470,6 +2958,10 @@ l_0265E:
         adda.w  (a6)+,a0                        ; 02690
         move.l  a0,d0                           ; 02692
         bra.w   sub_01994                       ; 02694
+
+;-------------------------------------------------------------------------------
+; sub_02698 - Disassembler: lines A and F, and anything unknown: "DC.W" and the word.
+;-------------------------------------------------------------------------------
 sub_02698:
         lea.l   dat_029EE(pc),a0                ; 02698
         bsr.w   sub_01B54                       ; 0269C
@@ -2478,6 +2970,10 @@ sub_02698:
         bsr.w   sub_02B5E                       ; 026A6
         move.w  (a6)+,d0                        ; 026AA
         bra.w   sub_019A8                       ; 026AC
+
+;-------------------------------------------------------------------------------
+; sub_026B0 - Disassembler, lines 1-3: MOVE (and MOVEA).
+;-------------------------------------------------------------------------------
 sub_026B0:
         lea.l   dat_02997(pc),a0                ; 026B0
         moveq   #$1,d7                          ; 026B4
@@ -2497,6 +2993,11 @@ l_026B6:
         asl.w   #$3,d1                          ; 026D8
         or.w    d1,d0                           ; 026DA
         bra.w   sub_026E0                       ; 026DC
+
+;-------------------------------------------------------------------------------
+; sub_026E0 - Disassembler: an effective address (d0 = its mode and register) through a table by
+; mode.
+;-------------------------------------------------------------------------------
 sub_026E0:
         move.w  d0,d1                           ; 026E0
         andi.w  #$38,d0                         ; 026E2
@@ -2512,6 +3013,10 @@ dat_026EE:
         dc.l    sub_0274C                       ; 02702
         dc.l    sub_0275C                       ; 02706
         dc.l    sub_027B0                       ; 0270A
+
+;-------------------------------------------------------------------------------
+; sub_0270E - Disassembler: Dn.
+;-------------------------------------------------------------------------------
 sub_0270E:
         moveq   #$44,d0                         ; 0270E
 l_02710:
@@ -2520,29 +3025,53 @@ l_02710:
         andi.w  #$7,d0                          ; 02716
         addi.w  #$30,d0                         ; 0271A
         bra.w   sub_02B5E                       ; 0271E
+
+;-------------------------------------------------------------------------------
+; sub_02722 - Disassembler: An.
+;-------------------------------------------------------------------------------
 sub_02722:
         moveq   #$41,d0                         ; 02722
         bra.w   l_02710                         ; 02724
+
+;-------------------------------------------------------------------------------
+; sub_02728 - Disassembler: (An).
+;-------------------------------------------------------------------------------
 sub_02728:
         moveq   #$28,d0                         ; 02728
         bsr.w   sub_02B5E                       ; 0272A
         bsr.w   sub_02722                       ; 0272E
         moveq   #$29,d0                         ; 02732
         bra.w   sub_02B5E                       ; 02734
+
+;-------------------------------------------------------------------------------
+; sub_02738 - Disassembler: (An)+.
+;-------------------------------------------------------------------------------
 sub_02738:
         bsr.w   sub_02728                       ; 02738
         moveq   #$2b,d0                         ; 0273C
         bra.w   sub_02B5E                       ; 0273E
+
+;-------------------------------------------------------------------------------
+; sub_02742 - Disassembler: -(An).
+;-------------------------------------------------------------------------------
 sub_02742:
         moveq   #$2d,d0                         ; 02742
         bsr.w   sub_02B5E                       ; 02744
         bra.w   sub_02728                       ; 02748
+
+;-------------------------------------------------------------------------------
+; sub_0274C - Disassembler: d16(An).
+;-------------------------------------------------------------------------------
 sub_0274C:
         moveq   #$24,d0                         ; 0274C
         bsr.w   sub_02B5E                       ; 0274E
         move.w  (a6)+,d0                        ; 02752
         bsr.w   sub_019A8                       ; 02754
         bra.w   sub_02728                       ; 02758
+
+;-------------------------------------------------------------------------------
+; sub_0275C - Disassembler: d8(An,Xn).
+;-------------------------------------------------------------------------------
 sub_0275C:
         moveq   #$24,d0                         ; 0275C
         bsr.w   sub_02B5E                       ; 0275E
@@ -2559,6 +3088,11 @@ l_02776:
         btst    #$7,(a6)                        ; 02780
         bne.w   sub_02722                       ; 02784
         bra.w   sub_0270E                       ; 02788
+
+;-------------------------------------------------------------------------------
+; sub_0278C - (No reference found.) Disassembler: an index register's size (.W / .L); pushes a
+; return address into the data after it (dat_027AA: moveq / bra code), so its rts goes there.
+;-------------------------------------------------------------------------------
 sub_0278C:		; (no references found: found by the code sweep)
         moveq   #$2e,d0                         ; 0278C
         bsr.w   sub_02B5E                       ; 0278E
@@ -2571,6 +3105,11 @@ sub_0278C:		; (no references found: found by the code sweep)
         bra.w   sub_02B5E                       ; 027A6
 dat_027AA:
 	dc.b	$70,$29,$60,$00,$03,$B0
+
+;-------------------------------------------------------------------------------
+; sub_027B0 - Disassembler: mode 7, through a table by register: abs.W, abs.L, d16(PC), d8(PC,Xn),
+; #imm.
+;-------------------------------------------------------------------------------
 sub_027B0:
         andi.w  #$7,d1                          ; 027B0
         asl.w   #$2,d1                          ; 027B4
@@ -2585,6 +3124,10 @@ dat_027BC:
         dc.l    sub_02878                       ; 027D0
         dc.l    sub_02878                       ; 027D4
         dc.l    sub_02878                       ; 027D8
+
+;-------------------------------------------------------------------------------
+; sub_027DC - Disassembler: an absolute short address ($xxxx.W).
+;-------------------------------------------------------------------------------
 sub_027DC:
         moveq   #$24,d0                         ; 027DC
         bsr.w   sub_02B5E                       ; 027DE
@@ -2594,11 +3137,19 @@ sub_027DC:
         bsr.w   sub_02B5E                       ; 027EA
         moveq   #$57,d0                         ; 027EE
         bra.w   sub_02B5E                       ; 027F0
+
+;-------------------------------------------------------------------------------
+; sub_027F4 - Disassembler: an absolute long address.
+;-------------------------------------------------------------------------------
 sub_027F4:
         moveq   #$24,d0                         ; 027F4
         bsr.w   sub_02B5E                       ; 027F6
         move.l  (a6)+,d0                        ; 027FA
         bra.w   sub_01994                       ; 027FC
+
+;-------------------------------------------------------------------------------
+; sub_02800 - Disassembler: d16(PC), with the address it gives.
+;-------------------------------------------------------------------------------
 sub_02800:
         moveq   #$24,d0                         ; 02800
         bsr.w   sub_02B5E                       ; 02802
@@ -2615,6 +3166,10 @@ dat_0281F:
 	dc.b	$28,$50,$43,$2C,$FF
 dat_02824:
 	dc.b	$3F,$3F,$FF,$00
+
+;-------------------------------------------------------------------------------
+; sub_02828 - Disassembler: d8(PC,Xn).
+;-------------------------------------------------------------------------------
 sub_02828:
         moveq   #$24,d0                         ; 02828
         bsr.w   sub_02B5E                       ; 0282A
@@ -2627,6 +3182,10 @@ sub_02828:
         lea.l   dat_0281F(pc),a0                ; 0283C
         bsr.w   sub_01B54                       ; 02840
         bra.w   l_02776                         ; 02844
+
+;-------------------------------------------------------------------------------
+; sub_02848 - Disassembler: an immediate (#$...) of the instruction's size.
+;-------------------------------------------------------------------------------
 sub_02848:
         tst.b   d7                              ; 02848
         beq.w   l_0286C                         ; 0284A
@@ -2646,17 +3205,33 @@ l_0286C:
         bsr.w   sub_02B5E                       ; 0286E
         moveq   #$52,d0                         ; 02872
         bra.w   sub_02B5E                       ; 02874
+
+;-------------------------------------------------------------------------------
+; sub_02878 - Disassembler: an unknown addressing mode ("?").
+;-------------------------------------------------------------------------------
 sub_02878:
         lea.l   dat_02824(pc),a0                ; 02878
         bra.w   sub_01B54                       ; 0287C
+
+;-------------------------------------------------------------------------------
+; sub_02880 - Disassembler, line 3 (MOVE.W).
+;-------------------------------------------------------------------------------
 sub_02880:
         lea.l   dat_029A9(pc),a0                ; 02880
         moveq   #$2,d7                          ; 02884
         bra.w   l_026B6                         ; 02886
+
+;-------------------------------------------------------------------------------
+; sub_0288A - Disassembler, line 2 (MOVE.L).
+;-------------------------------------------------------------------------------
 sub_0288A:
         lea.l   dat_029A0(pc),a0                ; 0288A
         moveq   #$3,d7                          ; 0288E
         bra.w   l_026B6                         ; 02890
+
+;-------------------------------------------------------------------------------
+; sub_02894 - Disassembler, line 7 (MOVEQ) and the mnemonic texts (after it).
+;-------------------------------------------------------------------------------
 sub_02894:
         btst    #$8,(a6)                        ; 02894
         bne.w   sub_02698                       ; 02898
@@ -2779,12 +3354,20 @@ dat_02A1E:
 	dc.b	$45,$58,$47,$FF
 dat_02A22:
 	dc.b	$41,$44,$44,$FF
+
+;-------------------------------------------------------------------------------
+; sub_02A26 - Disassembler: a size letter (d0 = 0-3: B, W, L, ?).
+;-------------------------------------------------------------------------------
 sub_02A26:
         andi.w  #$3,d0                          ; 02A26
         move.b  dat_02A32(pc,d0.w),d0           ; 02A2A
         bra.w   sub_02B5E                       ; 02A2E
 dat_02A32:
 	dc.b	$42,$57,$4C,$3F
+
+;-------------------------------------------------------------------------------
+; sub_02A36 - Disassembler: a condition code's two letters (d0 = 0-15).
+;-------------------------------------------------------------------------------
 sub_02A36:
         andi.w  #$f,d0                          ; 02A36
         add.w   d0,d0                           ; 02A3A
@@ -2795,6 +3378,12 @@ sub_02A36:
         bra.w   sub_02B5E                       ; 02A48
 dat_02A4C:
 	dc.b	'T F HILSCCCSNEEQVCVSPLMIGELTGTLE'
+
+;-------------------------------------------------------------------------------
+; ReadJoystick - port 2 (JOY1DAT) -> d0 (and dat_03184): bit 0 down, 1 right, 2 up, 3 left (the
+; quadrature decoded), bit 7 the fire button (CIA-A PRA bit 7, low when pressed). The vertical
+; blank calls it through the jump table and keeps it at $63DB0.
+;-------------------------------------------------------------------------------
 ReadJoystick:
         move.l  d2,-(a7)                        ; 02A6C
         move.w  (CUSTOM+JOY1DAT).l,d0           ; 02A6E
@@ -2815,6 +3404,11 @@ l_02AA0:
         move.w  d0,(dat_03184).l                ; 02AA0
         move.l  (a7)+,d2                        ; 02AA6
         rts                                     ; 02AA8
+
+;-------------------------------------------------------------------------------
+; GetKey - the lowest-numbered key held (dat_03174's bits) -> d0 = its character (dat_013E4, the
+; shifted table when a Shift is held; high word: the raw code), Z set if none.
+;-------------------------------------------------------------------------------
 GetKey:
         movem.l d1/a0,-(a7)                     ; 02AAA
         moveq   #$0,d0                          ; 02AAE
@@ -2851,6 +3445,11 @@ l_02AF8:
         movem.l (a7)+,d1/a0                     ; 02AFE
         tst.w   d0                              ; 02B02
         rts                                     ; 02B04
+
+;-------------------------------------------------------------------------------
+; KeyTest - d0 = a raw key code -> d0 = -1 and Z clear if it is held (dat_03174, kept by the level
+; 2 interrupt), 0 and Z set if not.
+;-------------------------------------------------------------------------------
 KeyTest:
         movem.l d1/a0,-(a7)                     ; 02B06
         lea.l   dat_03174(pc),a0                ; 02B0A
@@ -2869,6 +3468,10 @@ l_02B2A:
         movem.l (a7)+,d1/a0                     ; 02B2A
         tst.w   d0                              ; 02B2E
         rts                                     ; 02B30
+
+;-------------------------------------------------------------------------------
+; sub_02B32 - MonGetKey's cursor off: a space at the cursor, the cursor kept.
+;-------------------------------------------------------------------------------
 sub_02B32:
         move.l  (dat_00422).l,-(a7)             ; 02B32
         move.w  d0,-(a7)                        ; 02B38
@@ -2877,6 +3480,10 @@ sub_02B32:
         move.w  (a7)+,d0                        ; 02B40
         move.l  (a7)+,(dat_00422).l             ; 02B42
         rts                                     ; 02B48
+
+;-------------------------------------------------------------------------------
+; sub_02B4A - MonGetKey's cursor on: a '*' at the cursor, the cursor kept.
+;-------------------------------------------------------------------------------
 sub_02B4A:
         move.l  (dat_00422).l,-(a7)             ; 02B4A
         move.w  #$2a,d0                         ; 02B50
@@ -2884,6 +3491,16 @@ sub_02B4A:
         move.l  (a7)+,(dat_00422).l             ; 02B56
 l_02B5C:
         rts                                     ; 02B5C
+
+;-------------------------------------------------------------------------------
+; sub_02B5E - PutChar - d0 = a character on the monitor's text screen ($78000, 40 x 25, the 8x8
+; font
+; dat_02C9E) at the cursor ($422 column, $424 line), which moves on (wrapping); CR, LF and
+; backspace handled. After it: the font, the fake exec library for ExecBase (dat_02F9E, with
+; "Sinclair Research Ltd" in its texts), the monitor's copper list (dat_030AE) and variables - the
+; key buffer (dat_030C0), the key map (dat_03174: 16 bytes, a bit per raw key), the saved registers
+; (dat_03186), PC (dat_031D8) and SR (dat_031DC).
+;-------------------------------------------------------------------------------
 sub_02B5E:
         movem.l d0-d2/a0-a1,-(a7)               ; 02B5E
         move.w  (dat_00422).l,d1                ; 02B62
@@ -3144,6 +3761,12 @@ Block1_End:
 ;===============================================================================
 	org	$3214
 	dc.b	$00,$00,$00,$00
+
+;-------------------------------------------------------------------------------
+; Relocate - the program's entry ($400: bra.w Relocate): interrupts off, block 1 copied down from
+; where it was loaded ($404) to where it runs ($400), and Init through the jump table. The program
+; moves its own code here: block 1 is assembled at $400 but stored 4 bytes higher.
+;-------------------------------------------------------------------------------
 Relocate:
         move.w  #$7fff,(CUSTOM+INTENA).l        ; 03218
         lea.l   Block1_Stored(pc),a0            ; 03220
@@ -3154,6 +3777,11 @@ l_0322E:
         dbra    d0,l_0322E                      ; 03230
         jmp     (Block1).w                      ; 03234
 	dcb.b	48,$00
+
+;-------------------------------------------------------------------------------
+; sub_03268 - (No reference found.) A second, longer relocation (from JT_KeyTest, $2E5C longs to
+; $400) and Init: left over from another version of the program; nothing calls it.
+;-------------------------------------------------------------------------------
 sub_03268:		; (no references found: found by the code sweep)
         move.w  #$7fff,(CUSTOM+INTENA).l        ; 03268
         lea.l   JT_KeyTest(pc),a0               ; 03270
@@ -3164,6 +3792,11 @@ l_0327E:
         dbra    d0,l_0327E                      ; 03280
         jmp     (JT_Init).w                     ; 03284
 	dc.b	$00,$00,$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_0328C - (No reference found.) An object routine nothing calls: aims the object (a5) at
+; another (a4)'s position (sub_06A0A) - left over.
+;-------------------------------------------------------------------------------
 sub_0328C:		; (no references found: found by the code sweep)
         tst.w   $30(a5)                         ; 0328C
         bne.b   l_032CA                         ; 03290
@@ -3195,6 +3828,10 @@ l_032EA:
         clr.l   $4(a5)                          ; 032EA
 l_032EE:
         rts                                     ; 032EE
+
+;-------------------------------------------------------------------------------
+; sub_032F0 - (No reference found.) Left over: an object's position from its target ($30 / $32).
+;-------------------------------------------------------------------------------
 sub_032F0:		; (no references found: found by the code sweep)
         clr.w   $30(a5)                         ; 032F0
         move.w  #$f,$32(a5)                     ; 032F4
@@ -3217,12 +3854,37 @@ sub_032F0:		; (no references found: found by the code sweep)
 	dc.b	$71,$F4,$00,$18,$29,$7C,$00,$00,$80,$7C,$00,$14,$39,$7C,$00,$01
 	dc.b	$00,$20,$42,$6C
 	dcb.b	3072,$00
+
+;-------------------------------------------------------------------------------
+; GameStart ($4000) - the game. Entered from the system layer (sub_0158C) with the stack at $400:
+; the hardware set up (sub_0C3B6), the screens cleared; then, in turn (labels below):
+;   l_04016  the title: its text, the kiwi, the palette; the wait for fire (sub_0B9F0, about 15 s
+;            time-out) - none: the attract sequence (sub_045FC) and the title again
+;   l_04084  the intro story, the first time only (sub_04CC6)
+;   l_04088  a new game (sub_04F1A: lives, score, the mirrored frames)
+;   l_040A0  each level: the globals $2E-$7B cleared; l_040BC: no lives left - game over (tune 6,
+;            the high score table: sub_04690) and the title again
+;   l_040F8  "ROUND" and the level's name, the level loaded (LoadTracks, UnpackLevel; the boss's
+;            frames on the 4th level of a world), set up (sub_0C5C0, sub_04C30, sub_05AD4, the
+;            warp: dat_04ABA), the READY wait, its tune
+;   l_04298  the game loop, once a pass (2 frames: 25 a second)
+;   l_043F4  the progress screen between levels (from l_054AE: tracks 144-148)
+; The level is $8(a6) (x 16), lives $1A(a6), the level's time (a6).
+;-------------------------------------------------------------------------------
 GameStart:
         lea.l   (JT_Init).l,a7                  ; 04000
         move    a7,usp                          ; 04006
         jsr     (sub_0C3B6).l                   ; 04008
         bsr.w   sub_0BB76                       ; 0400E
         clr.w   $2c(a6)                         ; 04012
+
+;-------------------------------------------------------------------------------
+; l_04016 - The title: a6 = the globals ($641B8), the screens cleared, the main BOB bank set in
+; BlitBob (self-modifying: BlitBob's two lea immediates written through a2 = BlitBob+2), the title
+; text (dat_0C0A2), the kiwi (frame 1 at 152,120), the palette; then the wait for fire with a
+; time-out of $1E (CIA-B timer B half-seconds: about 15 s): fire - the intro and a new game; none -
+; the attract sequence (sub_045FC), the title again, and after a second time-out back here.
+;-------------------------------------------------------------------------------
 l_04016:
         lea.l   (mem_641B8).l,a6                ; 04016
         lea.l   (JT_Init).l,a7                  ; 0401C
@@ -3232,8 +3894,8 @@ l_04016:
         lea.l   (BobData).l,a0                  ; 0402E
         lea.l   (BobDirectory).l,a1             ; 04034
         lea.l   (BlitBob+2).l,a2                ; 0403A
-        move.l  a0,(a2)                         ; 04040
-        move.l  a1,$6(a2)                       ; 04042
+        move.l  a0,(a2)                         ; 04040  SMC -> BlitBob+2: the main bank (data)
+        move.l  a1,$6(a2)                       ; 04042  SMC -> BlitBob+8: the main bank (directory)
         lea.l   (dat_0C0A2).l,a0                ; 04046
         jsr     (sub_0C6A8).l                   ; 0404C
         move.l  #$980078,d0                     ; 04052
@@ -3252,6 +3914,11 @@ l_04016:
         beq.b   l_04016                         ; 04082
 l_04084:
         bsr.w   sub_04CC6                       ; 04084
+
+;-------------------------------------------------------------------------------
+; l_04088 - A new game: the globals for a game cleared, the score, lives and mirrored frames
+; (sub_04F1A).
+;-------------------------------------------------------------------------------
 l_04088:
         clr.w   $82(a6)                         ; 04088
         clr.w   $2a(a6)                         ; 0408C
@@ -3259,6 +3926,10 @@ l_04088:
         clr.w   $80(a6)                         ; 04094
         bsr.w   sub_04F1A                       ; 04098
         clr.b   $13(a6)                         ; 0409C
+
+;-------------------------------------------------------------------------------
+; l_040A0 - Each level: the stack reset, the globals $2E-$7B cleared, (a6) the time cleared.
+;-------------------------------------------------------------------------------
 l_040A0:
         lea.l   (JT_Init).l,a7                  ; 040A0
         lea.l   $2e(a6),a0                      ; 040A6
@@ -3269,6 +3940,11 @@ l_040B0:
         dbra    d1,l_040B0                      ; 040B2
         clr.w   $26(a6)                         ; 040B6
         clr.w   (a6)                            ; 040BA
+
+;-------------------------------------------------------------------------------
+; l_040BC - Lives left ($1A(a6))? None: "GAME OVER" (dat_053B3), tune 6 to its end or fire, the
+; high score table (sub_04690), the title.
+;-------------------------------------------------------------------------------
 l_040BC:
         lea.l   (JT_Init).l,a7                  ; 040BC
         tst.w   $1a(a6)                         ; 040C2
@@ -3287,6 +3963,15 @@ l_040E8:
         bsr.w   sub_04690                       ; 040EC
         bsr.w   sub_0BB76                       ; 040F0
         bra.w   l_04016                         ; 040F4
+
+;-------------------------------------------------------------------------------
+; l_040F8 - The level start: "ROUND" and the level's name (LevelTable +8), unless coming back from
+; the progress screen ($82(a6)); the READY time ($24(a6) = $4B frames); the game's palette; the
+; level's data loaded unless it is already in memory (LoadedLevel: the same level again) - 5 tracks
+; of packed world data to $3CAA6 (UnpackLevel), its map track to $44AA6, and on the 4th level of
+; worlds 1, 2, 3 and 5 two tracks of the boss's frames to $6C000: their directory entries appended
+; to the main bank's (dat_3BED6, rebased by dat_3E900), deinterleaved, and copied to $613A6.
+;-------------------------------------------------------------------------------
 l_040F8:
         tst.w   $82(a6)                         ; 040F8
         bne.b   l_0411E                         ; 040FC
@@ -3371,6 +4056,14 @@ l_041F0:
         dbra    d0,l_041F0                      ; 041F2
 l_041F6:
         move.w  $8(a6),(LoadedLevel).l          ; 041F6
+
+;-------------------------------------------------------------------------------
+; l_041FE - The level set up: the map and camera (sub_0C5C0), the objects cleared (sub_04C30), the
+; level's object list (LevelTable +4; dat_0D824 when the kiwi restarts) placed (sub_05AD4), the
+; warp's wall tile for this level (dat_04ABA -> dat_04AB0: 5 shots), the READY wait, tune 1 unless
+; already playing, the panel (sub_05240), the kiwi's lives drawn (sub_053C4), the fruit counter
+; (sub_074EA), full oxygen ($6E = $136), $74(a6) set on the last world (level 18 on).
+;-------------------------------------------------------------------------------
 l_041FE:
         jsr     (sub_0C5C0).l                   ; 041FE
         bsr.w   sub_04C30                       ; 04204
@@ -3416,6 +4109,15 @@ l_0427A:
         move.w  $8(a6),d0                       ; 0428C
         cmp.w   #$120,d0                        ; 04290
         sge.b   $74(a6)                         ; 04294
+
+;-------------------------------------------------------------------------------
+; l_04298 - The game loop, once a pass: the bonus timer ($54, $56: a flashing halve), $6C(a6) from
+; $64, the warp shots (sub_04A22), the objects' logic (sub_0B0E6), the camera (sub_0AEEC), the wait
+; for the frame (sub_0BCD0), the playfield (sub_0B55C), the objects animated and drawn (sub_0B1C2),
+; the oxygen gauge (sub_052C4), the flip (sub_0BC8C); then the EXTEND letters flashing ($7A), the
+; tunes (2: the main tune again after a jingle; 4 when the time is up, with the timer's enemy:
+; sub_050F4), the palette if changed, and the cheat's HELP key.
+;-------------------------------------------------------------------------------
 l_04298:
         tst.w   $54(a6)                         ; 04298
         beq.b   l_042BC                         ; 0429C
@@ -3514,9 +4216,16 @@ l_0439C:
         bsr.w   PlaySong                        ; 043B4
         move.w  #$3c,(a6)                       ; 043B8
         bsr.w   sub_050F4                       ; 043BC
+
+;-------------------------------------------------------------------------------
+; l_043C0 - The cheat's level skip: the starting lives (the immediate at l_04F46+2, 1,000 with the
+; cheat - a read of self-modified code) EOR $3B7 gives $5F, the HELP key's raw code, only when it
+; is 1,000 (two tests on the result's nibbles); HELP held -> l_054AE (the level complete). Without
+; the cheat the tests fail and no key is read. (The enhanced game: F2, EnhCheatKeys.)
+;-------------------------------------------------------------------------------
 l_043C0:
         lea.l   l_04F46(pc),a0                  ; 043C0
-        move.w  $2(a0),d0                       ; 043C4
+        move.w  $2(a0),d0                       ; 043C4  reads the self-modified immediate l_04F46+2
         eori.w  #$3b7,d0                        ; 043C8
         move.w  d0,d1                           ; 043CC
         addq.w  #$1,d1                          ; 043CE
@@ -3530,10 +4239,20 @@ l_043C0:
         jsr     (JT_KeyTest).l                  ; 043E6
         bne.w   l_054AE                         ; 043EC
         bra.w   l_04298                         ; 043F0
+
+;-------------------------------------------------------------------------------
+; l_043F4 - The progress screen between levels (from l_054AE): 5 tracks from track 144 to $3CAA6 -
+; the map picture (sub_04DBE: unpacked to $68000 and copied to both screens) and its BOBs (BlitBob
+; switched to that bank: self-modifying, BlitBob+2's immediates; deinterleaved) - the kiwis rescued
+; so far drawn, the world's name (dat_0454A: Auckland, Rotorua, Waitomo Caves, Strait Cook, Mt
+; Cook), "ROUND" and the level's name; on the first level of a world, 20 passes of the kiwi walking
+; on to it. Then the main bank back in BlitBob and the next level (l_040A0). LoadedLevel is
+; cleared: the next level is read again.
+;-------------------------------------------------------------------------------
 l_043F4:
         bsr.w   sub_0BB76                       ; 043F4
         lea.l   (dat_3CAA6).l,a0                ; 043F8
-        move.w  #$90,d0                         ; 043FE  track 144: 5 tracks (the end of the game)
+        move.w  #$90,d0                         ; 043FE  track 144: 5 tracks (the progress screen)
         moveq   #$5,d1                          ; 04402
         moveq   #$0,d2                          ; 04404
         bsr.w   LoadTracks                      ; 04406
@@ -3543,8 +4262,8 @@ l_043F4:
         lea.l   (dat_3CAF6).l,a2                ; 0441C
         lea.l   (dat_3CAA6).l,a0                ; 04422
         lea.l   BlitBob+2(pc),a1                ; 04428
-        move.l  a2,(a1)                         ; 0442C
-        move.l  a0,$6(a1)                       ; 0442E
+        move.l  a2,(a1)                         ; 0442C  SMC -> BlitBob+2: the progress screen's bank (data)
+        move.l  a0,$6(a1)                       ; 0442E  SMC -> BlitBob+8: the progress screen's bank (directory)
         moveq   #$4,d7                          ; 04432
         bsr.w   DeinterleaveBobs                ; 04434
         move.w  $8(a6),d7                       ; 04438
@@ -3617,8 +4336,8 @@ l_0452E:
         lea.l   (BobData).l,a0                  ; 0452E
         lea.l   (BobDirectory).l,a1             ; 04534
         lea.l   (BlitBob+2).l,a2                ; 0453A
-        move.l  a0,(a2)                         ; 04540
-        move.l  a1,$6(a2)                       ; 04542
+        move.l  a0,(a2)                         ; 04540  SMC -> BlitBob+2: the main bank back (data)
+        move.l  a1,$6(a2)                       ; 04542  SMC -> BlitBob+8: the main bank back (directory)
         bra.w   l_040A0                         ; 04546
 dat_0454A:
 	dc.b	$00,$00,$45,$5E,$00,$00,$45,$6B,$00,$00,$45,$77,$00,$00,$45,$89
@@ -3641,6 +4360,11 @@ dat_045B4:
 	dc.b	$00,$0F,$DE,$20,$5F,$61,$00,$10,$6A,$70,$45,$72,$01,$74,$00,$41
 	dc.b	$F9,$00,$04,$4A,$A6,$61,$00,$0F,$C8,$50,$EE,$00,$26,$60,$00,$FA
 	dc.b	$C2
+
+;-------------------------------------------------------------------------------
+; sub_045FC - Attract - the attract sequence after the title's time-out: the high score table
+; (dat_04766), then (dat_04878...) the story pages, each until fire or its time.
+;-------------------------------------------------------------------------------
 sub_045FC:
         bsr.w   sub_0BB76                       ; 045FC
         lea.l   dat_04766(pc),a0                ; 04600
@@ -3667,6 +4391,12 @@ l_04648:
         dbra    d0,l_04648                      ; 0464A
         bsr.w   sub_0BB76                       ; 0464E
         bra.w   l_04918                         ; 04652
+
+;-------------------------------------------------------------------------------
+; sub_04656 - Binary to BCD (unreferenced): d0 = a number up to 99,999 -> d0 = its five decimal
+; digits, a nibble each (divu by 10,000, 1,000, 100, 10). Nothing calls it; the score is printed by
+; sub_0540C's subtraction loop instead.
+;-------------------------------------------------------------------------------
 sub_04656:		; (no references found: found by the code sweep)
         moveq   #$0,d1                          ; 04656
         move.w  #$ffff,d2                       ; 04658
@@ -3692,6 +4422,16 @@ sub_04656:		; (no references found: found by the code sweep)
         or.b    d0,d1                           ; 0468A
         move.l  d1,d0                           ; 0468C
         rts                                     ; 0468E
+
+;-------------------------------------------------------------------------------
+; sub_04690 - The high score table after a game: the new entry made (sub_0472A: score, level
+; reached, "???"), compared with the five entries (dat_04766's lines, 19 bytes apart) from the
+; bottom up and moved up past each lower one; not in the table: the table shown (sub_045FC) and
+; nothing more. In it: the table shown and the name typed (sub_04878). Then, if a level was reached
+; to continue from ($2C(a6)), "PRESS FIRE TO CONTINUE AT LEVEL" and its name, with a wait of $14
+; half-seconds ((a6): about 10 s) for fire or a key; no fire: $2C(a6) cleared (the next game starts
+; at level 1).
+;-------------------------------------------------------------------------------
 sub_04690:
         bsr.w   sub_0BB76                       ; 04690
         bsr.w   sub_0472A                       ; 04694
@@ -3750,6 +4490,12 @@ l_04724:
         clr.w   $2c(a6)                         ; 04724
 l_04728:
         rts                                     ; 04728
+
+;-------------------------------------------------------------------------------
+; sub_0472A - The new high score entry (dat_04841): the score ($90(a6)) as six digits (sub_05468),
+; the level reached as its name's first three characters (LevelTable +8: "1_1"), the name "A  " to
+; edit.
+;-------------------------------------------------------------------------------
 sub_0472A:
         move.l  $90(a6),d0                      ; 0472A
         lea.l   dat_04841(pc),a0                ; 0472E
@@ -3795,6 +4541,13 @@ dat_04852:
 	dc.b	$02,$8C,$02,$0F
 	dc.b	'PRESS FIRE TO CONTINUE AT LEVEL '
 	dc.b	$FF,$00
+
+;-------------------------------------------------------------------------------
+; sub_04878 - The name entry: a0 = the entry; the three letters (from +$F) chosen with the joystick
+; (sub_0BA78: left / right step through A-Z, then '\' (rub out) and ']' (end)), fire takes the
+; letter; the entry redrawn (sub_0C6A8) after each change. Fire on ']' fills the rest with spaces;
+; on '\' goes back a letter.
+;-------------------------------------------------------------------------------
 sub_04878:
         lea.l   $f(a0),a2                       ; 04878
         moveq   #$0,d2                          ; 0487C
@@ -3858,6 +4611,12 @@ l_04908:
 l_0490E:
         dbra    d1,l_04880                      ; 0490E
         jmp     (sub_0C6A8).l                   ; 04912
+
+;-------------------------------------------------------------------------------
+; l_04918 - The attract sequence's screen wipe: the picture at $68000 brought onto the back screen
+; in four strips that grow from the middle (sub_0B950 blits, a frame each: sub_0BC80), with the
+; game's palette.
+;-------------------------------------------------------------------------------
 l_04918:
         movea.l #GamePalette,a0                 ; 04918
         bsr.w   SetPalette                      ; 0491E
@@ -3912,6 +4671,11 @@ l_0496E:
         cmp.w   #$b,d5                          ; 049C6
         bne.b   l_0496E                         ; 049CA
         rts                                     ; 049CC
+
+;-------------------------------------------------------------------------------
+; sub_049CE - A picture scrolled up onto the screen (unreferenced): 200 frames, each copying $69F18
+; less a line more down the back screen, line by line (sub_0B950). Nothing calls it.
+;-------------------------------------------------------------------------------
 sub_049CE:		; (no references found: found by the code sweep)
         movea.l #GamePalette,a0                 ; 049CE
         bsr.w   SetPalette                      ; 049D4
@@ -3937,6 +4701,16 @@ l_049F0:
         lea.l   -$28(a0),a0                     ; 04A18
         dbra    d7,l_049E2                      ; 04A1C
         rts                                     ; 04A20
+
+;-------------------------------------------------------------------------------
+; sub_04A22 - The warp - once a pass, from the game loop: each of the kiwi's shots in flight
+; ($C6(a6): 32 pointers to the shot objects) that is on the level's warp tile (dat_04AB0: tile x,
+; tile y, shots still needed - copied from dat_04ABA for the level in l_041FE) is removed (a type
+; $2E shot: $60(a6), the shots on screen, one less) and counts a hit. The fifth hit, if more than 5
+; objects are free ($B0(a6)), makes the warp object (sub_04B5A, frames $29-$2A: dat_04C2A) on the
+; tile.
+; Undocumented in the manual: shooting a plain wall 5 times opens a warp to a later level.
+;-------------------------------------------------------------------------------
 sub_04A22:
         lea.l   $c6(a6),a0                      ; 04A22
         move.w  #$1f,d7                         ; 04A26
@@ -3999,6 +4773,13 @@ dat_04ABA:
 	dc.b	$00,$00,$00,$00,$00,$00,$00,$00,$1D,$06,$01,$00,$01,$70,$00,$50
 	dc.b	$07,$20,$01,$00,$01,$70,$00,$50,$00,$00,$00,$00,$00,$00,$00,$00
 	dc.b	$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_04B5A - The warp object's logic (a5): when the kiwi touches it (sub_065A8 -> a4 = the kiwi),
+; the kiwi's logic becomes sub_04BCE and its script dat_04C0A (spinning, then the script's routine
+; call: sub_04BEA), its ride ended (sub_08940); it is moved at 2 pixels a frame onto the warp
+; ($30/$32 = the warp's x, y+8). The warp's own logic becomes an rts: it stays.
+;-------------------------------------------------------------------------------
 sub_04B5A:
         bsr.w   sub_065A8                       ; 04B5A
         beq.b   l_04BCC                         ; 04B5E
@@ -4042,6 +4823,11 @@ l_04BBC:
         move.l  #l_04BCC,$18(a5)                ; 04BC4
 l_04BCC:
         rts                                     ; 04BCC
+
+;-------------------------------------------------------------------------------
+; sub_04BCE - Logic: move until at ($30(a5), $32(a5)), then stop: dx (or dy) cleared when x (or y)
+; gets there. Also the warp's kiwi (sub_04B5A) and sub_0635A.
+;-------------------------------------------------------------------------------
 sub_04BCE:
         move.w  (a5),d0                         ; 04BCE
         cmp.w   $30(a5),d0                      ; 04BD0
@@ -4054,6 +4840,14 @@ l_04BDA:
         clr.w   $6(a5)                          ; 04BE4
 l_04BE8:
         rts                                     ; 04BE8
+
+;-------------------------------------------------------------------------------
+; sub_04BEA - The warp taken (called by the kiwi's warp script dat_04C0A, at its end: script
+; command $4C): the level (dat_04AB0 +4) and the kiwi's start (+6, into $7C(a6)) for the restart
+; ($80(a6) = -1: a warp), then the protection check sub_0A742 and the level started (l_040A0).
+; SELF-MODIFYING (through sub_0A742): a failed check writes "moveq #0,d0; rts" over sub_065A8, the
+; collision test, so nothing collides any more after a warp (docs/SELFMOD.md).
+;-------------------------------------------------------------------------------
 sub_04BEA:		; (no references found: found by the code sweep)
         lea.l   dat_04AB0(pc),a0                ; 04BEA
         move.w  $4(a0),$8(a6)                   ; 04BEE
@@ -4066,6 +4860,12 @@ dat_04C0A:
 	dc.b	$80,$24,$80,$28,$00,$05,$00,$00,$80,$4C,$00,$00,$4B,$EA,$80,$3C
 dat_04C2A:
 	dc.b	$00,$29,$00,$2A,$80,$00
+
+;-------------------------------------------------------------------------------
+; sub_04C30 - The objects cleared for a level: all 71 slots free ($18 = 0) with type -1, the 31
+; shot pointers ($C6(a6)), and the level's flags $46 $52 $5C $66 $68 $6A, and $70 (the time-up
+; enemy's state).
+;-------------------------------------------------------------------------------
 sub_04C30:
         lea.l   (mem_64380).l,a0                ; 04C30
         move.w  #$46,d0                         ; 04C36
@@ -4088,6 +4888,12 @@ l_04C54:
         clr.w   $68(a6)                         ; 04C6E
         clr.w   $6a(a6)                         ; 04C72
         rts                                     ; 04C76
+
+;-------------------------------------------------------------------------------
+; sub_04C78 - A filled rectangle on both screens ($70000 and $78000): a0 = the offset of its top
+; left, d0 = the word for all four planes, d1 = width in words (high word) and height in lines (low
+; word).
+;-------------------------------------------------------------------------------
 sub_04C78:
         movea.l a0,a1                           ; 04C78
         adda.l  #$70000,a0                      ; 04C7A
@@ -4114,8 +4920,25 @@ l_04C92:
         swap    d1                              ; 04CBE
         dbra    d1,l_04C88                      ; 04CC0
         rts                                     ; 04CC4
+
+;-------------------------------------------------------------------------------
+; sub_04CC6 - The intro story (from GameStart after fire on the title): the walrus carrying the
+; kiwis off in a sack. The intro's BOB bank is part of the loaded program, in the level buffer at
+; $3CAA6 (its directory at $4CAA6); if a level's data has overwritten it (a directory entry's high
+; word not 0), straight to a new game (l_04088). Else BlitBob switched to the intro bank, the
+; objects cleared, the bank deinterleaved (sub_04E08), the picture (dat_4CCC8: sub_04DBE) and its
+; palette, the two actors (scripts dat_04F64 and dat_04F88: the second's routine calls drop the
+; sack, $4FEC, and end the intro, l_04DA2), tune 1; each frame the background copied ($68000 -> the
+; back screen: sub_0505C), the objects run and drawn. Fire (or the script's end) -> a new game and
+; level 1.
+; SELF-MODIFYING:
+;   * BlitBob's two bank immediates (BlitBob+2, BlitBob+8) written through a2 (the intro bank),
+;     set back by sub_04F1A;
+;   * its own first instruction, jmp (l_04CCC).l: the target becomes l_04088 at the end
+;     (move.l #l_04088,(sub_04CC6+2).l), so the intro is shown only once after a reset.
+;-------------------------------------------------------------------------------
 sub_04CC6:
-        jmp     (l_04CCC).l                     ; 04CC6
+        jmp     (l_04CCC).l                     ; 04CC6  SELF-MODIFIED target: l_04088 after the intro ($4DAA)
 l_04CCC:
         lea.l   (JT_Init).l,a7                  ; 04CCC
         lea.l   (dat_3CAA6).l,a0                ; 04CD2
@@ -4127,8 +4950,8 @@ l_04CE0:
         subi.w  #$10,d0                         ; 04CE8
         bpl.b   l_04CE0                         ; 04CEC
         lea.l   BlitBob+2(pc),a2                ; 04CEE
-        move.l  a0,(a2)                         ; 04CF2
-        move.l  a1,$6(a2)                       ; 04CF4
+        move.l  a0,(a2)                         ; 04CF2  SMC -> BlitBob+2: the intro's bank (data)
+        move.l  a1,$6(a2)                       ; 04CF4  SMC -> BlitBob+8: the intro's bank (directory)
         lea.l   (mem_64380).l,a0                ; 04CF8
         move.w  #$46,d0                         ; 04CFE
 l_04D02:
@@ -4176,9 +4999,15 @@ l_04D90:
         beq.b   l_04D7C                         ; 04DA0
         bsr.w   sub_0BB76                       ; 04DA2
         bsr.w   sub_0C4A2                       ; 04DA6
-        move.l  #l_04088,(sub_04CC6+2).l        ; 04DAA
+        move.l  #l_04088,(sub_04CC6+2).l        ; 04DAA  SMC -> sub_04CC6's jmp: the intro only once
         bsr.w   sub_04F1A                       ; 04DB4
         jmp     (l_040F8).l                     ; 04DB8
+
+;-------------------------------------------------------------------------------
+; sub_04DBE - A packed picture shown: a0 = the picture (byte-run, sub_0507E) unpacked to $68000,
+; then copied to both screens (LoadScreenData at $70000, Screen78000) - a 320 x 200 x 4 plane blit
+; each (sub_0B950).
+;-------------------------------------------------------------------------------
 sub_04DBE:
         lea.l   (mem_68000).l,a1                ; 04DBE
         bsr.w   sub_0507E                       ; 04DC4
@@ -4198,6 +5027,13 @@ sub_04DBE:
         moveq   #$0,d0                          ; 04E00
         moveq   #$0,d1                          ; 04E02
         bra.w   sub_0B950                       ; 04E04
+
+;-------------------------------------------------------------------------------
+; sub_04E08 - The intro's BOB bank made ready: its frames counted (the directory at $4CAB6 up to a
+; 0 entry: the count in $88(a6), the directory's end in $84(a6)); if the bank at $3CAA6 is still in
+; its stored, interleaved form (each word's mask the OR of its four planes, all through the first
+; frame) it is deinterleaved (DeinterleaveBobs) - so a second call does nothing.
+;-------------------------------------------------------------------------------
 sub_04E08:
         lea.l   (dat_4CAB6).l,a0                ; 04E08
         moveq   #$1,d0                          ; 04E0E
@@ -4247,8 +5083,14 @@ l_04E90:
         rts                                     ; 04E90
 
 ;-------------------------------------------------------------------------------
-; DeinterleaveBobs - rearrange each BOB frame in place from the stored form (per line, per
-; 16-pixel column: mask, planes 0-3) into mask + 4 separate planes (docs/GRAPHICS.md).
+; DeinterleaveBobs - rearrange each BOB frame in place from the stored form (per line, per 16-pixel
+; column: mask, planes 0-3) into mask + 4 separate planes (docs/GRAPHICS.md). a0 = the directory
+; (16 bytes an entry; the frame at a2 + its first long), a2 = the bank, d7 = frames - 1. Each frame
+; is spread into $68000 and copied back.
+; SELF-MODIFYING: for each frame the size of a plane (width x height x 2) is written into the
+; displacements of its own five-move inner loop (move.w (a0)+,$50(a1) at $4EE6-$4EF2: the words at
+; $4EE8, $4EEC, $4EF0, $4EF4): plane 1 at +1 plane, plane 2 at +2 ... - the $50 in the listing is
+; just what was there when the program was saved (docs/SELFMOD.md).
 ;-------------------------------------------------------------------------------
 DeinterleaveBobs:
         move.l  (a0),d1                         ; 04E92
@@ -4263,13 +5105,13 @@ DeinterleaveBobs:
         mulu.w  d1,d2                           ; 04EA6
         add.w   d2,d2                           ; 04EA8
         move.w  d2,d3                           ; 04EAA
-        move.w  d3,$4ee8.l                      ; 04EAC
+        move.w  d3,$4ee8.l                      ; 04EAC  SMC -> $4EE8: plane 1's offset in the loop below
         add.w   d2,d3                           ; 04EB2
-        move.w  d3,$4eec.l                      ; 04EB4
+        move.w  d3,$4eec.l                      ; 04EB4  SMC -> $4EEC: plane 2's offset
         add.w   d2,d3                           ; 04EBA
-        move.w  d3,$4ef0.l                      ; 04EBC
+        move.w  d3,$4ef0.l                      ; 04EBC  SMC -> $4EF0: plane 3's offset
         add.w   d2,d3                           ; 04EC2
-        move.w  d3,$4ef4.l                      ; 04EC4
+        move.w  d3,$4ef4.l                      ; 04EC4  SMC -> $4EF4: plane 4's offset
         add.w   d2,d3                           ; 04ECA
         move.l  (a0)+,d1                        ; 04ECC
         subi.l  #$10001,d1                      ; 04ECE
@@ -4281,10 +5123,10 @@ l_04EDE:
 l_04EE2:
         move.w  (a0)+,d2                        ; 04EE2
         move.w  d2,(a1)                         ; 04EE4
-        move.w  (a0)+,$50(a1)                   ; 04EE6
-        move.w  (a0)+,$50(a1)                   ; 04EEA
-        move.w  (a0)+,$50(a1)                   ; 04EEE
-        move.w  (a0)+,$50(a1)                   ; 04EF2
+        move.w  (a0)+,$50(a1)                   ; 04EE6  SELF-MODIFIED displacement: + 1 plane ($4EAC)
+        move.w  (a0)+,$50(a1)                   ; 04EEA  SELF-MODIFIED displacement: + 2 planes ($4EB4)
+        move.w  (a0)+,$50(a1)                   ; 04EEE  SELF-MODIFIED displacement: + 3 planes ($4EBC)
+        move.w  (a0)+,$50(a1)                   ; 04EF2  SELF-MODIFIED displacement: + 4 planes ($4EC4)
         addq.l  #$2,a1                          ; 04EF6
         dbra    d1,l_04EE2                      ; 04EF8
         move.l  (a7)+,d1                        ; 04EFC
@@ -4299,18 +5141,31 @@ l_04F0C:
         movea.l (a7)+,a0                        ; 04F12
         dbra    d7,DeinterleaveBobs             ; 04F14
         rts                                     ; 04F18
+
+;-------------------------------------------------------------------------------
+; sub_04F1A - A new game: the mirrored frames made (sub_0C52C), the main BOB bank back in BlitBob,
+; $8E(a6) = $B0, the panel (sub_0BADC); lives 3, the level from $2C(a6) (a continue, else 0), the
+; time, the score cleared and the next extra life at 50,000 ($94(a6)).
+; SELF-MODIFYING:
+;   * BlitBob's bank immediates: move.l a0,(BlitBob+2).l and move.l a1,$b6cc.l (BlitBob+8);
+;   * l_04F46's move.w #$3,d0 is the starting lives - the cheat (sub_0B9F0) writes 1,000 into its
+;     immediate (l_04F46+2), and l_043C0 reads it back as the cheat's flag (docs/SELFMOD.md).
+; The intro's scripts follow (dat_04F64, dat_04F88), with their routines: l_04F86, l_04FEA (rts: no
+; logic), $4FEC (the sack dropped: a falling object, frame $0F, that lands at y $C0 as frame $0E,
+; logic l_05022 then sub_0504C, and sets (a6) = 10).
+;-------------------------------------------------------------------------------
 sub_04F1A:
         bsr.w   sub_0C52C                       ; 04F1A
         lea.l   (BobData).l,a0                  ; 04F1E
         lea.l   (BobDirectory).l,a1             ; 04F24
-        move.l  a0,(BlitBob+2).l                ; 04F2A
-        move.l  a1,$b6cc.l                      ; 04F30
+        move.l  a0,(BlitBob+2).l                ; 04F2A  SMC -> BlitBob+2: the main bank (data)
+        move.l  a1,$b6cc.l                      ; 04F30  SMC -> BlitBob+8 ($B6CC): the main bank (directory)
         move.w  #$b0,d0                         ; 04F36
         move.w  d0,$8e(a6)                      ; 04F3A
         bsr.w   sub_0BADC                       ; 04F3E
         clr.w   $8(a6)                          ; 04F42
 l_04F46:
-        move.w  #$3,d0                          ; 04F46
+        move.w  #$3,d0                          ; 04F46  SELF-MODIFIED immediate: the starting lives (3; 1,000 with the cheat: $BA34)
         move.w  d0,$1a(a6)                      ; 04F4A
         move.w  $2c(a6),$8(a6)                  ; 04F4E
         clr.w   (a6)                            ; 04F54
@@ -4333,6 +5188,13 @@ dat_04F88:
 	dc.b	$4D,$A2
 l_04FEA:
         rts                                     ; 04FEA
+
+;-------------------------------------------------------------------------------
+; The intro's sack dropped (called by the walrus's script dat_04F88, command $4C): a falling object
+; (frame $0F) 60 pixels left of him and 8 down, moving 3 across and -2 up at first, logic
+; l_05022: it falls (sub_0504C's l_0504E: gravity) to y $C0, then lies (frame $0E, logic sub_0504C)
+; and sets (a6) = 10.
+;-------------------------------------------------------------------------------
         move.l  a5,-(a7)                        ; 04FEC
         move.l  (a5),d1                         ; 04FEE
         subi.w  #$3c,d1                         ; 04FF0
@@ -4361,6 +5223,11 @@ l_05022:
         move.l  #sub_0504C,$18(a5)              ; 0503C
         clr.l   $4(a5)                          ; 05044
         move.w  #$a,(a6)                        ; 05048
+
+;-------------------------------------------------------------------------------
+; sub_0504C - An empty logic routine (rts): the intro's landed sack. l_0504E below it, the falling
+; sack's other half: dy up to 7 (gravity).
+;-------------------------------------------------------------------------------
 sub_0504C:
         rts                                     ; 0504C
 l_0504E:
@@ -4369,6 +5236,11 @@ l_0504E:
         addq.w  #$1,$6(a5)                      ; 05056
 l_0505A:
         rts                                     ; 0505A
+
+;-------------------------------------------------------------------------------
+; sub_0505C - The picture at $68000 copied to the back screen ($20(a6)): a 320 x 200 x 4 plane blit
+; (sub_0B950). The intro's background, each frame.
+;-------------------------------------------------------------------------------
 sub_0505C:
         lea.l   (mem_68000).l,a0                ; 0505C
         move.l  $20(a6),d0                      ; 05062
@@ -4380,6 +5252,12 @@ sub_0505C:
         moveq   #$0,d1                          ; 05076
         bra.w   sub_0B950                       ; 05078
 	dc.b	$4E,$4E
+
+;-------------------------------------------------------------------------------
+; sub_0507E - Byte-run unpack (ILBM-style: n >= 0 copies n+1 bytes, n < 0 repeats the next byte
+; -n+1 times, $80 does nothing): a0 = the packed picture, a1 = where. The bytes go out through
+; sub_050B4.
+;-------------------------------------------------------------------------------
 sub_0507E:
         movea.l a1,a2                           ; 0507E
         moveq   #$0,d5                          ; 05080
@@ -4404,6 +5282,12 @@ l_050A8:
         bsr.w   sub_050B4                       ; 050AA
         dbra    d0,l_050A8                      ; 050AE
         bra.b   l_05086                         ; 050B2
+
+;-------------------------------------------------------------------------------
+; sub_050B4 - sub_0507E's output: a byte stored; the interleaved ILBM lines ($28 bytes a plane
+; line, 4 planes) put into separate planes $2000 apart; after 200 lines it returns past sub_0507E
+; (addq.l #4,a7): the end of the picture.
+;-------------------------------------------------------------------------------
 sub_050B4:
         move.b  d1,(a1)+                        ; 050B4
         bchg    #$f,d5                          ; 050B6
@@ -4425,10 +5309,21 @@ sub_050B4:
         addq.l  #$4,a7                          ; 050F0
 l_050F2:
         rts                                     ; 050F2
+
+;-------------------------------------------------------------------------------
+; sub_050F4 - The time-up enemy, once a pass when the level's time is up (from the game loop):
+; $70(a6) is its state, +4 each call, into jtab_05100: state 0 its first part (sub_05136), state 1
+; the chaser (sub_05186); each stays until an object slot is free (l_05108 takes the step back).
+;-------------------------------------------------------------------------------
 sub_050F4:
         move.w  $70(a6),d0                      ; 050F4
         addq.w  #$4,$70(a6)                     ; 050F8
         jmp     jtab_05100(pc,d0.w)             ; 050FC
+
+;-------------------------------------------------------------------------------
+; jtab_05100 - sub_050F4's steps: l_0510E makes the first object (script dat_051FE, logic
+; sub_05136, from 320 pixels right of the camera, at y 100), l_05156 the second.
+;-------------------------------------------------------------------------------
 jtab_05100:
         bra.w   l_0510E                         ; 05100
         bra.w   l_05156                         ; 05104
@@ -4444,6 +5339,13 @@ l_0510E:
         move.l  #$1400064,$30(a4)               ; 05128
         st.b    $2e(a4)                         ; 05130
         exg.l   a5,a4                           ; 05134
+
+;-------------------------------------------------------------------------------
+; sub_05136 - Logic: the object kept on the screen, moving with the camera ($2E/$30(a6)) - x =
+; camera x + $30, with $34 added to $30 each frame, y = camera y + $32. l_05156: the time-up chaser
+; made (script
+; dat_05236, logic sub_05186), 300 pixels right of the camera.
+;-------------------------------------------------------------------------------
 sub_05136:
         move.w  $34(a5),d0                      ; 05136
         add.w   d0,$30(a5)                      ; 0513A
@@ -4466,6 +5368,12 @@ l_05156:
         addi.w  #$12c,(a5)                      ; 0517A
         move.w  #$14,$32(a5)                    ; 0517E
         rts                                     ; 05184
+
+;-------------------------------------------------------------------------------
+; sub_05186 - The time-up chaser's logic: every $30 frames (a count down from 20 to 5 and back) it
+; turns towards the kiwi (the object at $643BA), 4 pixels a frame in x and y; touching the kiwi
+; (sub_06530) kills it (l_08A48). Frozen while $46(a6) is set.
+;-------------------------------------------------------------------------------
 sub_05186:
         tst.w   $46(a6)                         ; 05186
         bne.b   l_05192                         ; 0518A
@@ -4522,6 +5430,12 @@ dat_051FE:
 	dc.b	$00,$05,$01,$1F,$80,$24,$80,$3C
 dat_05236:
 	dc.b	$80,$28,$00,$03,$01,$20,$01,$21,$80,$00
+
+;-------------------------------------------------------------------------------
+; sub_05240 - The lives on the panel: lives - 1 kiwi heads (sub_05282: frame $22, 16 pixels apart
+; from x 8, y $C0), at most 5; with more lives, one head and the spare lives as a digit (sub_0527A:
+; lives - 1; '9+' over 10).
+;-------------------------------------------------------------------------------
 sub_05240:
         move.w  $1a(a6),d2                      ; 05240
         subq.w  #$2,d2                          ; 05244
@@ -4540,9 +5454,18 @@ sub_05240:
         bsr.w   sub_0527A                       ; 05270
         moveq   #$2b,d0                         ; 05274
         bra.w   sub_0C744                       ; 05276
+
+;-------------------------------------------------------------------------------
+; sub_0527A - A digit printed (sub_0C744): d0 + '/'.
+;-------------------------------------------------------------------------------
 sub_0527A:
         addi.w  #$2f,d0                         ; 0527A
         bra.w   sub_0C744                       ; 0527E
+
+;-------------------------------------------------------------------------------
+; sub_05282 - d2 + 1 kiwi heads (frame $22: d1 = $23 for sub_0B69A) drawn on the panel, from (8,
+; $C0), 16 pixels apart.
+;-------------------------------------------------------------------------------
 sub_05282:
         move.l  a5,-(a7)                        ; 05282
         moveq   #$23,d1                         ; 05284
@@ -4562,6 +5485,14 @@ dat_052A6:
 	dc.b	$00,$02,$B8
 	dc.b	'            '
 	dc.b	$FF
+
+;-------------------------------------------------------------------------------
+; sub_052C4 - The oxygen gauge: its level ($6E(a6), 0-$136) drawn into the image data of BOB frame
+; $24 in the main bank (the bar: whole words $FFFF, then a partial word from dat_0537A, the same in
+; each plane), then frames $23 and $24 drawn at ($118, $BC) with no flash ($36) and $8E(a6) = $C8.
+; Writes into BOB data (frame $24): the enhanced game's one-blit frames rebuild it (frames.s,
+; ONE_LIVE). The panel texts follow: dat_0539A (READY? / LEVEL), dat_053B3 (GAME OVER!).
+;-------------------------------------------------------------------------------
 sub_052C4:
         lea.l   (dat_39CE6).l,a0                ; 052C4
         move.l  (a0),d0                         ; 052CA
@@ -4635,6 +5566,10 @@ dat_053B3:
 	dc.b	$78,$56,$01,$00,$02,$00
 	dc.b	'GAME OVER!'
 	dc.b	$FF
+
+;-------------------------------------------------------------------------------
+; sub_053C4 - "SCORE:" and the score ($90(a6)), at the top.
+;-------------------------------------------------------------------------------
 sub_053C4:
         lea.l   dat_053D2(pc),a0                ; 053C4
         bsr.w   sub_0C6A8                       ; 053C8
@@ -4644,6 +5579,12 @@ dat_053D2:
 	dc.b	$0E,$C0,$01,$00,$02,$0F
 	dc.b	'SCORE:'
 	dc.b	$FF,$00
+
+;-------------------------------------------------------------------------------
+; sub_053E0 - Points scored: d0 added to the score; past the next extra life ($94(a6), every 50,000
+; - the "label" dat_0C350 is just the number $C350) a life more and the lives redrawn (sub_05240).
+; The score printed (sub_0540C).
+;-------------------------------------------------------------------------------
 sub_053E0:
         andi.l  #$ffff,d0                       ; 053E0
         move.l  #$1400c0,$4(a6)                 ; 053E6
@@ -4655,6 +5596,11 @@ sub_053E0:
         bsr.b   sub_0540C                       ; 05402
         addq.w  #$1,$1a(a6)                     ; 05404
         bra.w   sub_05240                       ; 05408
+
+;-------------------------------------------------------------------------------
+; sub_0540C - The score printed: d0 as six decimal digits (subtracting 100,000 ... 10: dat_05454),
+; each through sub_0C744; a '-' first if negative.
+;-------------------------------------------------------------------------------
 sub_0540C:
         move.l  $90(a6),d0                      ; 0540C
         nop                                     ; 05410
@@ -4688,6 +5634,10 @@ l_0542E:
 dat_05454:
 	dc.b	$00,$01,$86,$A0,$00,$00,$27,$10,$00,$00,$03,$E8,$00,$00,$00,$64
 	dc.b	$00,$00,$00,$0A
+
+;-------------------------------------------------------------------------------
+; sub_05468 - d0 as six decimal digits into a buffer at a0 (as sub_0540C, through sub_054AA).
+;-------------------------------------------------------------------------------
 sub_05468:
         move.l  d0,-(a7)                        ; 05468
         move.l  d0,d1                           ; 0546A
@@ -4715,9 +5665,23 @@ l_05484:
         bsr.w   sub_054AA                       ; 054A2
         move.l  (a7)+,d0                        ; 054A6
         rts                                     ; 054A8
+
+;-------------------------------------------------------------------------------
+; sub_054AA - A character stored at (a0)+ (sub_05468's output).
+; Then l_054AE, the level complete: the level + 1 ($8(a6) += 16); up to the 20th the progress
+; screen (l_043F4). After the last level: the ending - its picture (dat_218D4, RLE: sub_0B098), the
+; text dat_05504 ("The Leopard Seal was selling kiwis... Well Done!"), tune 3 until fire
+; (sub_0B9E8), and the title (l_04016).
+;-------------------------------------------------------------------------------
 sub_054AA:
         move.b  d0,(a0)+                        ; 054AA
         rts                                     ; 054AC
+
+;-------------------------------------------------------------------------------
+; l_054AE - The level complete: the next level ($8(a6) + 16); up to the 20th, the progress screen
+; (l_043F4); after the last, the ending - its picture (dat_218D4: sub_0B098), the text dat_05504,
+; tune 3 until fire, the title (l_04016).
+;-------------------------------------------------------------------------------
 l_054AE:
         clr.w   $80(a6)                         ; 054AE
         addi.w  #$10,$8(a6)                     ; 054B2
@@ -4759,10 +5723,12 @@ dat_05504:
 	dc.b	$FF
 
 ;-------------------------------------------------------------------------------
-; LoadTracks - read tracks of the disk through the jump table's TrackRead, 5 tries; then the
-; "fatal disk error" screen. Called at the start of each level (5 tracks of packed level data,
-; 1 more track, and on some levels 2 more) and at the end of the game (track 144). On the
-; AmigaDOS disk, TrackRead is replaced by enhanced/src/diskload.s.
+; LoadTracks - read tracks of the disk through the jump table's TrackRead, 5 tries; then the "fatal
+; disk error" screen (it hangs: the text asks for DEL). d0 = the first track, d1 = how many, a0 =
+; where, d2 = the drive. Called at the start of each level (5 tracks of packed world data, 1 for
+; the map, and on the boss levels 2 more), for the progress screen between levels (5 tracks from
+; track 144) and for level 4-4's second map ($45CC). On the AmigaDOS disk, TrackRead is replaced by
+; enhanced/src/diskload.s. LoadedLevel after it: the level whose data is in memory.
 ;-------------------------------------------------------------------------------
 LoadTracks:
         move.w  #$5,$c2(a6)                     ; 055BA  d0 = track, d1 = tracks, a0 = where, d2 = drive (always DF0): 5 tries
@@ -4792,6 +5758,13 @@ DiskErrorText:
 	dc.b	$27,$44,$45,$4C,$27,$20,$4B,$45,$59,$2E,$FF,$00
 LoadedLevel:
 	dc.b	$FF,$FF
+
+;-------------------------------------------------------------------------------
+; UnpackLevel - a level's packed world data unpacked in place: a0 = the data (long: unpacked
+; length, long: packed length, then the packed bytes). The packed bytes are first moved to the top
+; of the space, then unpacked forwards: a marker byte (the first), then bytes copied; marker, byte,
+; count repeats the byte count + 1 times.
+;-------------------------------------------------------------------------------
 UnpackLevel:
         movem.l d0-d3/a0-a2,-(a7)               ; 0564C
         move.l  a0,-(a7)                        ; 05650
@@ -4830,6 +5803,10 @@ l_05680:
 l_0568C:
         movem.l (a7)+,d0-d3/a0-a2               ; 0568C
         rts                                     ; 05690
+
+;-------------------------------------------------------------------------------
+; StopSample (unreferenced) - channel 3 stopped and the sample's state cleared ($98, $A4, $40(a6)).
+;-------------------------------------------------------------------------------
 StopSample:		; (no references found: found by the code sweep)
         move.w  #$8,(CUSTOM+DMACON).l           ; 05692
         clr.l   $98(a6)                         ; 0569A
@@ -4838,10 +5815,10 @@ StopSample:		; (no references found: found by the code sweep)
         rts                                     ; 056A6
 
 ;-------------------------------------------------------------------------------
-; PlaySample - play a sound effect: a0 = an IFF 8SVX file (FORM). Finds VHDR and BODY,
-; period = 3579546 / samples per second, and plays it on channel 3; the level 4 interrupt
-; (Level4_Sample) sets the repeat. The effects are IFF 8SVX files saved with Audio Master
-; (tools/assets/sound.py extracts them).
+; PlaySample - play a sound effect: a0 = an IFF 8SVX file (FORM). Finds VHDR and BODY, period =
+; 3579546 / samples per second, and plays it on channel 3; the level 4 interrupt (Level4_Sample)
+; sets the repeat. The effects are IFF 8SVX files saved with Audio Master (tools/assets/sound.py
+; extracts them).
 ;-------------------------------------------------------------------------------
 PlaySample:
         movem.l a4-a5,-(a7)                     ; 056A8
@@ -4901,6 +5878,12 @@ l_05746:
         rts                                     ; 05774
 dat_05776:
 	dc.b	$00,$00
+
+;-------------------------------------------------------------------------------
+; Level4_Sample - the level 4 interrupt (audio 3) for PlaySample: the first interrupt only marks
+; dat_05776; the next sets the repeat (a looped sample's repeat part: $A0/$A4(a6)) or, for a
+; one-shot, turns the interrupt and channel 3 off.
+;-------------------------------------------------------------------------------
 Level4_Sample:
         movem.l d0/a6,-(a7)                     ; 05778
         tst.w   (dat_05776).l                   ; 0577C
@@ -4924,6 +5907,11 @@ l_057C6:
         move.w  #$400,(CUSTOM+INTENA).l         ; 057C6
         move.w  #$8,(CUSTOM+DMACON).l           ; 057CE
         bra.b   l_057B8                         ; 057D6
+
+;-------------------------------------------------------------------------------
+; sub_057D8 - An object of the level's list placed: x, y from (a2)+ (tiles: x 16 + 4, y 16), type
+; d6; falls into sub_057E8.
+;-------------------------------------------------------------------------------
 sub_057D8:
         moveq   #$0,d1                          ; 057D8
         move.b  (a2)+,d1                        ; 057DA
@@ -4933,6 +5921,13 @@ sub_057D8:
         move.b  (a2)+,d1                        ; 057E2
         asl.w   #$4,d1                          ; 057E4
         move.w  d6,d3                           ; 057E6
+
+;-------------------------------------------------------------------------------
+; sub_057E8 - An object made: d6 = the type, d1 = x and y, d0 = the slot (-1: any free one).
+; dat_05854, 12 bytes a type: the script, the logic, the frame delay and a second type to make with
+; it (an object carried: $26 links them - the second is made first by recursion, and the two are
+; swapped, sub_05836, so the carried one is drawn after). No slot free: nothing.
+;-------------------------------------------------------------------------------
 sub_057E8:
         mulu.w  #$c,d6                          ; 057E8
         movea.l dat_05854(pc,d6.w),a1           ; 057EC
@@ -4965,6 +5960,11 @@ l_0582A:
         exg.l   a4,a5                           ; 05832
 l_05834:
         rts                                     ; 05834
+
+;-------------------------------------------------------------------------------
+; sub_05836 - Two objects' records (a4, a5: 58 bytes) swapped, and a4/a5 with them. dat_05854
+; follows: the object types' table (sub_057E8).
+;-------------------------------------------------------------------------------
 sub_05836:
         move.w  #$1c,d0                         ; 05836
         movem.l a4-a5,-(a7)                     ; 0583A
@@ -5025,6 +6025,15 @@ dat_05A7C:
 	dc.b	$00,$00,$6F,$6C,$00,$00,$7E,$E4,$00,$00,$71,$5C,$00,$00,$80,$3E
 	dc.b	$00,$00,$70,$3C,$00,$00,$81,$34,$00,$00,$70,$94,$00,$00,$80,$66
 	dc.b	$00,$00,$6F,$6C,$00,$00,$7F,$84
+
+;-------------------------------------------------------------------------------
+; sub_05AD4 - A level's objects placed: a2 = the level's list (LevelTable +4, or dat_0D824 on a
+; restart): the time (kept on a restart, at least 40), the kiwi's start (tiles) - slot 1 (logic
+; l_098A4); on a restart ($80(a6)) the kiwi at the place he died ($7C(a6)), the bonus timer
+; restarted; the camera put round him (clamped to the map: $A, $10(a6)); then the objects: type, x,
+; y, a byte - the script position ($80: 8 pixels right), or for type 3 (a moving platform) its path
+; (dat_05C0A: $32, $34, $36). Types 1 and 2 go in slot 2. Each object facing the kiwi (sub_08B9A).
+;-------------------------------------------------------------------------------
 sub_05AD4:
         cmpi.w  #$130,$8(a6)                    ; 05AD4
         bne.b   l_05AE0                         ; 05ADA
@@ -5210,6 +6219,11 @@ LevelTable:
 	dc.b	$00,$00,$CE,$94,$00,$00,$D9,$0C,$00,$00,$CE,$90,$00,$4A,$00,$50
 	dc.b	$00,$00,$CF,$82,$00,$00,$D9,$7C,$00,$00,$CF,$7E,$00,$51,$00,$58
 	dc.b	$00,$00,$CF,$F6,$00,$00,$D9,$D8,$00,$00,$CF,$F2,$00,$54,$00,$59
+
+;-------------------------------------------------------------------------------
+; sub_05EFA - Does the object a5 touch a ride (types 33-41: the balloons, the duck, ... - any but
+; itself)? d0 = -1 yes (a4 = the ride), 0 no. The test: sub_065F8.
+;-------------------------------------------------------------------------------
 sub_05EFA:
         moveq   #$46,d7                         ; 05EFA
         lea.l   (mem_64346).l,a4                ; 05EFC
@@ -5230,6 +6244,12 @@ l_05F20:
 l_05F28:
         moveq   #-1,d0                          ; 05F28
         rts                                     ; 05F2A
+
+;-------------------------------------------------------------------------------
+; sub_05F2C - Type 3, a generator (a door in the scenery: docs/LEVELS.md), waiting: when the kiwi
+; comes within $32 pixels across and $34 down (and is not dying: sub_0965C), its program runs
+; (sub_05F72). $30 set: it has just run - nothing until the kiwi has left the range.
+;-------------------------------------------------------------------------------
 sub_05F2C:
         lea.l   (mem_643BA).l,a4                ; 05F2C
         cmpi.l  #sub_0965C,$18(a4)              ; 05F32
@@ -5256,6 +6276,14 @@ l_05F6C:
         clr.w   $30(a5)                         ; 05F6C
 l_05F70:
         rts                                     ; 05F70
+
+;-------------------------------------------------------------------------------
+; sub_05F72 - A generator's program (a2 = $36(a5), docs/LEVELS.md): types (0-$7F, 4 bytes each) let
+; out at the door facing the kiwi, while more than 3 slots are free; then a command: $FF back to
+; waiting (sub_05F2C) with the next program (an aligned pointer: its range words, then the
+; program); $FE n wait n passes (sub_06056); $FD the door's opening animation (script $607E) and
+; $FC its closing (l_06070), each waited for (sub_06046); $FB the generator ends.
+;-------------------------------------------------------------------------------
 sub_05F72:
         movea.l $36(a5),a2                      ; 05F72
         moveq   #$0,d6                          ; 05F76
@@ -5329,17 +6357,31 @@ l_06040:
         move.l  a2,$36(a5)                      ; 06040
 l_06044:
         rts                                     ; 06044
+
+;-------------------------------------------------------------------------------
+; sub_06046 - A generator waiting for its door's animation to stop ($20(a5) = 0: script command
+; $48), then its program again (sub_05F72).
+;-------------------------------------------------------------------------------
 sub_06046:
         tst.w   $20(a5)                         ; 06046
         bne.b   l_06044                         ; 0604A
         move.l  #sub_05F72,$18(a5)              ; 0604C
         rts                                     ; 06054
+
+;-------------------------------------------------------------------------------
+; sub_06056 - A generator's wait ($FE n): $30(a5) passes, then its program again (sub_05F72).
+;-------------------------------------------------------------------------------
 sub_06056:
         subq.w  #$1,$30(a5)                     ; 06056
         bpl.b   l_06044                         ; 0605A
         move.l  #sub_05F72,$18(a5)              ; 0605C
         clr.w   $30(a5)                         ; 06064
         rts                                     ; 06068
+
+;-------------------------------------------------------------------------------
+; sub_0606A - Not code: the generators' door scripts (type 3's at $606A, the closing one l_06070,
+; the opening $607E) disassembled as instructions; the bytes are kept as they were.
+;-------------------------------------------------------------------------------
 sub_0606A:		; (no references found: found by the code sweep)
         ori.l   #$80480000,-(a6)                ; 0606A
 l_06070:
@@ -5348,6 +6390,12 @@ l_06070:
         ori.l   #$a100a2,-(a1)                  ; 0607C
         ori.l   #$a400a5,-(a3)                  ; 06082
         ori.l   #$80480000,-(a6)                ; 06088
+
+;-------------------------------------------------------------------------------
+; sub_0608E - The 4-segment trail hanging from a type 39 ride (a5): made on the first call
+; ($36(a5): each segment's next; script dat_0AED4, logic sub_06118), then each segment moved
+; towards the one above it (2 pixels a pass, faster when far: x within 6, y within 2).
+;-------------------------------------------------------------------------------
 sub_0608E:
         moveq   #$3,d7                          ; 0608E
 l_06090:
@@ -5411,6 +6459,13 @@ l_0610E:
         dbra    d7,l_06090                      ; 06112
 l_06116:
         rts                                     ; 06116
+
+;-------------------------------------------------------------------------------
+; sub_06118 - A trail segment's logic (sub_0608E): while the kiwi rides the type 39 object this
+; segment hangs from, it is put in his shot list (sub_09648) - the trail hits enemies for him;
+; otherwise it is taken out of the list again ($30), and touching the kiwi hurts him (sub_06530 ->
+; l_08970).
+;-------------------------------------------------------------------------------
 sub_06118:
         lea.l   (mem_643BA).l,a4                ; 06118
         move.l  $26(a4),d0                      ; 0611E
@@ -5440,6 +6495,13 @@ l_06154:
         bne.b   l_06116                         ; 06158
         exg.l   a4,a5                           ; 0615A
         jmp     (sub_09648).l                   ; 0615C
+
+;-------------------------------------------------------------------------------
+; sub_06162 - Type 44, a platform the kiwi pushes: when he lands on it from above (falling, or
+; standing), he stands on it (y = its y - 14) and both move 4 pixels the way he faces ($62(a6) set:
+; on a platform), each stopped by a wall (sub_061C8). The two other platforms' logic follows inside
+; sub_061C8.
+;-------------------------------------------------------------------------------
 sub_06162:		; (no references found: found by the code sweep)
         move.w  #$a,$2e(a5)                     ; 06162
         lea.l   (mem_643BA).l,a4                ; 06168
@@ -5475,6 +6537,10 @@ l_061BE:
         clr.w   $4(a4)                          ; 061BE
         clr.w   $4(a5)                          ; 061C2
         rts                                     ; 061C6
+
+;-------------------------------------------------------------------------------
+; sub_061C8 - A move undone if it ran into a wall (sub_09BDA): x -= dx.
+;-------------------------------------------------------------------------------
 sub_061C8:
         bsr.w   sub_09BDA                       ; 061C8
         beq.b   l_061D4                         ; 061CC
@@ -5482,6 +6548,11 @@ sub_061C8:
         sub.w   d1,(a5)                         ; 061D2
 l_061D4:
         rts                                     ; 061D4
+
+;-------------------------------------------------------------------------------
+; Type 45, a lift: the kiwi standing on it (landing from above, as type 44) and it rise 4 pixels a
+; pass ($62(a6) set), until the ceiling stops them (sub_09C84).
+;-------------------------------------------------------------------------------
         lea.l   (mem_643BA).l,a4                ; 061D6
         move.w  #$a,$2e(a5)                     ; 061DC
         move.w  $6(a4),d0                       ; 061E2
@@ -5513,6 +6584,11 @@ l_061F0:
 l_06234:
         clr.w   $6(a5)                          ; 06234
         rts                                     ; 06238
+
+;-------------------------------------------------------------------------------
+; Type 43, a sinking platform: stood on, it and the kiwi go down 2 pixels a pass ($62(a6) set),
+; until the floor (sub_09CDA).
+;-------------------------------------------------------------------------------
         lea.l   (mem_643BA).l,a4                ; 0623A
         move.w  #$a,$2e(a5)                     ; 06240
         move.w  $6(a4),d0                       ; 06246
@@ -5542,10 +6618,21 @@ l_06254:
         move.w  d0,$2(a4)                       ; 06292
 l_06296:
         rts                                     ; 06296
+
+;-------------------------------------------------------------------------------
+; sub_06298 - Type 39, a ride with a trail (sub_0608E). $62A0 on (types 33-38, 40, 41 start here):
+; $30 set - the ride is gone; $20 set (its pop playing) - nothing; hit by a shot (sub_064EC; a type
+; 48 shot does not pop types 37 and 39) - pops: sample dat_1BD06, stops, $20 = 1; $32 a count of
+; rides before it pops by itself; otherwise the kiwi may board it (sub_0635A).
+;-------------------------------------------------------------------------------
 sub_06298:		; (no references found: found by the code sweep)
         move.l  a5,-(a7)                        ; 06298
         bsr.w   sub_0608E                       ; 0629A
         movea.l (a7)+,a5                        ; 0629E
+
+;-------------------------------------------------------------------------------
+; Types 33-38, 40 and 41 (rides without a trail) start here: sub_06298 below its trail.
+;-------------------------------------------------------------------------------
         tst.w   $30(a5)                         ; 062A0
         bne.b   l_062E0                         ; 062A4
         tst.w   $20(a5)                         ; 062A6
@@ -5575,6 +6662,13 @@ l_062E6:
         beq.b   l_062CA                         ; 062F0
 l_062F2:
         bra.w   sub_0635A                       ; 062F2
+
+;-------------------------------------------------------------------------------
+; sub_062F6 - An enemy made with its ride (sub_057E8: a4 the rider, a5 the ride): the rider's
+; height above it ($2A) from dat_06346 by the ride's type (type 38: 4 less, a type 15 rider $14);
+; the ride's own logic kept in $32 and replaced by sub_064AE (carried). dat_06332 / dat_06346: per
+; ride type, whether it can be held from below and the rider's height.
+;-------------------------------------------------------------------------------
 sub_062F6:
         move.w  $1c(a5),d0                      ; 062F6
         subi.w  #$21,d0                         ; 062FA
@@ -5598,6 +6692,16 @@ dat_06332:
 dat_06346:
 	dc.b	$FF,$F9,$FF,$E6,$FF,$F5,$FF,$EE,$FF,$E6,$FF,$F8,$FF,$E6,$FF,$FA
 	dc.b	$FF,$F4,$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_0635A - The kiwi boards a ride (a5): only if he is not rising, not riding already, not in
+; sub_091D4 or sub_0965C (dying) or the warp (sub_04BCE), not on a platform ($62), and touching it
+; (sub_065A8). From above: he rides - $26(kiwi) = the ride, the ride's logic kept ($32) and
+; replaced by sub_064AE (sub_06C14 for type 41), the kiwi's logic sub_08E1E with the riding script
+; (dat_0AD9A; dat_0AD8A for type 38, dat_0AD96 for 33, 40 and 41; type 41 sets $4A(a6)), his x
+; aligned. From below (a ride that allows it, at least 10 pixels under): he hangs from it
+; (dat_0ADB8). d0 = -1 boarded.
+;-------------------------------------------------------------------------------
 sub_0635A:
         lea.l   (mem_643BA).l,a4                ; 0635A
         tst.w   $6(a4)                          ; 06360
@@ -5687,6 +6791,12 @@ l_0645A:
         move.w  d7,$2a(a4)                      ; 064A6
         moveq   #-1,d0                          ; 064AA
         rts                                     ; 064AC
+
+;-------------------------------------------------------------------------------
+; sub_064AE - A carried ride's logic (its own kept in $32): $2E = 10; type 39 drags its trail
+; (sub_0608E); stopped while its animation waits ($20); $30 < 0 counts up to 0, then its own logic
+; back and $32 = 150.
+;-------------------------------------------------------------------------------
 sub_064AE:
         move.w  #$a,$2e(a5)                     ; 064AE
         cmpi.w  #$27,$1c(a5)                    ; 064B4
@@ -5708,6 +6818,13 @@ l_064CE:
         move.w  #$96,$32(a5)                    ; 064E4
 l_064EA:
         rts                                     ; 064EA
+
+;-------------------------------------------------------------------------------
+; sub_064EC - Is the object a5 hit by one of the kiwi's shots ($C6(a6): 32 pointers; sub_065B2)? A
+; type 49 shot sets the target's $34 (and stays), a type 48 shot is removed. While $6C(a6) is set
+; (the screen shake's copy, from $64) everything counts as hit; with $6A(a6) set, touching the kiwi
+; does too (sub_065A8). d0 <> 0: hit, a4 = the shot.
+;-------------------------------------------------------------------------------
 sub_064EC:
         move.w  $6c(a6),d0                      ; 064EC
         bne.b   l_0651E                         ; 064F0
@@ -5733,6 +6850,13 @@ l_06522:
         tst.w   $6a(a6)                         ; 06526
         bne.w   sub_065A8                       ; 0652A
         rts                                     ; 0652E
+
+;-------------------------------------------------------------------------------
+; sub_06530 - Does the object a5 hurt the kiwi? Never while $52, $54 (the restart's grace time) or
+; $68(a6) is set. Touching him (sub_065A8): d0 = -1. Touching the ride he is on: pop sample, d0 =
+; -1. Else a free ride it touches (the list at $146(a6) made by sub_0B1C2; not types 37, 39) is
+; popped ($20 = 2, sample) and d0 = 0.
+;-------------------------------------------------------------------------------
 sub_06530:
         tst.w   $52(a6)                         ; 06530
         bne.b   l_06564                         ; 06534
@@ -5780,11 +6904,25 @@ l_06594:
         bsr.w   PlaySample                      ; 065A0
         moveq   #$0,d0                          ; 065A4
         rts                                     ; 065A6
+
+;-------------------------------------------------------------------------------
+; sub_065A8 - Does the object a5 touch the kiwi? a4 = the kiwi ($643BA), into sub_065B2: d0 = -1
+; yes, 0 no.
+; SELF-MODIFIED - the protection's sabotage: l_065AE (moveq #0,d0 twice, falling into the test) is
+; overwritten with moveq #0,d0 / rts by sub_0A742 when the copy-protection check fails (it runs on
+; a warp: sub_04BEA): from then on nothing touches the kiwi - no enemy hurts him, he can board
+; nothing, no fruit or EXTEND letter is picked up (docs/SELFMOD.md).
+;-------------------------------------------------------------------------------
 sub_065A8:
         lea.l   (mem_643BA).l,a4                ; 065A8
 l_065AE:
-        moveq   #$0,d0                          ; 065AE
+        moveq   #$0,d0                          ; 065AE  SELF-MODIFIED by the protection ($A772): moveq #0,d0 / rts
         moveq   #$0,d0                          ; 065B0
+
+;-------------------------------------------------------------------------------
+; sub_065B2 - Do the objects a5 and a4 overlap? Their boxes: x $8, y $A, width $C, height $E (set
+; when they are drawn; 0: no box). d0 = -1 yes, 0 no.
+;-------------------------------------------------------------------------------
 sub_065B2:
         tst.l   $c(a5)                          ; 065B2
         beq.b   l_065CE                         ; 065B6
@@ -5816,6 +6954,11 @@ l_065EE:
         cmp.w   $e(a5),d0                       ; 065F0
         blt.b   l_065EA                         ; 065F4
         bra.b   l_065CE                         ; 065F6
+
+;-------------------------------------------------------------------------------
+; sub_065F8 - sub_065B2's test for a moving object: do a5 (moving across: dx not 0) and a4 overlap,
+; a5 coming towards a4? d0 = -1 yes, 0 no (used by sub_05EFA: rides do not fly into one another).
+;-------------------------------------------------------------------------------
 sub_065F8:
         tst.w   $4(a5)                          ; 065F8
         beq.b   l_06620                         ; 065FC
@@ -5853,6 +6996,18 @@ l_06646:
         cmp.w   $e(a5),d0                       ; 06648
         blt.b   l_06642                         ; 0664C
         bra.b   l_06620                         ; 0664E
+
+;-------------------------------------------------------------------------------
+; sub_06650 - A riding enemy (types 10-21, a5) and its ride ($26): first the kiwi may board the
+; enemy's ride (sub_0635A with the ride's own logic in place for the test) - if he does, d0 = -1
+; (the enemy is knocked off). Else the ride popped by a shot (sub_064EC; a type 48 shot does not
+; pop types 37, 39) or by spikes (tile $F: sub_09066): pop sample, the ride stopped and popping
+; ($20 = 1), d0 = -1 (type 36 with $36 = 0: d0 = 0). d0 = 0: nothing happened.
+; Then the code the riding enemies share:
+;   l_066DA  knocked off: logic sub_0732A (falling), a0 = its falling script, type -1, its height
+;            above the ride added to y, sample dat_1731C
+;   l_06718, l_067F4  two of the flights (below)
+;-------------------------------------------------------------------------------
 sub_06650:
         move.l  $26(a5),d0                      ; 06650
         beq.w   l_066D8                         ; 06654
@@ -5916,6 +7071,15 @@ l_066DA:
         move.w  #$ffff,$1c(a5)                  ; 06708
         lea.l   (dat_1731C).l,a0                ; 0670E
         bra.w   PlaySample                      ; 06714
+
+;-------------------------------------------------------------------------------
+; l_06718 - A riding enemy's flight (chosen in l_06ECA, called through the patched jsr at $6F1E; a5
+; = the enemy, its ride $26): every 5 passes it turns to face the kiwi (sub_08B9A), dx +-1 a pass
+; up to 3 that way; up or down 3 a pass towards the kiwi's height unless within 6; level with him
+; and within 140 pixels, it stops ($32 cleared: it attacks). Walls, ceilings and floors stop it
+; (sub_09C2A, sub_09C84, sub_09CDA), and so does another ride in the way (sub_05EFA). The ride
+; moves with it.
+;-------------------------------------------------------------------------------
 l_06718:
         move.w  #$5,$32(a5)                     ; 06718
         movea.l $26(a5),a4                      ; 0671E
@@ -5999,6 +7163,11 @@ l_067BC:
         clr.l   $4(a4)                          ; 067EE
 l_067F2:
         rts                                     ; 067F2
+
+;-------------------------------------------------------------------------------
+; l_067F4 - A riding enemy's flight, as l_06718, but it keeps 50-70 pixels above the kiwi, and
+; stops within 16 pixels of him across.
+;-------------------------------------------------------------------------------
 l_067F4:
         move.w  #$5,$32(a5)                     ; 067F4
         movea.l $26(a5),a4                      ; 067FA
@@ -6084,6 +7253,11 @@ l_0689A:
         clr.l   $4(a4)                          ; 068CC
 l_068D0:
         rts                                     ; 068D0
+
+;-------------------------------------------------------------------------------
+; sub_068D2 - A riding enemy's flight, as l_06718, keeping 70-90 pixels above the kiwi while more
+; than 16 pixels from him across.
+;-------------------------------------------------------------------------------
 sub_068D2:		; (no references found: found by the code sweep)
         move.w  #$5,$32(a5)                     ; 068D2
         movea.l $26(a5),a4                      ; 068D8
@@ -6166,6 +7340,11 @@ l_06970:
         clr.l   $4(a4)                          ; 069A2
 l_069A6:
         rts                                     ; 069A6
+
+;-------------------------------------------------------------------------------
+; sub_069A8 - A riding enemy's flight, as l_06718, aiming at 16 pixels below the kiwi; within 48
+; pixels of that height and 32 across it stops (sub_06A0A goes on).
+;-------------------------------------------------------------------------------
 sub_069A8:		; (no references found: found by the code sweep)
         move.w  #$5,$32(a5)                     ; 069A8
         movea.l $26(a5),a4                      ; 069AE
@@ -6201,6 +7380,10 @@ l_069F6:
         sub.w   $2(a5),d0                       ; 06A02
         bpl.b   sub_06A0A                       ; 06A06
         neg.w   d1                              ; 06A08
+
+;-------------------------------------------------------------------------------
+; sub_06A0A - The second half of sub_069A8 (also reached from the leftover sub_0328C).
+;-------------------------------------------------------------------------------
 sub_06A0A:
         exg.l   a4,a5                           ; 06A0A
         tst.w   d0                              ; 06A0C
@@ -6251,6 +7434,12 @@ l_06A4E:
         clr.l   $4(a4)                          ; 06A80
 l_06A84:
         rts                                     ; 06A84
+
+;-------------------------------------------------------------------------------
+; sub_06A86 - A riding enemy's flight: across only when more than 30 pixels from the kiwi (dx +-1 a
+; pass up to 3); up or down 3 a pass when more than 15 from his height. Walls, floors and other
+; rides stop it.
+;-------------------------------------------------------------------------------
 sub_06A86:
         movea.l $26(a5),a4                      ; 06A86
         bsr.w   sub_08B9A                       ; 06A8A
@@ -6330,6 +7519,11 @@ l_06B16:
         clr.l   $4(a5)                          ; 06B44
 l_06B48:
         rts                                     ; 06B48
+
+;-------------------------------------------------------------------------------
+; sub_06B4A - A riding enemy's flight: always towards the kiwi, across and up or down.
+; dat_06BF6 after it is code kept as bytes: the logic of type 41's shots (sub_06C38).
+;-------------------------------------------------------------------------------
 sub_06B4A:		; (no references found: found by the code sweep)
         movea.l $26(a5),a4                      ; 06B4A
         bsr.w   sub_08B9A                       ; 06B4E
@@ -6398,6 +7592,11 @@ l_06BF4:
 dat_06BF6:
 	dc.b	$4A,$6D,$00,$2E,$6B,$10,$4A,$6D,$00,$2C,$67,$0C,$61,$00,$F9,$2C
 	dc.b	$67,$04,$60,$00,$1D,$66,$4E,$75,$42,$AD,$00,$18,$4E,$75
+
+;-------------------------------------------------------------------------------
+; sub_06C14 - Type 41 ridden by the kiwi (installed by sub_0635A): the fire button shoots a spread
+; of 8 (sub_06C3C), then 20 passes before the next.
+;-------------------------------------------------------------------------------
 sub_06C14:
         movea.l a5,a4                           ; 06C14
         tst.w   $4c(a6)                         ; 06C16
@@ -6412,8 +7611,18 @@ l_06C22:
         bsr.w   sub_06C3C                       ; 06C32
 l_06C36:
         rts                                     ; 06C36
+
+;-------------------------------------------------------------------------------
+; sub_06C38 - A spread of 8 shots (sub_06C3C) with dat_06BF6's logic: a4 = the type 41 ride (fired
+; by its rider, type 20: sub_06CAA).
+;-------------------------------------------------------------------------------
 sub_06C38:
         lea.l   dat_06BF6(pc),a1                ; 06C38
+
+;-------------------------------------------------------------------------------
+; sub_06C3C - A spread of 8 shots from the object a4: type 47, script dat_0743C, logic a1, 16
+; pixels a pass the way it faces, 8 pixels apart up and down; sample dat_1E94C.
+;-------------------------------------------------------------------------------
 sub_06C3C:
         lea.l   dat_0743C(pc),a0                ; 06C3C
         move.l  (a4),d1                         ; 06C40
@@ -6449,6 +7658,14 @@ l_06C96:
 l_06CA0:
         lea.l   (dat_1E94C).l,a0                ; 06CA0
         bra.w   PlaySample                      ; 06CA6
+
+;-------------------------------------------------------------------------------
+; sub_06CAA - Type 20, an enemy on a type 41 ride (it shoots): knocked off (sub_06650) or shot
+; (sub_064EC: its ride free again, $32 = 150) -> it falls (script dat_07F84). $32 > 0: turns and
+; heads for the kiwi at 3 pixels a pass both ways; $32 < 0: the ride's spread (sub_06C38); level
+; with the kiwi (within 8): the attack script dat_07F68. It moves with its ride, bouncing off
+; walls, floors and ceilings.
+;-------------------------------------------------------------------------------
 sub_06CAA:		; (no references found: found by the code sweep)
         bsr.w   sub_06650                       ; 06CAA
         beq.b   l_06CBA                         ; 06CAE
@@ -6538,6 +7755,13 @@ l_06D9C:
 l_06D9E:
         move.w  (a7)+,$6(a4)                    ; 06D9E
         rts                                     ; 06DA2
+
+;-------------------------------------------------------------------------------
+; sub_06DA4 - Types 27-30, leaping enemies (their handlers $6DA4, $6DDE, $6DEE, $6E0A: in the bytes
+; after this one): not animated by a script - the "script" holds a frame and a time. A leap: dy -6,
+; the start kept ($32) and the handler ($36), logic sub_06E22, $30 = the time (the script's third
+; word), sample dat_1D398. The variants move 6 pixels across too.
+;-------------------------------------------------------------------------------
 sub_06DA4:		; (no references found: found by the code sweep)
         tst.l   $32(a5)                         ; 06DA4
         bne.b   l_06DAC                         ; 06DA8
@@ -6557,6 +7781,12 @@ l_06DAC:
 	dc.b	$00,$0A,$50,$ED,$00,$10,$3B,$7C,$00,$06,$00,$04,$60,$A8,$4A,$AD
 	dc.b	$00,$32,$66,$06,$04,$6D,$00,$0B,$00,$02,$3B,$7C,$FF,$FA,$00,$04
 	dc.b	$42,$6D,$00,$10,$60,$90
+
+;-------------------------------------------------------------------------------
+; sub_06E22 - A leap (sub_06DA4): $30 counts; touching the kiwi hurts him (l_08970); moving with
+; gravity (sub_08D4E) until it lands on something solid (sub_09066), then back at its start and
+; waiting (sub_06E50).
+;-------------------------------------------------------------------------------
 sub_06E22:
         subq.w  #$1,$30(a5)                     ; 06E22
         bsr.w   sub_06530                       ; 06E26
@@ -6571,6 +7801,15 @@ l_06E3A:
         addq.w  #$2,$22(a5)                     ; 06E46
         clr.l   $4(a5)                          ; 06E4A
         rts                                     ; 06E4E
+
+;-------------------------------------------------------------------------------
+; sub_06E50 - After a leap: $30 passes, then its own handler again ($36). Then, kept as bytes: the
+; scripts of types 27-30 ($6E62...) and the handler of type 15 ($6E7A: touching the kiwi kills him,
+; l_08A48; flight sub_068D2). The handlers of types 10-13, 16-19 follow - each picks its flight
+; into a0 and goes to l_06ECA:
+;   10 l_06718   11 sub_06A86   12 sub_069A8   13 l_06718   15 sub_068D2
+;   16 sub_06B4A 17 l_067F4     18 sub_06A86   19 sub_06A86
+;-------------------------------------------------------------------------------
 sub_06E50:
         subq.w  #$1,$30(a5)                     ; 06E50
         bpl.b   l_06E60                         ; 06E54
@@ -6593,8 +7832,18 @@ l_06E60:
         bra.w   l_06ECA                         ; 06EBE
         lea.l   sub_06A86(pc),a0                ; 06EC2
         bra.w   l_06ECA                         ; 06EC6
+
+;-------------------------------------------------------------------------------
+; l_06ECA - A riding enemy's turn (types 10-19).
+; SELF-MODIFYING: move.l a0,$6f20.l writes the flight routine into the operand of the jsr
+; (sub_06A86).l at $6F1E below (sub_06A86 is just what the program was saved with). Then: knocked
+; off (sub_06650) or shot (its ride free again) -> it falls (l_066DA, the falling script from
+; dat_05A7C +4 by type - 10); while its ride pops it stands; else the flight, and if it can attack
+; ($2C) $32 counts down: then it stops ($30), its script restarts, and its attack routine
+; (dat_05A7C +0) runs each pass until the shot is over (sub_07298 clears $30).
+;-------------------------------------------------------------------------------
 l_06ECA:
-        move.l  a0,$6f20.l                      ; 06ECA
+        move.l  a0,$6f20.l                      ; 06ECA  SMC -> $6F20, the jsr's operand below: the flight
         bsr.w   sub_06650                       ; 06ED0
         beq.b   l_06EEC                         ; 06ED4
 l_06ED6:
@@ -6620,7 +7869,7 @@ l_06F08:
         tst.w   $20(a4)                         ; 06F12
         bne.b   l_06F66                         ; 06F16
         move.w  #$4,$20(a5)                     ; 06F18
-        jsr     (sub_06A86).l                   ; 06F1E
+        jsr     (sub_06A86).l                   ; 06F1E  SELF-MODIFIED operand: the flight chosen at $6ECA
         tst.w   $2c(a5)                         ; 06F24
         beq.b   l_06F6A                         ; 06F28
         subq.w  #$1,$32(a5)                     ; 06F2A
@@ -6644,10 +7893,21 @@ l_06F66:
         clr.l   $4(a5)                          ; 06F66
 l_06F6A:
         rts                                     ; 06F6A
+
+;-------------------------------------------------------------------------------
+; sub_06F6C - The attack of types 15, 16 and 20: none - $30 cleared, $32 = 15 (the next try). The
+; other attacks follow, each: its attack script, and once ($32 not 0) a shot from a free slot
+; (owner in $30, the owner's $32 cleared); no slot: try again in 15 passes:
+;   $6F78 type 10: a shot across, 6 pixels a pass (sub_07270, dat_080D4)
+;-------------------------------------------------------------------------------
 sub_06F6C:		; (no references found: found by the code sweep)
         clr.w   $30(a5)                         ; 06F6C
         move.w  #$f,$32(a5)                     ; 06F70
         rts                                     ; 06F76
+
+;-------------------------------------------------------------------------------
+; Type 10's attack: a shot across, 6 pixels a pass (logic sub_07270, script dat_080D4).
+;-------------------------------------------------------------------------------
         move.l  #dat_080B0,$14(a5)              ; 06F78
         tst.w   $32(a5)                         ; 06F80
         beq.b   l_06FCE                         ; 06F84
@@ -6676,6 +7936,12 @@ l_06FD0:
         clr.w   $30(a5)                         ; 06FD0
         move.w  #$f,$32(a5)                     ; 06FD4
         rts                                     ; 06FDA
+
+;-------------------------------------------------------------------------------
+; sub_06FDC - Type 12's attack: a shot thrown up (dy -10, sub_072D6: it falls back). Then: $703C
+; type 18 - a shot dropped (dy 4); $7094 type 19 and $70F8 type 11 - shots across (6 pixels a
+; pass); $715C type 17 - a shot across aimed at the kiwi's height (dy up to 4).
+;-------------------------------------------------------------------------------
 sub_06FDC:		; (no references found: found by the code sweep)
         move.l  #dat_080E0,$14(a5)              ; 06FDC
         tst.w   $32(a5)                         ; 06FE4
@@ -6701,6 +7967,10 @@ l_07030:
         clr.w   $30(a5)                         ; 07030
         move.w  #$f,$32(a5)                     ; 07034
         rts                                     ; 0703A
+
+;-------------------------------------------------------------------------------
+; Type 18's attack: a shot dropped below it (dy 4: sub_07270, dat_08140).
+;-------------------------------------------------------------------------------
         move.l  #dat_08120,$14(a5)              ; 0703C
         tst.w   $32(a5)                         ; 07044
         beq.b   l_07086                         ; 07048
@@ -6724,6 +7994,10 @@ l_07088:
         clr.w   $30(a5)                         ; 07088
         move.w  #$f,$32(a5)                     ; 0708C
         rts                                     ; 07092
+
+;-------------------------------------------------------------------------------
+; Type 19's attack: a shot across, 6 pixels a pass (sub_07270, dat_08072).
+;-------------------------------------------------------------------------------
         move.l  #dat_0804E,$14(a5)              ; 07094
         tst.w   $32(a5)                         ; 0709C
         beq.b   l_070EA                         ; 070A0
@@ -6752,6 +8026,10 @@ l_070EC:
         clr.w   $30(a5)                         ; 070EC
         move.w  #$f,$32(a5)                     ; 070F0
         rts                                     ; 070F6
+
+;-------------------------------------------------------------------------------
+; Type 11's attack: a shot across, 6 pixels a pass (sub_07270, dat_08170).
+;-------------------------------------------------------------------------------
         move.l  #dat_0814E,$14(a5)              ; 070F8
         tst.w   $32(a5)                         ; 07100
         beq.b   l_0714E                         ; 07104
@@ -6780,6 +8058,10 @@ l_07150:
         clr.w   $30(a5)                         ; 07150
         move.w  #$f,$32(a5)                     ; 07154
         rts                                     ; 0715A
+
+;-------------------------------------------------------------------------------
+; Type 17's attack: a shot across aimed at the kiwi's height (dy up to 4: sub_07270, dat_08046).
+;-------------------------------------------------------------------------------
         move.l  #dat_08024,$14(a5)              ; 0715C
         tst.w   $32(a5)                         ; 07164
         beq.b   l_071D8                         ; 07168
@@ -6825,6 +8107,11 @@ l_071DA:
         clr.w   $30(a5)                         ; 071DA
         move.w  #$f,$32(a5)                     ; 071DE
         rts                                     ; 071E4
+
+;-------------------------------------------------------------------------------
+; sub_071E6 - Type 13's attack: a shot across, aimed at the kiwi's height (dy = the height
+; difference / 16, at most 4).
+;-------------------------------------------------------------------------------
 sub_071E6:		; (no references found: found by the code sweep)
         move.l  #dat_08080,$14(a5)              ; 071E6
         tst.w   $32(a5)                         ; 071EE
@@ -6871,6 +8158,12 @@ l_07264:
         clr.w   $30(a5)                         ; 07264
         move.w  #$f,$32(a5)                     ; 07268
         rts                                     ; 0726E
+
+;-------------------------------------------------------------------------------
+; sub_07270 - An enemy's shot: off the screen ($2E < 0) it is gone; with $2C set it ends on a solid
+; tile (sub_09066); it ends on a ceiling or floor (sub_09C84, sub_09CDA) or a wall (sub_09BDA);
+; touching the kiwi it hurts him (l_08970).
+;-------------------------------------------------------------------------------
 sub_07270:
         tst.w   $2e(a5)                         ; 07270
         bmi.b   l_072BC                         ; 07274
@@ -6887,6 +8180,11 @@ sub_07270:
 l_07292:
         bsr.w   sub_09CDA                       ; 07292
         beq.b   l_072BE                         ; 07296
+
+;-------------------------------------------------------------------------------
+; sub_07298 - A shot ends: removed, and its owner ($30), if still there, may attack again in 15
+; passes ($30 cleared, $32 = 15; frame delay 4).
+;-------------------------------------------------------------------------------
 sub_07298:
         clr.l   $18(a5)                         ; 07298
         movea.l $30(a5),a4                      ; 0729C
@@ -6910,6 +8208,11 @@ l_072BE:
         bra.w   l_08970                         ; 072D0
 l_072D4:
         rts                                     ; 072D4
+
+;-------------------------------------------------------------------------------
+; sub_072D6 - A thrown shot (type 12's): gravity up to 5 a pass; falling back past its start height
+; ($34) it ends (the owner told, as sub_07298).
+;-------------------------------------------------------------------------------
 sub_072D6:
         addq.w  #$1,$6(a5)                      ; 072D6
         bne.b   l_072E2                         ; 072DA
@@ -6937,6 +8240,11 @@ l_07324:
         rts                                     ; 07324
 l_07326:
         bra.w   sub_07270                       ; 07326
+
+;-------------------------------------------------------------------------------
+; sub_0732A - An enemy knocked down, falling (gravity up to 6) until the floor (sub_09CDA); then
+; sub_07362.
+;-------------------------------------------------------------------------------
 sub_0732A:
         addq.w  #$1,$6(a5)                      ; 0732A
         cmpi.w  #$6,$6(a5)                      ; 0732E
@@ -6953,6 +8261,13 @@ l_0733C:
         move.w  #$2,$20(a5)                     ; 0735A
 l_07360:
         rts                                     ; 07360
+
+;-------------------------------------------------------------------------------
+; sub_07362 - A knocked-down enemy turns into fruit once its animation is over: 150 points
+; (sub_053E0), type -2, script dat_07414 at one of its fruits (the next of 8 in turn, $2A(a6);
+; every 8th the next of the bonus items, $28(a6)) - or an EXTEND letter (logic sub_07494, script
+; dat_07462); 200 passes to pick it up ($38). Logic sub_07530.
+;-------------------------------------------------------------------------------
 sub_07362:
         tst.w   $20(a5)                         ; 07362
         beq.b   l_07378                         ; 07366
@@ -7001,6 +8316,13 @@ l_073EA:
         move.l  #dat_07462,$14(a5)              ; 073F2
         clr.w   $10(a5)                         ; 073FA
         bra.b   l_073C0                         ; 073FE
+
+;-------------------------------------------------------------------------------
+; sub_07400 - A picked-up item's last logic: once its animation has stopped ($20 cleared each pass)
+; it is removed, unless $30 is set. The scripts of fruit, items and points follow (dat_07414 the 16
+; fruits and items, dat_07462 the EXTEND letters, dat_07470 the points for each and dat_07482 their
+; frames).
+;-------------------------------------------------------------------------------
 sub_07400:
         clr.w   $20(a5)                         ; 07400
         tst.w   $30(a5)                         ; 07404
@@ -7031,6 +8353,13 @@ dat_07470:
 dat_07482:
 	dc.b	$00,$D1,$00,$D1,$00,$D1,$00,$D1,$00,$D3,$00,$D3,$00,$D3,$00,$D8
 	dc.b	$00,$D9
+
+;-------------------------------------------------------------------------------
+; sub_07494 - An EXTEND letter (logic, type -2): touching the kiwi - 1,000 points, its letter's bit
+; ($22 / 2) set in $13(a6) and the letter drawn on the panel (sub_0B69A: frame $C9 + n, at
+; dat_07518's place); all six ($3F): a life more, the letters flash ($7A = 50 passes) and tune 12.
+; Sample dat_183A8 when it is one he had already.
+;-------------------------------------------------------------------------------
 sub_07494:
         clr.w   $20(a5)                         ; 07494
         bsr.w   sub_065A8                       ; 07498
@@ -7058,6 +8387,11 @@ l_074DE:
         bra.w   PlaySample                      ; 074E4
 l_074E8:
         rts                                     ; 074E8
+
+;-------------------------------------------------------------------------------
+; sub_074EA - The EXTEND letters collected so far ($13(a6)) drawn on the panel (each level's
+; start).
+;-------------------------------------------------------------------------------
 sub_074EA:
         lea.l   dat_07518(pc),a0                ; 074EA
         move.w  #$5,d7                          ; 074EE
@@ -7080,6 +8414,12 @@ l_07516:
 dat_07518:
 	dc.b	$00,$6E,$00,$C0,$00,$82,$00,$C0,$00,$96,$00,$C0,$00,$AA,$00,$C0
 	dc.b	$00,$BE,$00,$C0,$00,$D2,$00,$C0
+
+;-------------------------------------------------------------------------------
+; sub_07530 - Fruit or an item lying (logic): 200 passes ($38), then gone. Touching the kiwi: an
+; item (its script position 16 on) does its effect (sub_07618) and shows as the second item; then
+; the points float up (dat_07482, sub_076B0, 15 passes), sample dat_183A8.
+;-------------------------------------------------------------------------------
 sub_07530:
         subq.w  #$1,$38(a5)                     ; 07530
         beq.b   l_07572                         ; 07534
@@ -7101,11 +8441,20 @@ l_07572:
 l_07576:
         clr.w   $20(a5)                         ; 07576
         rts                                     ; 0757A
+
+;-------------------------------------------------------------------------------
+; sub_0757C - Item 7: invincibility - 300 passes ($54) and touching kills ($6A), tune 8.
+;-------------------------------------------------------------------------------
 sub_0757C:
         move.w  #$12c,$54(a6)                   ; 0757C
         st.b    $6a(a6)                         ; 07582
         moveq   #$8,d0                          ; 07586
         bra.w   PlaySong                        ; 07588
+
+;-------------------------------------------------------------------------------
+; sub_0758C - Item 8: the kiwi flown straight to the caged kiwi (slot 2): his logic sub_075C8, off
+; any ride, his weapon off (sub_0ABF8); the cage's logic becomes l_0AC6E (freed).
+;-------------------------------------------------------------------------------
 sub_0758C:
         lea.l   (mem_643BA).l,a4                ; 0758C
         move.l  #sub_075C8,$18(a4)              ; 07592
@@ -7119,6 +8468,11 @@ sub_0758C:
         rts                                     ; 075C2
 dat_075C4:
 	dc.b	$00,$01,$80,$00
+
+;-------------------------------------------------------------------------------
+; sub_075C8 - The kiwi flying to the cage (sub_0758C): 8 pixels a pass towards slot 2 ($643F4)
+; across and down, stopping within 8.
+;-------------------------------------------------------------------------------
 sub_075C8:
         lea.l   (mem_643F4).l,a4                ; 075C8
         clr.w   $10(a5)                         ; 075CE
@@ -7154,6 +8508,13 @@ l_0760C:
         clr.w   $6(a5)                          ; 07612
 l_07616:
         rts                                     ; 07616
+
+;-------------------------------------------------------------------------------
+; sub_07618 - An item's effect, by its script position $22 - 16 (dat_07630; past the table: the
+; ANIM ERROR trap): 0 a weapon (sub_07694), 1 $66(a6) set (sub_07654), 2 the clock (sub_07666), 3
+; and 5 other weapons (sub_07680, sub_07672), 4 the normal bow back (sub_0768A), 6 the bomb
+; (sub_0765A), 7 invincibility (sub_0757C), 8 the flight to the cage (sub_0758C).
+;-------------------------------------------------------------------------------
 sub_07618:
         move.w  $22(a5),d0                      ; 07618
         subi.w  #$10,d0                         ; 0761C
@@ -7172,30 +8533,61 @@ dat_07630:
         dc.l    sub_0765A                       ; 07648
         dc.l    sub_0757C                       ; 0764C
         dc.l    sub_0758C                       ; 07650
+
+;-------------------------------------------------------------------------------
+; sub_07654 - Item 1: $66(a6) set.
+;-------------------------------------------------------------------------------
 sub_07654:
         st.b    $66(a6)                         ; 07654
         rts                                     ; 07658
+
+;-------------------------------------------------------------------------------
+; sub_0765A - Item 6, the bomb: the screen shakes for 18 frames ($64(a6), copied to $6C: every
+; enemy counts as shot, sub_064EC), tune 10.
+;-------------------------------------------------------------------------------
 sub_0765A:
         move.w  #$12,$64(a6)                    ; 0765A
         moveq   #$a,d0                          ; 07660
         bra.w   PlaySong                        ; 07662
+
+;-------------------------------------------------------------------------------
+; sub_07666 - Item 2, the clock: the enemies frozen for 150 passes ($68(a6): sub_07B0E), tune 11.
+;-------------------------------------------------------------------------------
 sub_07666:
         move.w  #$96,$68(a6)                    ; 07666
         moveq   #$b,d0                          ; 0766C
         bra.w   PlaySong                        ; 0766E
+
+;-------------------------------------------------------------------------------
+; sub_07672 - Item 5: the weapon dat_0991E (script dat_07454), the shots on screen count cleared
+; ($60).
+;-------------------------------------------------------------------------------
 sub_07672:
         lea.l   dat_0991E(pc),a0                ; 07672
         lea.l   dat_07454(pc),a1                ; 07676
         clr.w   $60(a6)                         ; 0767A
         bra.b   l_0769C                         ; 0767E
+
+;-------------------------------------------------------------------------------
+; sub_07680 - Item 3: the weapon dat_09A12 (script dat_07436).
+;-------------------------------------------------------------------------------
 sub_07680:
         lea.l   dat_09A12(pc),a0                ; 07680
         lea.l   dat_07436(pc),a1                ; 07684
         bra.b   l_0769C                         ; 07688
+
+;-------------------------------------------------------------------------------
+; sub_0768A - Item 4: the normal weapon, the bow (l_098A4, script dat_0AE2E).
+;-------------------------------------------------------------------------------
 sub_0768A:
         lea.l   l_098A4(pc),a0                  ; 0768A
         lea.l   dat_0AE2E(pc),a1                ; 0768E
         bra.b   l_0769C                         ; 07692
+
+;-------------------------------------------------------------------------------
+; sub_07694 - Item 0: the weapon dat_09A8A (script dat_07440). l_0769C: slot 0 - the kiwi's weapon,
+; an object of its own - given logic a0 and script a1.
+;-------------------------------------------------------------------------------
 sub_07694:
         lea.l   dat_09A8A(pc),a0                ; 07694
         lea.l   dat_07440(pc),a1                ; 07698
@@ -7205,6 +8597,11 @@ l_0769C:
         move.l  a1,$14(a4)                      ; 076A6
         clr.w   $22(a4)                         ; 076AA
         rts                                     ; 076AE
+
+;-------------------------------------------------------------------------------
+; sub_076B0 - Points floating up (3 pixels a pass) for $38 passes; then scored (dat_07470 by the
+; item: sub_053E0) and the item ends (sub_07400).
+;-------------------------------------------------------------------------------
 sub_076B0:
         subq.w  #$3,$2(a5)                      ; 076B0
         subq.w  #$1,$38(a5)                     ; 076B4
@@ -7219,6 +8616,12 @@ sub_076B0:
 l_076DE:
         clr.w   $20(a5)                         ; 076DE
         rts                                     ; 076E2
+
+;-------------------------------------------------------------------------------
+; sub_076E4 - Type 26: bounces about (dx, dy +-1 to start: dat_10001 is the number $00010001, not a
+; label), off walls, floors and ceilings (sub_09BDA, sub_09CDA, sub_09C84); touching the kiwi kills
+; him (l_08A48); frozen by the clock (sub_07B0E).
+;-------------------------------------------------------------------------------
 sub_076E4:		; (no references found: found by the code sweep)
         move.w  #$64,$2e(a5)                    ; 076E4
         bsr.w   sub_07B0E                       ; 076EA
@@ -7255,14 +8658,30 @@ l_07740:
         neg.w   $6(a5)                          ; 07740
 l_07744:
         rts                                     ; 07744
+
+;-------------------------------------------------------------------------------
+; sub_07746 - An enemy turned harmless (unreferenced): script dat_07E68 (it vanishes), logic
+; sub_07764's rts, type -1. The same code is at $7E2E (type 8 shot).
+;-------------------------------------------------------------------------------
 sub_07746:		; (no references found: found by the code sweep)
         move.l  #dat_07E68,$14(a5)              ; 07746
         clr.w   $22(a5)                         ; 0774E
         clr.l   $4(a5)                          ; 07752
         move.l  #sub_07764,$18(a5)              ; 07756
         move.w  #$ffff,$1c(a5)                  ; 0775E
+
+;-------------------------------------------------------------------------------
+; sub_07764 - An rts (sub_07746's logic). Then $7766: type 24, a catcher lurking below - when the
+; kiwi is above it (up to 72 pixels, 56 across) it stirs; nearer (56 above, 32 across) it reaches
+; up (a second object, script dat_078B8, logic sub_07816; the catcher's script dat_078B4). He moves
+; away: the reach is withdrawn. Frozen by the clock ($68).
+;-------------------------------------------------------------------------------
 sub_07764:
         rts                                     ; 07764
+
+;-------------------------------------------------------------------------------
+; Type 24, a catcher lurking below (sub_07764's header).
+;-------------------------------------------------------------------------------
         move.w  #$64,$2e(a5)                    ; 07766
         tst.w   $68(a6)                         ; 0776C
         bne.w   l_077E2                         ; 07770
@@ -7317,6 +8736,13 @@ l_07806:
         bgt.b   l_077F4                         ; 07812
 l_07814:
         rts                                     ; 07814
+
+;-------------------------------------------------------------------------------
+; sub_07816 - Type 24's reach (owner $30): touching the kiwi (sub_06530), he is caught - a life
+; lost, $52 set, the music stopped, his restart where he was ($7C, $80 = 1); he is held 32 pixels
+; above, swapped in order with the catcher (sub_05836), his logic sub_07890 and script dat_0ADD0,
+; his weapon off (sub_08A36); sample dat_1D398.
+;-------------------------------------------------------------------------------
 sub_07816:
         bsr.w   sub_06530                       ; 07816
         beq.b   l_07814                         ; 0781A
@@ -7344,6 +8770,16 @@ sub_07816:
         bsr.w   StopSong                        ; 07882
         lea.l   (dat_1D398).l,a0                ; 07886
         bra.w   PlaySample                      ; 0788C
+
+;-------------------------------------------------------------------------------
+; sub_07890 - The caught kiwi: the catcher's frames step while he moves; when his animation ends,
+; the lives check (l_040BC: game over or the level again). Then $78BE, type 25: touching the kiwi
+; kills him; moves (sub_08D5C 1, 1). Then, kept as bytes (not traced), the handlers of type 23
+; ($78DE: falls, lands, and after 5 passes lets out a walking copy of itself, $79D6, which falls
+; again where the floor ends; touching kills, shootable), type 22 ($7A48: walks towards the kiwi at
+; 3 pixels a pass carrying a type 42 and drops it on him, $7AB4; shot: it dies) and type 42 ($7ACC:
+; hurts the kiwi; dropped, $7AD6, it falls until the floor).
+;-------------------------------------------------------------------------------
 sub_07890:
         tst.w   $6(a5)                          ; 07890
         beq.b   l_078A4                         ; 07894
@@ -7360,6 +8796,10 @@ dat_078B4:
 	dc.b	$00,$E3,$80,$00
 dat_078B8:
 	dc.b	$00,$E4,$00,$E5,$80,$00
+
+;-------------------------------------------------------------------------------
+; Type 25: touching the kiwi kills him (l_08A48); it walks (sub_08D5C 1, 1).
+;-------------------------------------------------------------------------------
         move.w  #$64,$2e(a5)                    ; 078BE
         bsr.w   sub_06530                       ; 078C4
         bne.w   l_08A48                         ; 078C8
@@ -7402,6 +8842,11 @@ dat_078B8:
 	dc.b	$80,$12,$00,$14,$2B,$7C,$00,$00,$7B,$0C,$00,$18,$4E,$75,$61,$00
 	dc.b	$15,$72,$66,$E4,$61,$00,$EA,$36,$66,$00,$0E,$72,$0C,$6D,$00,$06
 	dc.b	$00,$06,$6C,$04,$52,$6D,$00,$06,$4E,$75
+
+;-------------------------------------------------------------------------------
+; sub_07B0E - Frozen? While the clock runs ($68(a6)) it returns past its caller: the enemy does
+; nothing.
+;-------------------------------------------------------------------------------
 sub_07B0E:
         tst.w   $68(a6)                         ; 07B0E
         bne.b   l_07B16                         ; 07B12
@@ -7409,6 +8854,11 @@ sub_07B0E:
 l_07B16:
         addq.l  #$4,a7                          ; 07B16
         rts                                     ; 07B18
+
+;-------------------------------------------------------------------------------
+; sub_07B1A - Type 7: falls 4 pixels a pass to the floor, then hops (sub_07B58). Shot, or on water
+; or spikes (tile 3 or more: sub_09066): it dies (l_0736A: fruit). Frozen by the clock.
+;-------------------------------------------------------------------------------
 sub_07B1A:		; (no references found: found by the code sweep)
         bsr.w   sub_064EC                       ; 07B1A
         bne.w   l_0736A                         ; 07B1E
@@ -7427,6 +8877,11 @@ l_07B42:
         move.w  #$fff2,$32(a5)                  ; 07B4A
         move.w  #$3,$20(a5)                     ; 07B50
         rts                                     ; 07B56
+
+;-------------------------------------------------------------------------------
+; sub_07B58 - Type 7 hopping: up from dy -14, gravity +2 (to 6), 2 pixels across the way it faces;
+; landing: sub_07BBA.
+;-------------------------------------------------------------------------------
 sub_07B58:
         bsr.w   sub_064EC                       ; 07B58
         bne.w   l_0736A                         ; 07B5C
@@ -7462,6 +8917,13 @@ l_07BA4:
 l_07BB4:
         clr.w   $4(a5)                          ; 07BB4
         rts                                     ; 07BB8
+
+;-------------------------------------------------------------------------------
+; sub_07BBA - Type 7 on the ground: the kiwi within 48 across and more than 16 above, its burst
+; ready ($38 = 0) - the burst (script dat_07FE2, sub_07C22); else it turns to the kiwi and hops
+; again (l_07CCC,
+; l_07CD6, in sub_07CB0).
+;-------------------------------------------------------------------------------
 sub_07BBA:
         bsr.w   sub_064EC                       ; 07BBA
         bne.w   l_0736A                         ; 07BBE
@@ -7490,6 +8952,14 @@ l_07BE0:
         clr.w   $22(a5)                         ; 07C18
         clr.w   $32(a5)                         ; 07C1C
         rts                                     ; 07C20
+
+;-------------------------------------------------------------------------------
+; sub_07C22 - Type 7's burst: when its script sets $32, 5 pieces fly out (script dat_07CEC, logic
+; dat_07D0A - code kept as bytes: gravity, gone off the screen or on something solid, hurts the
+; kiwi), with speeds from dat_07CF6; then 3 hops before the next ($38), logic sub_07CB0.
+; SELF-MODIFYING: move.l d0,$7c6a.l stores its position (8 pixels up) into the immediate of the
+; move.l #$0,d1 at $7C68 in the loop: the pieces' start for sub_0B4E2 (docs/SELFMOD.md).
+;-------------------------------------------------------------------------------
 sub_07C22:
         bsr.w   sub_064EC                       ; 07C22
         bne.w   l_0736A                         ; 07C26
@@ -7504,13 +8974,13 @@ sub_07C22:
         moveq   #$0,d1                          ; 07C4A
         move.l  (a5),d0                         ; 07C4C
         subq.w  #$8,d0                          ; 07C4E
-        move.l  d0,$7c6a.l                      ; 07C50
+        move.l  d0,$7c6a.l                      ; 07C50  SMC -> $7C6A, the move.l #,d1 below: the pieces' start
         move.l  a5,-(a7)                        ; 07C56
 l_07C58:
         movem.l d1/d7/a0,-(a7)                  ; 07C58
         lea.l   (dat_07D0A).l,a1                ; 07C5C
         lea.l   (dat_07CEC).l,a0                ; 07C62
-        move.l  #$0,d1                          ; 07C68
+        move.l  #$0,d1                          ; 07C68  SELF-MODIFIED immediate: x and y, written at $7C50
         moveq   #$0,d2                          ; 07C6E
         moveq   #-1,d0                          ; 07C70
         bsr.w   sub_0B4E2                       ; 07C72
@@ -7528,6 +8998,16 @@ l_07C58:
         movea.l (a7)+,a5                        ; 07CA0
         move.w  #$3,$38(a5)                     ; 07CA2
         move.l  #sub_07CB0,$18(a5)              ; 07CA8
+
+;-------------------------------------------------------------------------------
+; sub_07CB0 - Type 7 after its burst: shot or on water or spikes - dies; turns to the kiwi, $38
+; counted down, then hops (l_07B42). The handlers of types 9 ($7D34: walks, sub_08D5C; throws a
+; piece up, logic $7DCA, from 32 pixels above; shot: falls, then fruit) and 8 ($7DD4: bounces
+; diagonally off walls and floors; shot: it vanishes, $7E2E) follow, kept as bytes, then the
+; scripts of many enemies, and $824E, type 4: walks (sub_08D5C 1, 2); fires a shot across at 3
+; pixels a pass (sub_08AFA,
+; dat_08AF2); shot: falls (dat_07FCA), then fruit.
+;-------------------------------------------------------------------------------
 sub_07CB0:
         bsr.w   sub_064EC                       ; 07CB0
         bne.w   l_0736A                         ; 07CB4
@@ -7694,6 +9174,11 @@ dat_08240:
 	dc.b	$00,$82,$80,$00
 dat_08244:
 	dc.b	$00,$8C,$00,$8D,$00,$8E,$00,$8F,$80,$00
+
+;-------------------------------------------------------------------------------
+; Type 4: walks (sub_08D5C 1, 2); when its script sets $32 it fires a shot along the ground
+; (sub_08AFA, dat_08AF2); shot, on water or spikes: knocked down (dat_07FCA), then fruit (l_07374).
+;-------------------------------------------------------------------------------
         tst.w   $30(a5)                         ; 0824E
         bmi.w   l_082E4                         ; 08252
         beq.b   l_082BA                         ; 08256
@@ -7745,6 +9230,13 @@ l_082EE:
         moveq   #$1,d0                          ; 082EE
         moveq   #$2,d1                          ; 082F0
         bra.w   sub_08D5C                       ; 082F2
+
+;-------------------------------------------------------------------------------
+; sub_082F6 - Type 14: shot, or on water or spikes - knocked off (up 4, script dat_081C6, falling:
+; sub_0732A, sample); touching kills the kiwi (l_08A48). When he is well above it leaps at him (dy
+; 16 slowing by 2 a pass to -6, 3 across), landing on the floor; on the ground it walks a path
+; (sub_08CFC) or along (sub_08D5C); its attack sub_0842C.
+;-------------------------------------------------------------------------------
 sub_082F6:
         bsr.w   sub_064EC                       ; 082F6
         beq.b   l_08324                         ; 082FA
@@ -7840,6 +9332,11 @@ l_08424:
         moveq   #$0,d0                          ; 08424
         moveq   #$2,d1                          ; 08426
         bra.w   sub_08D5C                       ; 08428
+
+;-------------------------------------------------------------------------------
+; sub_0842C - Type 14's attack: a copy of itself, 16 pixels ahead (logic sub_082F6, script
+; dat_08174).
+;-------------------------------------------------------------------------------
 sub_0842C:
         move.l  #dat_081AA,$14(a5)              ; 0842C
         tst.w   $30(a5)                         ; 08434
@@ -7866,6 +9363,12 @@ l_0847E:
 l_08480:
         clr.l   $30(a5)                         ; 08480
         rts                                     ; 08484
+
+;-------------------------------------------------------------------------------
+; sub_08486 - Type 21: shot - knocked off (script
+; dat_07EBE, falls); when the kiwi is more than 48 above, it leaps (as sub_082F6, script
+; dat_07ED4) and lands; on the ground walks (sub_08CFC / sub_08D5C); its attack sub_0859A.
+;-------------------------------------------------------------------------------
 sub_08486:		; (no references found: found by the code sweep)
         bsr.w   sub_064EC                       ; 08486
         beq.b   l_084B4                         ; 0848A
@@ -7949,6 +9452,12 @@ l_08592:
         moveq   #$0,d0                          ; 08592
         moveq   #$2,d1                          ; 08594
         bra.w   sub_08D5C                       ; 08596
+
+;-------------------------------------------------------------------------------
+; sub_0859A - sub_08486's attack: an egg thrown up from 48 pixels above it (dy -4, logic sub_085E6,
+; script
+; dat_07EC6).
+;-------------------------------------------------------------------------------
 sub_0859A:
         move.l  #dat_07EAC,$14(a5)              ; 0859A
         clr.w   $22(a5)                         ; 085A2
@@ -7967,6 +9476,11 @@ sub_0859A:
 l_085E0:
         clr.l   $30(a5)                         ; 085E0
         rts                                     ; 085E4
+
+;-------------------------------------------------------------------------------
+; sub_085E6 - The egg (sub_0859A): when its animation stops it hatches into a random enemy - one of
+; 16 handler and script pairs (dat_08628 / dat_0862C, 8 bytes apart; sub_0BD92).
+;-------------------------------------------------------------------------------
 sub_085E6:
         tst.w   $20(a5)                         ; 085E6
         bne.b   l_08626                         ; 085EA
@@ -7996,6 +9510,12 @@ dat_0862C:
 	dc.b	$00,$00,$7E,$60,$00,$00,$8B,$C0,$00,$00,$8C,$8E,$00,$00,$82,$F6
 	dc.b	$00,$00,$7E,$EC,$00,$00,$86,$A8,$00,$00,$81,$E0,$00,$00,$86,$A8
 	dc.b	$00,$00,$81,$E0,$00,$00,$86,$A8,$00,$00,$81,$E0
+
+;-------------------------------------------------------------------------------
+; sub_086A8 - Type 6: shot, on water or spikes - knocked off (script dat_0822E); with the kiwi more
+; than 100 across or above it, it turns to him and leaps (4 across, dy 16 slowing to -6); near him
+; it throws (sub_087D4); on the ground walks (sub_08CFC / sub_08D5C).
+;-------------------------------------------------------------------------------
 sub_086A8:
         bsr.w   sub_064EC                       ; 086A8
         beq.b   l_086D6                         ; 086AC
@@ -8091,6 +9611,11 @@ l_087CC:
         moveq   #$0,d0                          ; 087CC
         moveq   #$2,d1                          ; 087CE
         bra.w   sub_08D5C                       ; 087D0
+
+;-------------------------------------------------------------------------------
+; sub_087D4 - Type 6's throw: a boomerang - out at 10 pixels a pass, slowing by 1 every other pass
+; and coming back (logic sub_0883C, script dat_08244, owner $30, start x $34).
+;-------------------------------------------------------------------------------
 sub_087D4:
         move.l  #dat_08216,$14(a5)              ; 087D4
         tst.w   $30(a5)                         ; 087DC
@@ -8123,6 +9648,12 @@ l_08834:
 l_08836:
         clr.l   $30(a5)                         ; 08836
         rts                                     ; 0883A
+
+;-------------------------------------------------------------------------------
+; sub_0883C - The boomerang (sub_087D4): its speed changes by $36 every other pass (at most 10);
+; back past its start - caught: the owner may throw again in 15 passes; owner gone: an ordinary
+; shot (sub_07270).
+;-------------------------------------------------------------------------------
 sub_0883C:
         subq.w  #$1,$38(a5)                     ; 0883C
         bpl.b   l_08860                         ; 08840
@@ -8160,6 +9691,15 @@ l_0889A:
         rts                                     ; 088A2
 l_088A4:
         bra.w   sub_07270                       ; 088A4
+
+;-------------------------------------------------------------------------------
+; sub_088A8 - The kiwi's ride (a4) popped from under him (from sub_08E1E): unless already popping
+; or a type 37/39 (type 36 only with $36 set), the ride stopped and popping, its own logic back,
+; the kiwi off it, and the return goes past the caller.
+; l_088EE: the kiwi dies (off his ride, sub_08940): logic sub_0915A, script dat_0ADD0, a jump (dy
+; -6), $52 set, the restart where he was ($7C, $80; not while $46), a life lost, the music stopped,
+; his weapon off (sub_08A36), sample dat_1D398.
+;-------------------------------------------------------------------------------
 sub_088A8:
         exg.l   a4,a5                           ; 088A8
         tst.w   $20(a4)                         ; 088AA
@@ -8203,6 +9743,14 @@ l_08928:
         lea.l   (dat_1D398).l,a0                ; 08934
         bra.w   PlaySample                      ; 0893A
 	dc.b	$4E,$75
+
+;-------------------------------------------------------------------------------
+; sub_08940 - The kiwi (a5) off his ride ($26): the ride's own logic back (type 38's script
+; dat_0AE44), his height above it added to his y.
+; l_08970: something hurtful (a5) touched a4 - the kiwi (type 0): unless he has grace ($54: the
+; hurtful thing just vanishes) he dies as in l_088EE, the thing removed; or the ride he is on: it
+; pops (as sub_088A8) and he is dropped, the thing removed.
+;-------------------------------------------------------------------------------
 sub_08940:
         move.l  $26(a5),d0                      ; 08940
         beq.b   l_0895E                         ; 08944
@@ -8275,6 +9823,11 @@ l_08A30:
         clr.l   $18(a5)                         ; 08A30
 l_08A34:
         rts                                     ; 08A34
+
+;-------------------------------------------------------------------------------
+; sub_08A36 - The kiwi's weapon off: slot 0's logic an rts (l_08A46), its script position cleared.
+; l_08A48: as l_08970, but the enemy that touched him stays (an enemy rather than a shot).
+;-------------------------------------------------------------------------------
 sub_08A36:
         move.l  #l_08A46,(mem_64398).l          ; 08A36
         clr.w   (mem_643A2).l                   ; 08A40
@@ -8332,6 +9885,12 @@ l_08AF0:
         rts                                     ; 08AF0
 dat_08AF2:
 	dc.b	$00,$76,$00,$77,$00,$78,$80,$00
+
+;-------------------------------------------------------------------------------
+; sub_08AFA - Type 4's shot (fired at $8264): rolls along the ground 3 pixels a pass (sub_08D5C),
+; falling off edges (dy to 4) and turning back when its way is blocked; gone when shot or at a
+; wall; touching the kiwi hurts him (l_08970).
+;-------------------------------------------------------------------------------
 sub_08AFA:
         bsr.w   sub_06530                       ; 08AFA
         bne.w   l_08970                         ; 08AFE
@@ -8391,6 +9950,14 @@ l_08B7A:
         neg.w   $4(a5)                          ; 08B94
 l_08B98:
         rts                                     ; 08B98
+
+;-------------------------------------------------------------------------------
+; sub_08B9A - Does the object a5 face the kiwi? Z clear (bne) if it does, Z set if it faces away
+; (callers then turn it: not.b $10). $11 cleared. Then $8BBE (type 5's handler, the entry $8BC0):
+; walks (sub_08D5C); when its script sets $32 it fires a shot across, 4 pixels a pass (sub_07270,
+; dat_08CDC); shot, on water or spikes: knocked down (dat_08CC8), then fruit; falls where the floor
+; ends (sub_08CFC).
+;-------------------------------------------------------------------------------
 sub_08B9A:
         move.w  (mem_643BA).l,d0                ; 08B9A
         sub.w   (a5),d0                         ; 08BA0
@@ -8408,6 +9975,11 @@ l_08BB6:
 l_08BBA:
         move.w  #$0,ccr                         ; 08BBA
         rts                                     ; 08BBE
+
+;-------------------------------------------------------------------------------
+; Type 5: walks, fires a shot across at 4 pixels a pass (sub_07270, dat_08CDC), falls where the
+; floor ends (sub_08CFC); shot, on water or spikes: knocked down (dat_08CC8), then fruit.
+;-------------------------------------------------------------------------------
         tst.w   $30(a5)                         ; 08BC0
         bmi.w   l_08C56                         ; 08BC4
         beq.b   l_08C2C                         ; 08BC8
@@ -8482,6 +10054,12 @@ dat_08CD8:
 dat_08CDC:
 	dc.b	$00,$80,$00,$81,$80,$00,$4A,$AD,$00,$0C,$67,$12,$61,$00,$D8,$46
 	dc.b	$66,$00,$FC,$82,$61,$00,$0E,$E8,$67,$04,$42,$AD,$00,$18,$4E,$75
+
+;-------------------------------------------------------------------------------
+; sub_08CFC - Falling: if it has no floor under it, dy grows by 1 a pass to 4 with the script a2;
+; landed: y put on the 8-pixel grid, dx, dy and $38 (falling) cleared, d0 = 0. d0 = -1 while still
+; falling.
+;-------------------------------------------------------------------------------
 sub_08CFC:
         move.w  $6(a5),d0                       ; 08CFC
         bne.b   l_08D10                         ; 08D00
@@ -8512,12 +10090,23 @@ l_08D36:
         move.l  d0,$4(a5)                       ; 08D44
         move.w  d0,$38(a5)                      ; 08D48
         rts                                     ; 08D4C
+
+;-------------------------------------------------------------------------------
+; sub_08D4E - The object moved by its speed: x += dx, y += dy.
+;-------------------------------------------------------------------------------
 sub_08D4E:
         move.l  $4(a5),d0                       ; 08D4E
         add.w   d0,$2(a5)                       ; 08D52
         swap    d0                              ; 08D56
         add.w   d0,(a5)                         ; 08D58
         rts                                     ; 08D5A
+
+;-------------------------------------------------------------------------------
+; sub_08D5C - Walking along: d1 = the speed (made negative when facing left), d0 = 0 may walk off
+; edges / not 0 turn round at them. The collision map ahead (dat_462A6, sub_09D60) decides: a wall
+; turns it round; no floor ahead - turns, or (d0 = 0) walks off when the kiwi is below it ($38 = 1:
+; falling). $38 set: it falls first (dy 3) until it lands.
+;-------------------------------------------------------------------------------
 sub_08D5C:
         tst.w   $38(a5)                         ; 08D5C
         beq.b   l_08D92                         ; 08D60
@@ -8589,6 +10178,15 @@ l_08DFC:
 l_08E16:
         move.w  #$1,$38(a5)                     ; 08E16
         rts                                     ; 08E1C
+
+;-------------------------------------------------------------------------------
+; sub_08E1E - The kiwi riding (logic while on a ride, a4 = the ride): oxygen refilled, spikes (tile
+; $F) kill him (l_088EE) unless he has grace; the joystick (sub_0BA78) steers the ride - left /
+; right 4 pixels a pass, up and down by 1 a pass to 4 (with item 1, $66, or on type 41: at once);
+; only fire while the ride pops. The ride on spikes pops (sub_088A8); walls, ceilings and floors
+; stop it. On the ground with down held he gets off: the ride free again (sub_064AE, $30 = -15: 15
+; passes before it can be boarded again), his logic sub_0933E, script dat_0ADAC.
+;-------------------------------------------------------------------------------
 sub_08E1E:
         clr.w   $4(a5)                          ; 08E1E
         addq.w  #$4,$6e(a6)                     ; 08E22
@@ -8737,6 +10335,11 @@ l_08FCC:
         bsr.w   sub_08D4E                       ; 08FCC
         move.l  (a5),(a4)                       ; 08FD0
         rts                                     ; 08FD2
+
+;-------------------------------------------------------------------------------
+; sub_08FD4 - The cheat's fly mode (sub_0900A): the joystick moves the kiwi 4 pixels a pass in 8
+; directions (dat_0AFF4), through everything; F1 again: his own logic back ($5C(a6)).
+;-------------------------------------------------------------------------------
 sub_08FD4:		; (no references found: found by the code sweep)
         bsr.w   sub_0BA78                       ; 08FD4
         andi.w  #$f,d0                          ; 08FD8
@@ -8754,11 +10357,18 @@ sub_08FD4:		; (no references found: found by the code sweep)
         clr.l   $5c(a6)                         ; 09004
 l_09008:
         rts                                     ; 09008
+
+;-------------------------------------------------------------------------------
+; sub_0900A - The cheat's fly mode switched on (unreferenced: nothing calls it in the original -
+; the enhanced game calls it on F1): only with the cheat - the starting lives' immediate
+; (l_04F46+2) reads 1,000 (a read of the self-modified immediate, docs/SELFMOD.md) - and F1
+; pressed: the kiwi's logic kept in $5C(a6) and replaced by sub_08FD4.
+;-------------------------------------------------------------------------------
 sub_0900A:		; (no references found: found by the code sweep)
         tst.l   $5c(a6)                         ; 0900A
         bne.b   l_09038                         ; 0900E
         lea.l   l_04F46(pc),a0                  ; 09010
-        move.w  $2(a0),d0                       ; 09014
+        move.w  $2(a0),d0                       ; 09014  reads the self-modified immediate l_04F46+2
         cmp.w   #$3e8,d0                        ; 09018
         bne.b   l_09038                         ; 0901C
         bsr.w   sub_0903A                       ; 0901E
@@ -8768,6 +10378,11 @@ sub_0900A:		; (no references found: found by the code sweep)
         move.l  #sub_08FD4,$18(a5)              ; 09030
 l_09038:
         rts                                     ; 09038
+
+;-------------------------------------------------------------------------------
+; sub_0903A - F1 (raw key $50) newly pressed? JT_KeyTest with an edge flag (dat_09064): d0 not 0
+; only on the press.
+;-------------------------------------------------------------------------------
 sub_0903A:
         moveq   #$50,d0                         ; 0903A
         tst.w   (dat_09064).l                   ; 0903C
@@ -8784,6 +10399,13 @@ l_09056:
         rts                                     ; 09062
 dat_09064:
 	dc.b	$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_09066 - The strongest tile attribute under the object's box: the collision map (dat_462A6: a
+; byte per 8 x 8 cell, 128 cells a row, built by sub_0C5C0) over the box ($8-$E, the camera added).
+; d0 = the largest: 0 nothing, 1-2 solid, 3 water, 5 deep water, 6 a current, $F spikes (the
+; callers' tests). No box: 0.
+;-------------------------------------------------------------------------------
 sub_09066:
         tst.l   $c(a5)                          ; 09066
         beq.b   l_090D2                         ; 0906A
@@ -8829,6 +10451,10 @@ l_090C0:
         tst.b   d0                              ; 090D0
 l_090D2:
         rts                                     ; 090D2
+
+;-------------------------------------------------------------------------------
+; sub_090D4 - As sub_09066, for the one row of cells at the object's feet.
+;-------------------------------------------------------------------------------
 sub_090D4:
         tst.l   $c(a5)                          ; 090D4
         beq.b   l_09122                         ; 090D8
@@ -8862,6 +10488,11 @@ l_09118:
         tst.b   d0                              ; 09120
 l_09122:
         rts                                     ; 09122
+
+;-------------------------------------------------------------------------------
+; sub_09124 - The cell just above the object's head: a0 = its place in the collision map, d0 = -1
+; (0: no box).
+;-------------------------------------------------------------------------------
 sub_09124:
         tst.l   $c(a5)                          ; 09124
         beq.b   l_09158                         ; 09128
@@ -8881,6 +10512,11 @@ sub_09124:
         moveq   #-1,d0                          ; 09156
 l_09158:
         rts                                     ; 09158
+
+;-------------------------------------------------------------------------------
+; sub_0915A - The kiwi dying (logic, after l_088EE): falls (gravity to 7) bouncing half as high off
+; the floor; when his animation ends ($20 = 0) the lives check (l_040BC).
+;-------------------------------------------------------------------------------
 sub_0915A:
         tst.w   $20(a5)                         ; 0915A
         beq.w   l_040BC                         ; 0915E
@@ -8899,6 +10535,11 @@ l_0916E:
 l_09184:
         move.w  (a7)+,d0                        ; 09184
         rts                                     ; 09186
+
+;-------------------------------------------------------------------------------
+; sub_09188 - Unreferenced: 4 pixels a pass towards the caged kiwi (slot 2), as sub_075C8 at half
+; the speed.
+;-------------------------------------------------------------------------------
 sub_09188:		; (no references found: found by the code sweep)
         lea.l   (mem_643F4).l,a4                ; 09188
         clr.w   $10(a5)                         ; 0918E
@@ -8933,6 +10574,14 @@ l_091C8:
         clr.w   $6(a5)                          ; 091CE
 l_091D2:
         rts                                     ; 091D2
+
+;-------------------------------------------------------------------------------
+; sub_091D4 - The kiwi on the ground (type 0's handler): oxygen refilled (+4), $4A cleared; spikes
+; kill him; water: he swims (sub_094AC). The joystick: left / right 4 pixels a pass (on the last
+; world, $74, the speed changes by a quarter a pass: ice), up jumps (dy -14, script dat_0ADB2,
+; logic sub_0933E, $38 = where he jumped from, sample dat_16800); no direction: slows by 2 a pass.
+; Walls stop him; no floor (unless on a platform, $62): he falls (script dat_0ADAC, sub_0933E).
+;-------------------------------------------------------------------------------
 sub_091D4:
         addq.w  #$4,$6e(a6)                     ; 091D4
         clr.w   $20(a5)                         ; 091D8
@@ -9056,6 +10705,14 @@ l_09316:
 l_09336:
         clr.w   $62(a6)                         ; 09336
         bra.w   sub_08D4E                       ; 0933A
+
+;-------------------------------------------------------------------------------
+; sub_0933E - The kiwi in the air (jumping or falling): holding up gives one more kick (-5, once a
+; press: $3E(a6)); left / right 4 pixels a pass (half that kept in $76 when let go); falling past
+; his jump's start: the falling script; gravity +2 a pass (to 7); not above y 32; a bouncy cell (2)
+; turns a rise back; ceilings stop him. Spikes kill, water: he swims. Landing: on the ground again
+; (sub_091D4, keeping his speed on ice).
+;-------------------------------------------------------------------------------
 sub_0933E:
         clr.w   $4a(a6)                         ; 0933E
         bsr.w   sub_0BA78                       ; 09342
@@ -9168,6 +10825,11 @@ l_0949C:
         sub.w   d0,(a5)                         ; 094A6
 l_094A8:
         bra.w   sub_08D4E                       ; 094A8
+
+;-------------------------------------------------------------------------------
+; sub_094AC - In water? d0 = the tile attribute: 3 (water), 5 or 6 - returns past the caller into
+; sub_094C2.
+;-------------------------------------------------------------------------------
 sub_094AC:
         cmp.b   #$3,d0                          ; 094AC
         beq.b   l_094C0                         ; 094B0
@@ -9178,6 +10840,11 @@ sub_094AC:
         rts                                     ; 094BE
 l_094C0:
         addq.l  #$4,a7                          ; 094C0
+
+;-------------------------------------------------------------------------------
+; sub_094C2 - The kiwi into the water (d0 = the attribute): off any ride, logic sub_0965C, script
+; dat_0AE06, still; a splash (sample dat_1A096) and a small drop. Not after a restart ($80).
+;-------------------------------------------------------------------------------
 sub_094C2:
         move.w  d0,-(a7)                        ; 094C2
         bsr.w   sub_08940                       ; 094C4
@@ -9220,6 +10887,11 @@ l_09538:
         bra.b   l_0952C                         ; 09540
 dat_09542:
 	dc.b	$00,$09,$80,$00
+
+;-------------------------------------------------------------------------------
+; sub_09546 - The kiwi jumping out of the water (logic, from sub_0965C): gravity to 7, left / right
+; 2 pixels a pass (dat_0AFF4); landing: on the ground (sub_091D4); into water again: swims.
+;-------------------------------------------------------------------------------
 sub_09546:
         cmpi.w  #$7,$6(a5)                      ; 09546
         bge.b   l_09552                         ; 0954C
@@ -9257,6 +10929,12 @@ dat_095B0:
 	dc.b	$00,$1B,$00,$1C,$00,$1D,$80,$00
 dat_095B8:
 	dc.b	$00,$1A,$80,$00
+
+;-------------------------------------------------------------------------------
+; sub_095BC - The kiwi's water spout (made by sub_0965C): a segment that makes the next one 8
+; pixels on (7 in all, $36), stopping at anything solid; each counts as a shot (sub_09648) and goes
+; 5 passes after.
+;-------------------------------------------------------------------------------
 sub_095BC:
         tst.w   $34(a5)                         ; 095BC
         bne.b   l_0962A                         ; 095C0
@@ -9300,6 +10978,11 @@ l_0963C:
         move.w  #$1,$20(a5)                     ; 0963C
         clr.l   $4(a5)                          ; 09642
         bra.b   l_09622                         ; 09646
+
+;-------------------------------------------------------------------------------
+; sub_09648 - The object a4 put in the kiwi's shot list ($C6(a6): the first free of 32), its
+; entry's address in $30(a4).
+;-------------------------------------------------------------------------------
 sub_09648:
         lea.l   $c6(a6),a1                      ; 09648
         moveq   #$1f,d0                         ; 0964C
@@ -9309,6 +10992,16 @@ l_0964E:
         move.l  a4,-(a1)                        ; 09654
         move.l  a1,$30(a4)                      ; 09656
         rts                                     ; 0965A
+
+;-------------------------------------------------------------------------------
+; sub_0965C - The kiwi swimming (logic): water 3 - swims; 5 - sinks (dy 6); 6 - carried along (4,
+; 4, turning at walls); spikes kill (no grace); out of the water: jumps out (sub_09546: dy -5,
+; dat_0BA4A set). At the surface he breathes (oxygen +4) and fire spits a water spout (oxygen +50,
+; sub_095BC, sample
+; dat_1D5D0); under water the oxygen falls by 1 a pass (not while invincible, $6A) - at 0 he drowns
+; (l_0977C); under 60 he flashes (dat_0AE10). The joystick swims 2 pixels a pass in 8 directions
+; (dat_0AFF4), walls, ceilings and floors stopping him.
+;-------------------------------------------------------------------------------
 sub_0965C:
         clr.l   $4(a5)                          ; 0965C
         cmpi.l  #dat_0AE1E,$14(a5)              ; 09660
@@ -9385,6 +11078,12 @@ l_09744:
         bra.w   PlaySample                      ; 09764
 l_09768:
         rts                                     ; 09768
+
+;-------------------------------------------------------------------------------
+; sub_0976A - The kiwi drowned (logic): 30 passes sinking ($30), then the lives check (l_040BC).
+; l_0977C: the drowning - script dat_0AE1A, $52 set, the restart here ($7C, $80), a life lost, the
+; music stopped, his weapon off, tune 9.
+;-------------------------------------------------------------------------------
 sub_0976A:
         tst.w   $30(a5)                         ; 0976A
         beq.w   l_040BC                         ; 0976E
@@ -9462,6 +11161,16 @@ l_0985C:
         move.b  d0,$10(a5)                      ; 0985C
 l_09860:
         rts                                     ; 09860
+
+;-------------------------------------------------------------------------------
+; sub_09862 - The kiwi's weapon (slot 0), shared start: slot 0 follows the kiwi (x, y, facing,
+; height); fire pressed (not swimming, not on type 41): its script at 2 and the caller goes on to
+; shoot, else it returns past the caller.
+; l_098A4: the bow (slot 0's normal logic): an arrow - type $30 (48), 10 pixels a pass the way he
+; faces (4 x 5 / 2), logic sub_09B7C, script dat_0AE34, into the shot list; sample dat_17F84.
+; dat_0991E, dat_09A12, dat_09A8A after it are code kept as bytes: the other weapons (items 5, 3
+; and 0: sub_07672, sub_07680, sub_07694) - their shots and handlers.
+;-------------------------------------------------------------------------------
 sub_09862:
         lea.l   (mem_643BA).l,a3                ; 09862
         move.l  (a3),(a5)                       ; 09868
@@ -9561,6 +11270,12 @@ dat_09A8A:
 	dc.b	$60,$00,$BB,$4C,$42,$AD,$00,$18,$28,$6D,$00,$30,$42,$94,$4E,$75
 	dc.b	$4A,$6D,$00,$20,$66,$0A,$42,$AD,$00,$18,$28,$6D,$00,$30,$42,$94
 	dc.b	$4E,$75
+
+;-------------------------------------------------------------------------------
+; sub_09B7C - An arrow (logic): no box (off the screen) - nothing; else with $2C set, ended on
+; anything solid ($48(a6) counts it), and taken out of the shot list. dat_09B9E after it: code kept
+; as bytes (the shots of a type 41 ride: sub_06C14).
+;-------------------------------------------------------------------------------
 sub_09B7C:
         tst.l   $c(a5)                          ; 09B7C
         beq.b   l_09B9C                         ; 09B80
@@ -9580,6 +11295,12 @@ dat_09B9E:
 	dc.b	$FF,$FC,$66,$0E,$21,$0D,$2B,$48,$00,$30,$2B,$7C,$00,$00,$9B,$C2
 	dc.b	$00,$18,$4E,$75,$4A,$AD,$00,$0C,$67,$10,$4A,$6D,$00,$2C,$66,$0A
 	dc.b	$42,$AD,$00,$18,$28,$6D,$00,$30,$42,$94,$4E,$75
+
+;-------------------------------------------------------------------------------
+; sub_09BDA - Blocked across? The cell the object moves into (its leading edge, dx added; the
+; camera; rides use their height $2A) - d0 not 0 if it stops it (sub_09DB8); off the map's sides:
+; -1.
+;-------------------------------------------------------------------------------
 sub_09BDA:
         move.w  $2(a5),d0                       ; 09BDA
         move.w  $2a(a5),d1                      ; 09BDE
@@ -9611,6 +11332,11 @@ l_09C10:
 l_09C26:
         moveq   #-1,d0                          ; 09C26
         rts                                     ; 09C28
+
+;-------------------------------------------------------------------------------
+; sub_09C2A - As sub_09BDA for the object's whole height: any cell up its leading edge that blocks
+; (sub_09DB8): d0 = -1.
+;-------------------------------------------------------------------------------
 sub_09C2A:
         move.w  $2(a5),d0                       ; 09C2A
         move.w  $2a(a5),d1                      ; 09C2E
@@ -9647,6 +11373,11 @@ l_09C6C:
 l_09C80:
         moveq   #-1,d0                          ; 09C80
         rts                                     ; 09C82
+
+;-------------------------------------------------------------------------------
+; sub_09C84 - Blocked above? The cells along the top of the box after dy (the camera added): d0 not
+; 0 if one blocks (sub_09DB8).
+;-------------------------------------------------------------------------------
 sub_09C84:
         move.w  $a(a5),d0                       ; 09C84
         add.w   $6(a5),d0                       ; 09C88
@@ -9679,6 +11410,12 @@ l_09CCA:
         dbne    d2,l_09CCA                      ; 09CD0
         rts                                     ; 09CD4
 	dc.b	$70,$00,$4E,$75
+
+;-------------------------------------------------------------------------------
+; sub_09CDA - On the floor? The cells under the object's feet after dy (centred, its width rounded
+; to 16): d0 = -1 if one is solid to it (sub_09D60) with air above (sub_09DF4) - then y is put on
+; the 8-pixel grid and dy cleared; 0 otherwise. Never above y 32.
+;-------------------------------------------------------------------------------
 sub_09CDA:
         move.w  $2(a5),d0                       ; 09CDA
         move.w  $2a(a5),d1                      ; 09CDE
@@ -9734,6 +11471,12 @@ l_09D3A:
         clr.w   $6(a5)                          ; 09D58
         moveq   #-1,d0                          ; 09D5C
         rts                                     ; 09D5E
+
+;-------------------------------------------------------------------------------
+; sub_09D60 - Is a cell (d0, a tile attribute) a floor for the object a5? 0 no; 1 and 2 yes; 3-6
+; (water) only for rides (types 33-41) and objects of a negative type (knocked down, fruit); above
+; 6 no. d0 = -1 yes.
+;-------------------------------------------------------------------------------
 sub_09D60:
         tst.b   d0                              ; 09D60
         beq.b   l_09D94                         ; 09D62
@@ -9758,6 +11501,11 @@ l_09D94:
 l_09D96:
         tst.w   $1c(a5)                         ; 09D96
         bra.b   l_09DB4                         ; 09D9A
+
+;-------------------------------------------------------------------------------
+; sub_09D9C - Unreferenced: dy quartered and turned back (a bounce) - d0 = 0 while it still moves,
+; -1 when stopped.
+;-------------------------------------------------------------------------------
 sub_09D9C:		; (no references found: found by the code sweep)
         tst.w   $6(a5)                          ; 09D9C
         beq.b   l_09DB4                         ; 09DA0
@@ -9770,11 +11518,22 @@ sub_09D9C:		; (no references found: found by the code sweep)
 l_09DB4:
         moveq   #-1,d0                          ; 09DB4
         rts                                     ; 09DB6
+
+;-------------------------------------------------------------------------------
+; sub_09DB8 - Does a cell (d0) block the object's way (a wall or ceiling)? 0 no; 1 and 2 yes; 3
+; (water) no; above 3 (deep water, currents, spikes) no for the kiwi, yes for anything else. d0 =
+; -1 blocked, 0 not (the tests are sub_09DC2's tail).
+;-------------------------------------------------------------------------------
 sub_09DB8:
         tst.b   d0                              ; 09DB8
         beq.b   l_09DEE                         ; 09DBA
         cmp.b   #$2,d0                          ; 09DBC
         bra.b   l_09DD8                         ; 09DC0
+
+;-------------------------------------------------------------------------------
+; sub_09DC2 - The rest of sub_09DB8 (unreferenced head: a bounce across - dx quartered and turned
+; back).
+;-------------------------------------------------------------------------------
 sub_09DC2:		; (no references found: found by the code sweep)
         bne.b   l_09DD8                         ; 09DC2
         tst.w   $4(a5)                          ; 09DC4
@@ -9797,6 +11556,11 @@ l_09DEE:
 l_09DF0:
         moveq   #-1,d0                          ; 09DF0
         rts                                     ; 09DF2
+
+;-------------------------------------------------------------------------------
+; sub_09DF4 - Is a cell (the one above a floor) air for sub_09CDA? 0 and 3 or more (water, spikes)
+; yes: d0 = 0; 1 and 2 (solid) no: d0 = -1.
+;-------------------------------------------------------------------------------
 sub_09DF4:
         tst.b   d0                              ; 09DF4
         beq.b   l_09E00                         ; 09DF6
@@ -9808,6 +11572,16 @@ l_09E00:
 l_09E02:
         moveq   #-1,d0                          ; 09E02
         rts                                     ; 09E04
+
+;-------------------------------------------------------------------------------
+; sub_09E06 - The boss of world 3 (jtab_0AC58, from the caged kiwi sub_0AC2A on its 4th level): the
+; kiwi's restart here, the objects cleared (sub_0ABF8), its 5 parts (dat_09E84: handler and script
+; pairs, type -2), the camera locked on the arena ($42/$4E(a6), $46 set), the cage's script
+; dat_0A954, no invincibility, then the arena walled (l_0A6FC). Its handlers follow as bytes
+; (untraced).
+; l_0A3D8: the boss of world 2 - 5 parts (dat_0A3CE frames, logic dat_0ABAE), the last moving
+; (sub_0A46A), set up as above.
+;-------------------------------------------------------------------------------
 sub_09E06:		; (no references found: found by the code sweep)
         move.l  (mem_643BA).l,$7c(a6)           ; 09E06
         st.b    $80(a6)                         ; 09E0E
@@ -9926,6 +11700,13 @@ dat_09E84:
 	dc.b	$02,$4A,$02,$4C,$80,$00,$02,$4D,$80,$00
 dat_0A3CE:
 	dc.b	$02,$44,$02,$45,$02,$47,$02,$48,$02,$46
+
+;-------------------------------------------------------------------------------
+; l_0A3D8 - The boss of world 2 (jtab_0AC58): the kiwi's restart here, the objects cleared, its 5
+; parts (dat_0A3CE frames, logic dat_0ABAE - code kept as bytes), the last one coming in from the
+; right (sub_0A46A), the camera locked on the arena ($42, $4E, $46), the cage's script dat_0A954,
+; no invincibility; then the arena walled (l_0A6FC).
+;-------------------------------------------------------------------------------
 l_0A3D8:
         move.l  (mem_643BA).l,$7c(a6)           ; 0A3D8
         st.b    $80(a6)                         ; 0A3E0
@@ -9958,6 +11739,11 @@ l_0A3F0:
         clr.w   $56(a6)                         ; 0A45C
         move.l  #$270036,d0                     ; 0A460
         bra.w   l_0A6FC                         ; 0A466
+
+;-------------------------------------------------------------------------------
+; sub_0A46A - World 2's boss coming in: 8 pixels a pass from the right to x $1E0, then it fights
+; (sub_0A496: 25 hits to beat, $32).
+;-------------------------------------------------------------------------------
 sub_0A46A:
         move.l  $42(a6),(a5)                    ; 0A46A
         addq.w  #$8,$42(a6)                     ; 0A46E
@@ -9968,6 +11754,12 @@ sub_0A46A:
         move.w  #$2,$6(a5)                      ; 0A488
         move.w  #$19,$32(a5)                    ; 0A48E
         rts                                     ; 0A494
+
+;-------------------------------------------------------------------------------
+; sub_0A496 - World 2's boss: bobs up and down between y $370 and $3D0 ($44(a6)); each hit
+; (sub_064EC) a cry (dat_1D398) and $72(a6); 25 hits: beaten (l_0A558). Every 25 passes it attacks
+; (sub_0A4EC).
+;-------------------------------------------------------------------------------
 sub_0A496:
         bsr.w   sub_064EC                       ; 0A496
         beq.b   l_0A4B2                         ; 0A49A
@@ -9995,6 +11787,13 @@ l_0A4D2:
         move.w  #$32,$30(a5)                    ; 0A4E4
 l_0A4EA:
         rts                                     ; 0A4EA
+
+;-------------------------------------------------------------------------------
+; sub_0A4EC - World 2's boss attacking, 50 passes: still, it lets out missiles (sub_0A59C, script
+; dat_0A5F0, 5 pixels a pass) for 12 of them. l_0A558, the boss beaten: its parts (type -2) fly
+; apart (sub_0A614, speeds dat_0A600), everything else cleared, the cage opened (sub_0A99A), 20,000
+; points.
+;-------------------------------------------------------------------------------
 sub_0A4EC:
         bsr.w   sub_064EC                       ; 0A4EC
         beq.b   l_0A506                         ; 0A4F0
@@ -10045,6 +11844,12 @@ l_0A57E:
         bsr.w   sub_053E0                       ; 0A58E
         lea.l   (dat_1BD06).l,a0                ; 0A592
         bra.w   PlaySample                      ; 0A598
+
+;-------------------------------------------------------------------------------
+; sub_0A59C - World 2's boss's missile: shot - 50 points and gone; touching kills the kiwi
+; (l_08A48); wavers ($2A random -8..7); past x $210 it homes on the kiwi's height (2 a pass, 4 past
+; $240); gone off the screen ($2C cleared).
+;-------------------------------------------------------------------------------
 sub_0A59C:
         bsr.w   sub_064EC                       ; 0A59C
         bne.b   l_0A5E4                         ; 0A5A0
@@ -10082,6 +11887,15 @@ dat_0A5F0:
 dat_0A600:
 	dc.b	$FF,$F4,$FF,$F4,$00,$0C,$FF,$F4,$FF,$F4,$00,$0C,$00,$0C,$00,$0C
 	dc.b	$00,$0C,$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_0A614 - A beaten boss's part flying off (logic): moves (sub_08D4E) until off the screen.
+; l_0A624: the boss of world 1 - 15 parts (dat_0ABCE frames, logic dat_0ABC0), its head (dat_0ABF4,
+; logic dat_0A852) and a part that follows the path dat_0A930 (dat_0A9D0); set up as sub_09E06.
+; l_0A6FC (all the bosses): the arena closed - 6 cells of the collision map down from the cell d0
+; (x high word, y low word) made solid ($0101); the gate object (script dat_0A780, logic l_0A77E:
+; an rts) there, the kiwi's restart 48 pixels right of it - and on into sub_0A742.
+;-------------------------------------------------------------------------------
 sub_0A614:
         bsr.w   sub_08D4E                       ; 0A614
         tst.w   $2c(a5)                         ; 0A618
@@ -10089,6 +11903,12 @@ sub_0A614:
         clr.l   $18(a5)                         ; 0A61E
 l_0A622:
         rts                                     ; 0A622
+
+;-------------------------------------------------------------------------------
+; l_0A624 - The boss of world 1 (jtab_0AC58): 15 parts (dat_0ABCE frames, logic dat_0ABC0), its
+; head (dat_0ABF4, logic dat_0A852) and a part following the path dat_0A930 (dat_0A9D0) - their
+; code kept as bytes; set up as l_0A3D8.
+;-------------------------------------------------------------------------------
 l_0A624:
         bsr.w   sub_0ABF8                       ; 0A624
         moveq   #$e,d7                          ; 0A628
@@ -10141,6 +11961,12 @@ l_0A630:
         clr.w   $56(a6)                         ; 0A6EE
         move.l  #$f0006,d0                      ; 0A6F2
         bra.w   l_0A6FC                         ; 0A6F8
+
+;-------------------------------------------------------------------------------
+; l_0A6FC - Every boss's arena closed: 6 cells of the collision map down from the cell in d0 (x
+; high word, y low) made solid ($0101), the gate object (script dat_0A780, logic l_0A77E: an rts)
+; there, the kiwi's restart 48 pixels right of it - then on into the protection check, sub_0A742.
+;-------------------------------------------------------------------------------
 l_0A6FC:
         move.l  d0,-(a7)                        ; 0A6FC
         asl.w   #$8,d0                          ; 0A6FE
@@ -10166,6 +11992,18 @@ l_0A712:
         addi.w  #$30,d0                         ; 0A736
         move.l  d0,$7c(a6)                      ; 0A73A
         st.b    $80(a6)                         ; 0A73E
+
+;-------------------------------------------------------------------------------
+; sub_0A742 - The copy protection's hidden check, run at every boss and every warp (l_0A6FC falls
+; into it; sub_04BEA calls it). Rob Northen's Copylock, when the loader read the disk's key track,
+; leaves its key in the trace vector ($24): $F974DB7D (docs/BOOT.md). Here (key EOR $F9448D74) must
+; end in $09 (it does: $00305609); then a wait for the frame. Wrong key - a copied disk -
+; SELF-MODIFYING sabotage: move.l (l_0A77C).l,(l_065AE).l copies "moveq #0,d0; rts" over the start
+; of the collision test (sub_065A8): from then on nothing touches the kiwi - no enemy hurts him, he
+; boards no ride, picks up no fruit, and the caged kiwi cannot be freed (l_0AC6E), so the level can
+; never be finished. The game plays on (docs/SELFMOD.md).
+; The enhanced game's disk does not run Copylock: its extension module (ext.s) puts the key in $24.
+;-------------------------------------------------------------------------------
 sub_0A742:
         moveq   #$24,d0                         ; 0A742
         movea.l d0,a0                           ; 0A744
@@ -10182,7 +12020,7 @@ l_0A764:
         tst.w   $24(a6)                         ; 0A76C
         bne.b   l_0A764                         ; 0A770
 l_0A772:
-        move.l  (l_0A77C).l,(l_065AE).l         ; 0A772
+        move.l  (l_0A77C).l,(l_065AE).l         ; 0A772  SMC (the protection's sabotage) -> l_065AE: moveq #0,d0 / rts
 l_0A77C:
         moveq   #$0,d0                          ; 0A77C
 l_0A77E:
@@ -10228,6 +12066,11 @@ dat_0A954:
 	dc.b	$02,$40,$00,$0F,$06,$40,$00,$04,$31,$40,$00,$30,$60,$04,$42,$A8
 	dc.b	$00,$18,$41,$E8,$00,$3A,$51,$CF,$FF,$D4,$61,$00,$00,$0A,$30,$3C
 	dc.b	$27,$10,$60,$00,$AA,$48
+
+;-------------------------------------------------------------------------------
+; sub_0A99A - A boss beaten: the caged kiwi (slot 2) freed - logic l_0AC6E, script dat_0AD44, $20 =
+; 2 - and $2C(a6) = the next level (where a new game can continue from: sub_04690).
+;-------------------------------------------------------------------------------
 sub_0A99A:
         move.l  #l_0AC6E,(mem_6440C).l          ; 0A99A
         move.l  #dat_0AD44,(mem_64408).l        ; 0A9A4
@@ -10282,6 +12125,11 @@ dat_0ABEE:
 	dc.b	$02,$54,$02,$55,$80,$00
 dat_0ABF4:
 	dc.b	$02,$4D,$80,$00
+
+;-------------------------------------------------------------------------------
+; sub_0ABF8 - Everything cleared but the kiwi, his weapon and the cage (slots 3 on; not what the
+; kiwi rides), and the shot list ($C6, $60).
+;-------------------------------------------------------------------------------
 sub_0ABF8:
         lea.l   (mem_6442E).l,a0                ; 0ABF8
         move.l  (mem_643E0).l,d0                ; 0ABFE
@@ -10301,6 +12149,11 @@ l_0AC1E:
         dbra    d7,l_0AC1E                      ; 0AC20
         clr.w   $60(a6)                         ; 0AC24
         rts                                     ; 0AC28
+
+;-------------------------------------------------------------------------------
+; sub_0AC2A - Type 2, the caged kiwi on a boss level (4th of each world): when the kiwi reaches it
+; (no boss yet, $46) - the boss's tune (5; not on level 4-4) and the world's boss (jtab_0AC58).
+;-------------------------------------------------------------------------------
 sub_0AC2A:		; (no references found: found by the code sweep)
         move.w  #$ffff,$2e(a5)                  ; 0AC2A
         tst.w   $46(a6)                         ; 0AC30
@@ -10316,8 +12169,22 @@ l_0AC4A:
         asr.w   #$4,d0                          ; 0AC4E
         andi.w  #$fffc,d0                       ; 0AC50
         jmp     jtab_0AC58(pc,d0.w)             ; 0AC54
+
+;-------------------------------------------------------------------------------
+; jtab_0AC58 - The bosses, by world (the level / 64): 1 l_0A624, 2 l_0A3D8 (sub_0AC5C's first
+; word), and as bytes: 3 sub_09E06, 4 $45CC (no boss: level 4-4 goes on to a second map - tracks
+; 63-67 and 69 loaded, $26(a6) set: the level restarts with the object list dat_0D824), 5 $A10A.
+;-------------------------------------------------------------------------------
 jtab_0AC58:
         bra.w   l_0A624                         ; 0AC58
+
+;-------------------------------------------------------------------------------
+; sub_0AC5C - jtab_0AC58 continued (bra.w l_0A3D8 and three branches kept as bytes).
+; l_0AC6E: type 1, the caged kiwi (and a boss's cage once freed): the kiwi touches it (sub_065A8) -
+; everything else cleared, tune 7; then (l_0AC96) the time bonus once ($78 = time left x 10,000 /
+; the level's time), the kiwi standing (sub_0AD02), his weapon off; 100 points a pass from the
+; bonus; when the cage's script sets $30 the rest of it, and the level is complete (l_054AE).
+;-------------------------------------------------------------------------------
 sub_0AC5C:		; (no references found: found by the code sweep)
         bra.w   l_0A3D8                         ; 0AC5C
 	dc.b	$60,$00,$F1,$A4,$60,$00,$99,$66,$60,$00,$F4,$A0
@@ -10368,6 +12235,11 @@ l_0ACEC:
         move.w  $78(a6),d0                      ; 0ACF6
         bsr.w   sub_053E0                       ; 0ACFA
         bra.w   l_054AE                         ; 0ACFE
+
+;-------------------------------------------------------------------------------
+; sub_0AD02 - The kiwi at the level's end (logic): off his ride - he just stands (sub_0AD18); else
+; falls to the floor (gravity to 4) and stands (script dat_0AD9A).
+;-------------------------------------------------------------------------------
 sub_0AD02:		; (no references found: found by the code sweep)
         tst.l   $26(a5)                         ; 0AD02
         beq.b   l_0AD1A                         ; 0AD06
@@ -10375,6 +12247,11 @@ l_0AD08:
         move.l  #sub_0AD18,$18(a5)              ; 0AD08
         clr.l   $4(a5)                          ; 0AD10
         clr.w   $20(a5)                         ; 0AD14
+
+;-------------------------------------------------------------------------------
+; sub_0AD18 - An rts (the standing kiwi's logic); l_0AD1A the fall. The kiwi's scripts follow; at
+; $ADCA (called by the dying script dat_0ADD0): tune 9.
+;-------------------------------------------------------------------------------
 sub_0AD18:
         rts                                     ; 0AD18
 l_0AD1A:
@@ -10413,6 +12290,10 @@ dat_0ADB2:
 dat_0ADB8:
 	dc.b	$00,$12,$00,$12,$00,$14,$00,$14,$00,$13,$00,$13,$00,$14,$00,$14
 	dc.b	$80,$00
+
+;-------------------------------------------------------------------------------
+; The death tune (9), called by the kiwi's dying script (dat_0ADD0, command $4C).
+;-------------------------------------------------------------------------------
         moveq   #$9,d0                          ; 0ADCA
         bra.w   PlaySong                        ; 0ADCC
 dat_0ADD0:
@@ -10445,6 +12326,14 @@ dat_0AE44:
 dat_0AED4:
 	dc.b	$00,$65,$00,$63,$00,$64,$80,$3C,$01,$15,$01,$17,$01,$18,$80,$3C
 	dc.b	$00,$5F,$00,$68,$00,$00,$80,$3C
+
+;-------------------------------------------------------------------------------
+; sub_0AEEC - The camera ($2E, $30(a6)), once a pass: it follows the kiwi when he is more than $C0
+; from the left edge or less than $80 (across), more than $70 or less than $40 (down): a quarter of
+; the distance a pass, at least 1, within the map ($10, $A(a6)). $58 / $5A keep its direction: it
+; goes on until on a 16-pixel boundary. During a boss ($46) it eases to $4E / $50. dat_0AFF4 after
+; it: the 9 joystick directions (dy, dx words), then the palettes.
+;-------------------------------------------------------------------------------
 sub_0AEEC:
         lea.l   (mem_643BA).l,a5                ; 0AEEC
         tst.w   $46(a6)                         ; 0AEF2
@@ -10555,14 +12444,23 @@ dat_0AFF4:
 	dc.b	$03,$33,$03,$30,$03,$03,$03,$00,$00,$33,$00,$30,$00,$03,$00,$00
 	dc.b	$00,$00,$07,$00,$00,$70,$07,$70,$00,$07,$07,$07,$00,$77,$07,$77
 	dc.b	$07,$30,$03,$00,$00,$30,$03,$30,$00,$03,$00,$03,$00,$03,$03,$33
+
+;-------------------------------------------------------------------------------
+; sub_0B098 - A picture unpacked (the ending's): a1 = the packed picture (a word: bytes a plane; a
+; marker byte; then for each of 4 planes $2000 apart, bytes, or marker, byte, count), a2 = the
+; screen.
+; SELF-MODIFYING: move.l a1,$b0aa.l writes the picture's address into the operand of its own move.w
+; (abs).l,d3 at $B0A8 (the listing shows the operand saved in the program, sub_0B098 itself), which
+; then reads the plane's length from the picture's first word (docs/SELFMOD.md).
+;-------------------------------------------------------------------------------
 sub_0B098:
         movem.l d0-d3/a0-a2,-(a7)               ; 0B098
         moveq   #$3,d7                          ; 0B09C
-        move.l  a1,$b0aa.l                      ; 0B09E
+        move.l  a1,$b0aa.l                      ; 0B09E  SMC -> $B0AA, the move.w (abs).l,d3 below: the picture
         addq.l  #$2,a1                          ; 0B0A4
 l_0B0A6:
         movea.l a2,a0                           ; 0B0A6
-        move.w  (sub_0B098).l,d3                ; 0B0A8
+        move.w  (sub_0B098).l,d3                ; 0B0A8  SELF-MODIFIED operand: the picture, written at $B09E
         move.b  (a1)+,d2                        ; 0B0AE
 l_0B0B0:
         move.b  (a1)+,d0                        ; 0B0B0
@@ -10589,6 +12487,16 @@ l_0B0E0:
         movem.l (a7)+,d0-d3/a0-a2               ; 0B0E0
 l_0B0E4:
         rts                                     ; 0B0E4
+
+;-------------------------------------------------------------------------------
+; sub_0B0E6 - The objects' logic, once a pass: from the last slot down, each object with a handler
+; ($18) and a life ($2E) - $2E one less (each handler sets it again: 100 or 200 passes; at 0 the
+; object and what it carries are removed - a generator, type 3, gets 5 more); its handler called
+; with a5 = it. While the kiwi dies ($52) only he runs.
+; l_0B14E: the objects drawn (BlitBob), from the last slot down: frame $12 (0: none; mirrored: +
+; $88(a6)), at its place less the camera. With grace ($54) the kiwi and his ride are drawn only on
+; the passes $56 is set: they flash.
+;-------------------------------------------------------------------------------
 sub_0B0E6:
         lea.l   (mem_6535C).l,a5                ; 0B0E6
         move.w  #$46,d7                         ; 0B0EC
@@ -10669,6 +12577,15 @@ l_0B198:
         cmpa.l  $26(a4),a5                      ; 0B1BA
         bne.b   l_0B186                         ; 0B1BE
         bra.b   l_0B18A                         ; 0B1C0
+
+;-------------------------------------------------------------------------------
+; sub_0B1C2 - The objects animated, once a pass (from slot 0): the free slots counted ($B0(a6));
+; unless frozen (the clock, $68: types 1-32; the kiwi dying: all but him), the frame delay ($1E
+; from $20) steps the script ($14, position $22: a word a frame, or commands - jtab_0B270) and the
+; speed is added; the frame goes into $12. Free rides (types 33-41, not ridden: sub_064AE) listed
+; at $146(a6) for sub_06530; a carried object ($26) kept at its carrier (types 38, 41: the same
+; facing). Then the objects drawn (l_0B14E).
+;-------------------------------------------------------------------------------
 sub_0B1C2:
         lea.l   (mem_64380).l,a5                ; 0B1C2
         move.w  #$47,d7                         ; 0B1C8
@@ -10726,6 +12643,14 @@ l_0B252:
         cmp.w   #$50,d1                         ; 0B264
         bcc.w   l_0B31E                         ; 0B268
         jmp     jtab_0B270(pc,d1.w)             ; 0B26C
+
+;-------------------------------------------------------------------------------
+; jtab_0B270 - The animation script's commands ($8000 + n: docs/LEVELS.md): $00 restart, $04 / $08
+; set dx / dy, $0C / $10 add to x / y, $14 / $18 set x / y, $1C go to, $20 loop count (negative:
+; random), $24 loop, $28 the frame delay, $2C / $30 / $34 / $38 compare x / y and go to, $3C end
+; the object, $40 mirror, $44 set a field, $48 stop animating, $4C call code (l_0B486: jsr).
+; Beyond: the ANIM ERROR trap (trap #14: the debug monitor, gone in the enhanced game).
+;-------------------------------------------------------------------------------
 jtab_0B270:
         bra.w   l_0B340                         ; 0B270
         bra.w   l_0B348                         ; 0B274
@@ -10902,10 +12827,19 @@ l_0B486:
         jsr     (a0)                            ; 0B490
         movea.l (a7)+,a5                        ; 0B492
         bra.w   l_0B252                         ; 0B494
+
+;-------------------------------------------------------------------------------
+; sub_0B498 - An object slot from the whole table (slot 0 on, 71 slots) - as sub_0B4A2.
+;-------------------------------------------------------------------------------
 sub_0B498:
         lea.l   (mem_64380).l,a4                ; 0B498
         moveq   #$46,d7                         ; 0B49E
         bra.b   l_0B4AA                         ; 0B4A0
+
+;-------------------------------------------------------------------------------
+; sub_0B4A2 - A free object slot (from slot 7 on, 64 slots): a4 = it, cleared, type -1, drawn ($2E
+; set), $B0(a6) (the free count) one less; d0 not 0. None: d0 = 0.
+;-------------------------------------------------------------------------------
 sub_0B4A2:
         lea.l   (mem_64516).l,a4                ; 0B4A2
         moveq   #$3f,d7                         ; 0B4A8
@@ -10930,8 +12864,18 @@ l_0B4C6:
         subq.w  #$1,$b0(a6)                     ; 0B4DA
         ext.l   d0                              ; 0B4DE
         rts                                     ; 0B4E0
+
+;-------------------------------------------------------------------------------
+; sub_0B4E2 - An object made (d3 = type -1): falls into sub_0B4E4.
+;-------------------------------------------------------------------------------
 sub_0B4E2:
         moveq   #-1,d3                          ; 0B4E2
+
+;-------------------------------------------------------------------------------
+; sub_0B4E4 - An object made: d0 = the slot (-1: the last free one, searching down from slot 70;
+; none - a5 = the dummy dat_0DA2C, d0 = -1: "NOT ENOUGH SPRITES!"), d1 = x and y, a0 = its script,
+; a1 = its logic, d2 = the frame delay, d3 = the type. a5 = it, d0 = 0.
+;-------------------------------------------------------------------------------
 sub_0B4E4:
         lea.l   (mem_64380).l,a5                ; 0B4E4
         tst.w   d0                              ; 0B4EA
@@ -10969,6 +12913,15 @@ l_0B532:
         subq.w  #$1,$b0(a6)                     ; 0B554
         moveq   #$0,d0                          ; 0B558
         rts                                     ; 0B55A
+
+;-------------------------------------------------------------------------------
+; sub_0B55C - The playfield drawn on the back screen ($20(a6)), every pass: 20 x 11 tiles (some cut
+; at the top and bottom for the fine vertical scroll) from the level's map (dat_44B26: a byte a
+; tile, rows of 64, read upwards) - each tile 16 x 16 x 4 planes, 128 bytes, from the tile set
+; (dat_3CB26) - by the blitter (sub_0B950). The fine horizontal scroll: $36(a6) (added to the BOBs'
+; x) and $3A (the scroll register's value, for sub_0BC8C). The enhanced game draws only what
+; changed instead (enhanced/src/scroller.s).
+;-------------------------------------------------------------------------------
 sub_0B55C:
         move.w  $2e(a6),d0                      ; 0B55C
         andi.w  #$f,d0                          ; 0B560
@@ -11077,6 +13030,12 @@ l_0B66C:
         addq.w  #$2,a1                          ; 0B692
         dbra    d7,l_0B66C                      ; 0B694
         rts                                     ; 0B698
+
+;-------------------------------------------------------------------------------
+; sub_0B69A - A BOB drawn on both screens (the panel's lives, letters and gauge): d1 = frame + 1,
+; d0 = x and y, no scroll offset ($36 cleared), the full height ($8E = $C8), through the dummy
+; object dat_0DA2C.
+;-------------------------------------------------------------------------------
 sub_0B69A:
         move.w  $8e(a6),-(a7)                   ; 0B69A
         move.w  $36(a6),-(a7)                   ; 0B69E
@@ -11089,9 +13048,24 @@ sub_0B69A:
         move.w  (a7)+,$36(a6)                   ; 0B6BA
         move.w  (a7)+,$8e(a6)                   ; 0B6BE
         rts                                     ; 0B6C2
+
+;-------------------------------------------------------------------------------
+; BlitBob - a BOB drawn on the back screen: d1 = the frame, d0 = x (high word) and y, a5 = the
+; object. The frame's directory entry (16 bytes: the offset of its data, x and y offsets, the box)
+; gives the object's box ($8-$E); clipped to the screen (y from 0 to $8E(a6), x to $130) - wholly
+; off it: nothing ($2C(a5) clear). Drawn: $2C set, $2E = 200 (it lives while seen). The blits
+; (sub_0B8B4): cookie-cut through the mask, shifted, with the first / last word masks for the
+; edges; $2(a6) bit 0 set: drawn again on the other screen.
+; SELF-MODIFIED: the two lea immediates at its start (BobData, BobDirectory: BlitBob+2 and +8) are
+; the BOB bank in use - written by the title (l_04016), the intro (sub_04CC6), a new game
+; (sub_04F1A) and the progress screen (l_043F4).
+; SELF-MODIFYING: move.w d4,$b8de.l writes the blit's minterm into sub_0B8B4's ori.w #$fca,d7 -
+; $FCA normally (D = A.B + not A.C: cookie cut), $BFA (white: the shape, not its colours) for a
+; boss's part (type -2) while it flashes on a hit ($72(a6)) (docs/SELFMOD.md).
+;-------------------------------------------------------------------------------
 BlitBob:
-        lea.l   (BobData).l,a0                  ; 0B6C4
-        lea.l   (BobDirectory).l,a1             ; 0B6CA
+        lea.l   (BobData).l,a0                  ; 0B6C4  SELF-MODIFIED immediate: the BOB bank in use (data)
+        lea.l   (BobDirectory).l,a1             ; 0B6CA  SELF-MODIFIED immediate: the BOB bank in use (directory)
         clr.w   $2c(a5)                         ; 0B6D0
         move.w  d1,d4                           ; 0B6D4
         asl.w   #$4,d1                          ; 0B6D6
@@ -11178,7 +13152,7 @@ l_0B798:
         bne.b   l_0B7BC                         ; 0B7B6
         move.w  #$bfa,d4                        ; 0B7B8
 l_0B7BC:
-        move.w  d4,$b8de.l                      ; 0B7BC
+        move.w  d4,$b8de.l                      ; 0B7BC  SMC -> $B8DE, sub_0B8B4's ori.w immediate: the minterm
         move.l  d2,d4                           ; 0B7C2
         move.l  d3,d5                           ; 0B7C4
         lea.l   CUSTOM,a2                       ; 0B7C6
@@ -11269,6 +13243,13 @@ l_0B8A4:
         exg.l   a0,a3                           ; 0B8A8
         bclr    #$0,$2(a6)                      ; 0B8AA
         beq.w   l_0B0E4                         ; 0B8B0
+
+;-------------------------------------------------------------------------------
+; sub_0B8B4 - One BOB's four plane blits (from BlitBob): A = the mask, B = the plane's data, C = D
+; = the screen; then the next plane $2000 on. The last with blitter-nasty off.
+; SELF-MODIFIED: its ori.w #$fca,d7 (the immediate at $B8DE: the minterm) is set by BlitBob before
+; each BOB (the enhanced game names it BobMinterm).
+;-------------------------------------------------------------------------------
 sub_0B8B4:
         move.l  a1,-(a7)                        ; 0B8B4
         adda.w  d5,a1                           ; 0B8B6
@@ -11282,7 +13263,7 @@ sub_0B8B4:
         move.w  d3,$66(a2)                      ; 0B8D0
         andi.w  #$f000,d7                       ; 0B8D4
         move.w  d7,$42(a2)                      ; 0B8D8
-        ori.w   #$fca,d7                        ; 0B8DC
+        ori.w   #$fca,d7                        ; 0B8DC  SELF-MODIFIED immediate: the minterm, written at $B7BC
         move.w  d7,$40(a2)                      ; 0B8E0
         move.l  a1,$50(a2)                      ; 0B8E4
         move.l  d1,$4c(a2)                      ; 0B8E8
@@ -11313,6 +13294,12 @@ sub_0B8B4:
         move.w  d0,$58(a2)                      ; 0B948
         movea.l (a7)+,a1                        ; 0B94C
         rts                                     ; 0B94E
+
+;-------------------------------------------------------------------------------
+; sub_0B950 - A copy blit of 4 planes (A to D, minterm $9F0): a0 = from, a1 = to, d0 / d1 = the
+; modulos, d2 = BLTSIZE, d3 / d4 = from one plane to the next (source, destination). Blitter-nasty
+; on but for the last.
+;-------------------------------------------------------------------------------
 sub_0B950:
         move.l  a5,-(a7)                        ; 0B950
         lea.l   CUSTOM,a5                       ; 0B952
@@ -11336,11 +13323,20 @@ sub_0B950:
         bsr.w   sub_0B9A2                       ; 0B99A
         movea.l (a7)+,a5                        ; 0B99E
         rts                                     ; 0B9A0
+
+;-------------------------------------------------------------------------------
+; sub_0B9A2 - One plane of sub_0B950: the pointers and BLTSIZE written (the blit starts).
+;-------------------------------------------------------------------------------
 sub_0B9A2:
         move.l  a0,$50(a5)                      ; 0B9A2
         move.l  a1,$54(a5)                      ; 0B9A6
         move.w  d2,$58(a5)                      ; 0B9AA
         rts                                     ; 0B9AE
+
+;-------------------------------------------------------------------------------
+; sub_0B9B0 - A single copy blit, after waiting for the blitter (unreferenced): a0, a1, d0, d1, d2
+; as sub_0B950.
+;-------------------------------------------------------------------------------
 sub_0B9B0:		; (no references found: found by the code sweep)
         btst    #$6,(CUSTOM+DMACONR).l          ; 0B9B0
         bne.b   sub_0B9B0                       ; 0B9B8
@@ -11352,10 +13348,24 @@ sub_0B9B0:		; (no references found: found by the code sweep)
         move.l  a1,(CUSTOM+BLTDPTH).l           ; 0B9DA
         move.w  d2,(CUSTOM+BLTSIZE).l           ; 0B9E0
         rts                                     ; 0B9E6
+
+;-------------------------------------------------------------------------------
+; sub_0B9E8 - Wait for fire (sub_0BAAE).
+;-------------------------------------------------------------------------------
 sub_0B9E8:
         bsr.w   sub_0BAAE                       ; 0B9E8
         beq.b   sub_0B9E8                       ; 0B9EC
         rts                                     ; 0B9EE
+
+;-------------------------------------------------------------------------------
+; sub_0B9F0 - The title's wait: until its time ((a6), counted down by CIA-B) runs out or fire. Keys
+; typed are the cheat: each must be the next of dat_045B4 (raw key codes EOR $41); each right one
+; plays a sample (dat_1E94C) and gives $1E half-seconds (about 15 s) more; a wrong one starts
+; again. All of them:
+; SELF-MODIFYING - move.w #$3e8,(l_04F46+2).l writes 1,000 into the starting lives' immediate (a
+; new game: sub_04F1A; read back by l_043C0 and sub_0900A as the cheat's flag), and tune 10
+; (docs/SELFMOD.md).
+;-------------------------------------------------------------------------------
 sub_0B9F0:
         lea.l   dat_045B4(pc),a5                ; 0B9F0
 l_0B9F4:
@@ -11382,7 +13392,7 @@ l_0BA1A:
         eori.b  #$41,d0                         ; 0BA2C
         addq.b  #$1,d0                          ; 0BA30
         bne.b   l_0B9F4                         ; 0BA32
-        move.w  #$3e8,(l_04F46+2).l             ; 0BA34
+        move.w  #$3e8,(l_04F46+2).l             ; 0BA34  SMC -> l_04F46+2, the starting lives: 1,000 (the cheat)
         moveq   #$a,d0                          ; 0BA3C
         bsr.w   PlaySong                        ; 0BA3E
 l_0BA42:
@@ -11392,6 +13402,11 @@ l_0BA48:
         rts                                     ; 0BA48
 dat_0BA4A:
 	dc.b	$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_0BA4C - The joystick for the kiwi on the ground (sub_0BA78): up counts once a push -
+; dat_0BA4A remembers it was held, so he jumps again only after up is let go.
+;-------------------------------------------------------------------------------
 sub_0BA4C:
         tst.w   (dat_0BA4A).l                   ; 0BA4C
         bne.b   l_0BA66                         ; 0BA52
@@ -11408,6 +13423,13 @@ l_0BA66:
         sne.b   (dat_0BA4A).l                   ; 0BA6E
         swap    d0                              ; 0BA74
         rts                                     ; 0BA76
+
+;-------------------------------------------------------------------------------
+; sub_0BA78 - The joystick (read in the vertical blank: JT_ReadJoystick -> $63DB0): d0's high word
+; the raw bits (0 down, 1 right, 2 up, 3 left - the callers swap to test them), its low byte the
+; direction as a number 0-8 (dat_0BAA0: an index into the direction table dat_0AFF4) and bit 7
+; fire.
+;-------------------------------------------------------------------------------
 sub_0BA78:
         moveq   #$0,d0                          ; 0BA78
         move.w  (mem_63DB0).l,d0                ; 0BA7A
@@ -11422,6 +13444,11 @@ l_0BA9E:
         rts                                     ; 0BA9E
 dat_0BAA0:
 	dc.b	$00,$05,$03,$04,$01,$00,$02,$00,$07,$06,$00,$00,$08,$00
+
+;-------------------------------------------------------------------------------
+; sub_0BAAE - Fire newly pressed? d0 bit 7 set only on the press (the last state at $63DB2); held:
+; 0.
+;-------------------------------------------------------------------------------
 sub_0BAAE:
         tst.w   (mem_63DB2).l                   ; 0BAAE
         beq.b   l_0BACA                         ; 0BAB4
@@ -11435,6 +13462,12 @@ l_0BACA:
         btst    #$7,d0                          ; 0BAD0
         sne.b   (mem_63DB2).l                   ; 0BAD4
         rts                                     ; 0BADA
+
+;-------------------------------------------------------------------------------
+; sub_0BADC - The playfield's height (d0: $B0 or $C8): the copper list's split for the panel
+; (dat_0C366) at line d0 + $3C, and CIA-B's time-of-day alarm (it counts lines; Level3_VBL resets
+; it) at the same line, for its interrupt (Level6_CIAB). $14(a6) = the line.
+;-------------------------------------------------------------------------------
 sub_0BADC:
         movem.l d0-d1/a0,-(a7)                  ; 0BADC
         move.l  (a7)+,d0                        ; 0BAE0
@@ -11457,11 +13490,19 @@ sub_0BADC:
         clr.b   $800(a0)                        ; 0BB26
         movem.l (a7)+,d1/a0                     ; 0BB2A
         rts                                     ; 0BB2E
+
+;-------------------------------------------------------------------------------
+; sub_0BB30 - Wait until the joystick is let go.
+;-------------------------------------------------------------------------------
 sub_0BB30:		; (no references found: found by the code sweep)
         jsr     (sub_0BA78).l                   ; 0BB30
         tst.b   d0                              ; 0BB36
         bne.b   sub_0BB30                       ; 0BB38
         rts                                     ; 0BB3A
+
+;-------------------------------------------------------------------------------
+; sub_0BB3C - Wait for the joystick to be let go and moved again (unreferenced).
+;-------------------------------------------------------------------------------
 sub_0BB3C:		; (no references found: found by the code sweep)
         bsr.b   sub_0BB30                       ; 0BB3C
 l_0BB3E:
@@ -11469,6 +13510,11 @@ l_0BB3E:
         tst.b   d0                              ; 0BB44
         beq.b   l_0BB3E                         ; 0BB46
         rts                                     ; 0BB48
+
+;-------------------------------------------------------------------------------
+; sub_0BB4A - The display started (from sub_0C3B6): a black palette, the copper list and DMA
+; (sub_0BCDA), the playfield split at $B0, the sprite colours (16-31) cleared.
+;-------------------------------------------------------------------------------
 sub_0BB4A:
         lea.l   (dat_0C18A).l,a0                ; 0BB4A
         bsr.w   SetPalette                      ; 0BB50
@@ -11482,6 +13528,11 @@ l_0BB6E:
         clr.w   (a0)+                           ; 0BB6E
         dbra    d0,l_0BB6E                      ; 0BB70
         rts                                     ; 0BB74
+
+;-------------------------------------------------------------------------------
+; sub_0BB76 - The screen blanked: a black palette, a frame waited, both screens ($70000, $78000)
+; cleared.
+;-------------------------------------------------------------------------------
 sub_0BB76:
         movem.l d0-d1/a0-a2,-(a7)               ; 0BB76
         lea.l   dat_0C18A(pc),a0                ; 0BB7A
@@ -11497,6 +13548,10 @@ l_0BB98:
         dbra    d0,l_0BB98                      ; 0BB9C
         movem.l (a7)+,d0-d1/a0-a2               ; 0BBA0
         rts                                     ; 0BBA4
+
+;-------------------------------------------------------------------------------
+; sub_0BBA6 - The back screen cleared (unreferenced).
+;-------------------------------------------------------------------------------
 sub_0BBA6:		; (no references found: found by the code sweep)
         movem.l d0-d1/a0,-(a7)                  ; 0BBA6
         movea.l $20(a6),a0                      ; 0BBAA
@@ -11507,6 +13562,11 @@ l_0BBB4:
         dbra    d0,l_0BBB4                      ; 0BBB6
         movem.l (a7)+,d0-d1/a0                  ; 0BBBA
         rts                                     ; 0BBBE
+
+;-------------------------------------------------------------------------------
+; sub_0BBC0 - Debug output, unreferenced (from the development monitor): d0 as 8 hex digits and a
+; comma (sub_0BBEC, sub_0C744). The bytes after: the same for a word and a byte.
+;-------------------------------------------------------------------------------
 sub_0BBC0:		; (no references found: found by the code sweep)
         bsr.w   sub_0BBEC                       ; 0BBC0
         bra.b   l_0BBD0                         ; 0BBC4
@@ -11517,27 +13577,47 @@ l_0BBD0:
         jsr     (sub_0C744).l                   ; 0BBD4
         move.l  (a7)+,d0                        ; 0BBDA
         rts                                     ; 0BBDC
+
+;-------------------------------------------------------------------------------
+; sub_0BBDE - A comma printed (debug, unreferenced).
+;-------------------------------------------------------------------------------
 sub_0BBDE:		; (no references found: found by the code sweep)
         move.l  d0,-(a7)                        ; 0BBDE
         moveq   #$2c,d0                         ; 0BBE0
         jsr     (sub_0C744).l                   ; 0BBE2
         move.l  (a7)+,d0                        ; 0BBE8
         rts                                     ; 0BBEA
+
+;-------------------------------------------------------------------------------
+; sub_0BBEC - d0 as 8 hex digits (debug).
+;-------------------------------------------------------------------------------
 sub_0BBEC:
         move.l  d0,-(a7)                        ; 0BBEC
         swap    d0                              ; 0BBEE
         bsr.w   sub_0BBF6                       ; 0BBF0
         move.l  (a7)+,d0                        ; 0BBF4
+
+;-------------------------------------------------------------------------------
+; sub_0BBF6 - d0 as 4 hex digits (debug).
+;-------------------------------------------------------------------------------
 sub_0BBF6:
         move.w  d0,-(a7)                        ; 0BBF6
         lsr.w   #$8,d0                          ; 0BBF8
         bsr.w   sub_0BC00                       ; 0BBFA
         move.w  (a7)+,d0                        ; 0BBFE
+
+;-------------------------------------------------------------------------------
+; sub_0BC00 - d0 as 2 hex digits (debug).
+;-------------------------------------------------------------------------------
 sub_0BC00:
         move.w  d0,-(a7)                        ; 0BC00
         lsr.w   #$4,d0                          ; 0BC02
         bsr.w   sub_0BC0A                       ; 0BC04
         move.w  (a7)+,d0                        ; 0BC08
+
+;-------------------------------------------------------------------------------
+; sub_0BC0A - d0's low nibble as a hex digit (debug: dat_0BC20).
+;-------------------------------------------------------------------------------
 sub_0BC0A:
         movem.l d0,-(a7)                        ; 0BC0A
         andi.w  #$f,d0                          ; 0BC0E
@@ -11547,10 +13627,18 @@ sub_0BC0A:
         rts                                     ; 0BC1E
 dat_0BC20:
 	dc.b	'0123456789ABCDEF'
+
+;-------------------------------------------------------------------------------
+; sub_0BC30 - Wait d0 + 1 frames.
+;-------------------------------------------------------------------------------
 sub_0BC30:
         bsr.w   sub_0BC80                       ; 0BC30
         dbra    d0,sub_0BC30                    ; 0BC34
         rts                                     ; 0BC38
+
+;-------------------------------------------------------------------------------
+; sub_0BC3A - A frame waited and fire tracked (unreferenced).
+;-------------------------------------------------------------------------------
 sub_0BC3A:		; (no references found: found by the code sweep)
         move.l  d0,-(a7)                        ; 0BC3A
         tst.w   (mem_63DD8).l                   ; 0BC3C
@@ -11571,12 +13659,22 @@ l_0BC68:
 l_0BC7C:
         move.l  (a7)+,d0                        ; 0BC7C
         rts                                     ; 0BC7E
+
+;-------------------------------------------------------------------------------
+; sub_0BC80 - Wait for the next vertical blank ($12(a6), set by Level3_VBL).
+;-------------------------------------------------------------------------------
 sub_0BC80:
         clr.b   $12(a6)                         ; 0BC80
 l_0BC84:
         tst.b   $12(a6)                         ; 0BC84
         beq.b   l_0BC84                         ; 0BC88
         rts                                     ; 0BC8A
+
+;-------------------------------------------------------------------------------
+; sub_0BC8C - The flip: the back screen ($20(a6): $70000 / $78000) swapped, the copper list that
+; shows the finished one chosen ($63DDC: dat_0C27A / dat_0C29A), the fine scroll ($3A, both
+; playfields) into $3C(a6), and $63DDA set for the switch at the next vertical blank.
+;-------------------------------------------------------------------------------
 sub_0BC8C:
         eori.l  #$8000,$20(a6)                  ; 0BC8C
         cmpi.l  #dat_0C27A,(mem_63DDC).l        ; 0BC94
@@ -11594,10 +13692,20 @@ l_0BCB6:
         move.w  d0,$3c(a6)                      ; 0BCC4
         st.b    (mem_63DDA).l                   ; 0BCC8
         rts                                     ; 0BCCE
+
+;-------------------------------------------------------------------------------
+; sub_0BCD0 - Wait until the flip (sub_0BC8C) has happened ($63DDA cleared).
+;-------------------------------------------------------------------------------
 sub_0BCD0:
         tst.b   (mem_63DDA).l                   ; 0BCD0
         bne.b   sub_0BCD0                       ; 0BCD6
         rts                                     ; 0BCD8
+
+;-------------------------------------------------------------------------------
+; sub_0BCDA - The display set up: the back screen $70000, the copper list (dat_0C29A's 8 longs to
+; CopperList, also kept in dat_00418), the sprites off, 4 planes low resolution, playfield priority
+; $24, the modulos 0, copper and bitplane / blitter DMA on.
+;-------------------------------------------------------------------------------
 sub_0BCDA:
         move.l  #$70000,$20(a6)                 ; 0BCDA
         move.l  #dat_0C29A,(mem_63DDC).l        ; 0BCE2
@@ -11631,6 +13739,11 @@ sub_0BCDA:
         move.l  #CopperList,(dat_00418).l       ; 0BD5E
         move.w  d0,COPJMP1(a0)                  ; 0BD68
         move.w  #$83e0,DMACON(a0)               ; 0BD6C
+
+;-------------------------------------------------------------------------------
+; sub_0BD72 - The display window and data fetch (DDFSTRT $34, DDFSTOP $CC, DIWSTRT $3C89, DIWSTOP
+; $04B9).
+;-------------------------------------------------------------------------------
 sub_0BD72:
         lea.l   CUSTOM,a0                       ; 0BD72
         move.w  #$34,DDFSTRT(a0)                ; 0BD78
@@ -11638,6 +13751,11 @@ sub_0BD72:
         move.w  #$3c89,DIWSTRT(a0)              ; 0BD84
         move.w  #$4b9,DIWSTOP(a0)               ; 0BD8A
         rts                                     ; 0BD90
+
+;-------------------------------------------------------------------------------
+; sub_0BD92 - A random number: the 32-bit seed (dat_0DD66; the vertical blank adds to it) stepped 8
+; times (shift left, EOR $76B553 when the top bit was set); d0 = its low word.
+;-------------------------------------------------------------------------------
 sub_0BD92:
         move.w  d1,-(a7)                        ; 0BD92
         move.w  #$7,d1                          ; 0BD94
@@ -11656,20 +13774,31 @@ l_0BDA8:
         rts                                     ; 0BDBE
 
 ;-------------------------------------------------------------------------------
-; PlaySong - d0 = song 1-12 (Music_Start). 1 the level start, 2 the main tune, 6 game over,
-; 9 a life lost, 12 an extra life (EXTEND), 10 the cheat; the others timed tunes and jingles
-; (docs/SOUND.md).
+; PlaySong - d0 = song 1-12 (Music_Start). 1 the level start, 2 the main tune, 6 game over, 9 a
+; life lost, 12 an extra life (EXTEND), 10 the cheat and the bomb; the others timed tunes and
+; jingles (docs/SOUND.md). Keeps a6.
 ;-------------------------------------------------------------------------------
 PlaySong:
         move.l  a6,-(a7)                        ; 0BDC0
         jsr     (Music_Start).l                 ; 0BDC2
         movea.l (a7)+,a6                        ; 0BDC8
         rts                                     ; 0BDCA
+
+;-------------------------------------------------------------------------------
+; StopSong - the music stopped (Music_Stop with the song in d0). Keeps a6.
+;-------------------------------------------------------------------------------
 StopSong:
         move.l  a6,-(a7)                        ; 0BDCC
         jsr     (Music_Stop).l                  ; 0BDCE
         movea.l (a7)+,a6                        ; 0BDD4
         rts                                     ; 0BDD6
+
+;-------------------------------------------------------------------------------
+; Level3_VBL - the vertical blank: CIA-B's time of day reset (the line count for the split), the
+; random seed stirred (+ d1 + 1), the frame countdown $24(a6), $12(a6) set (the frame's flag), the
+; joystick read ($63DB0), the screen shake ($64(a6): the display window moved, dat_0BE76, 2 less a
+; frame), and the music (Music_Play).
+;-------------------------------------------------------------------------------
 Level3_VBL:
         movem.l d0-d7/a0-a6,-(a7)               ; 0BDD8
         lea.l   (mem_641B8).l,a6                ; 0BDDC
@@ -11712,6 +13841,15 @@ dat_0BE76:
 dat_0BE77:
 	dc.b	$04,$40,$08,$3C,$04,$38,$00,$40,$08,$3C,$04,$40,$08,$3C,$04,$38
 	dc.b	$00,$40,$08
+
+;-------------------------------------------------------------------------------
+; Level6_CIAB - the CIA-B interrupt: timer B (about every half second: it counts 35,750 underflows
+; of timer A, 10 E-clock ticks) counts down the time in (a6) - the level's time, the title's wait;
+; the time-of-day alarm (at the panel's split line: sub_0BADC) does the flip asked for by sub_0BC8C
+; - the chosen copper list's 8 longs copied into CopperList, $63DDA cleared, the fine scroll ($3C)
+; into the copper list (dat_0C2DC) - so the screens change below the playfield, never in the middle
+; of it.
+;-------------------------------------------------------------------------------
 Level6_CIAB:
         movem.l d0/a0-a1/a6,-(a7)               ; 0BE8A
         lea.l   (mem_641B8).l,a6                ; 0BE8E
@@ -11743,11 +13881,21 @@ l_0BEE0:
         move.w  #$2000,(CUSTOM+INTREQ).l        ; 0BEE0
         movem.l (a7)+,d0/a0-a1/a6               ; 0BEE8
         rte                                     ; 0BEEC
+
+;-------------------------------------------------------------------------------
+; sub_0BEEE - A palette into the copper list's second set of colour moves (dat_0C374), $1C(a6)
+; cleared (unreferenced): as SetPalette.
+;-------------------------------------------------------------------------------
 sub_0BEEE:		; (no references found: found by the code sweep)
         movem.l a0-a1,-(a7)                     ; 0BEEE
         clr.l   $1c(a6)                         ; 0BEF2
         lea.l   (dat_0C374).l,a1                ; 0BEF6
         bra.b   l_0BF0C                         ; 0BEFC
+
+;-------------------------------------------------------------------------------
+; SetPalette - a0 = 16 colours (stored at half brightness: each doubled) into the copper list's
+; colour moves (dat_0C328); $16(a6) = the palette.
+;-------------------------------------------------------------------------------
 SetPalette:
         movem.l a0-a1,-(a7)                     ; 0BEFE
         move.l  a0,$16(a6)                      ; 0BF02
@@ -11819,16 +13967,29 @@ l_0BF0C:
         addq.l  #$2,a1                          ; 0BF8A
         movem.l (a7)+,a0-a1                     ; 0BF8C
         rts                                     ; 0BF90
+
+;-------------------------------------------------------------------------------
+; sub_0BF92 - A table filled: d1 + 1 longs from d0, adding d2 each (sub_0C3B6's line tables).
+;-------------------------------------------------------------------------------
 sub_0BF92:
         move.l  d0,(a0)+                        ; 0BF92
         add.l   d2,d0                           ; 0BF94
         dbra    d1,sub_0BF92                    ; 0BF96
         rts                                     ; 0BF9A
+
+;-------------------------------------------------------------------------------
+; sub_0BF9C - As sub_0BF92 with words (unreferenced).
+;-------------------------------------------------------------------------------
 sub_0BF9C:		; (no references found: found by the code sweep)
         move.w  d0,(a0)+                        ; 0BF9C
         add.w   d2,d0                           ; 0BF9E
         dbra    d1,sub_0BF9C                    ; 0BFA0
         rts                                     ; 0BFA4
+
+;-------------------------------------------------------------------------------
+; sub_0BFA6 - A shifted, masked 4-plane blit through a solid mask (dat_0C16A), unreferenced: a0,
+; a1, d0-d3 as sub_0B950, d5 the shift.
+;-------------------------------------------------------------------------------
 sub_0BFA6:		; (no references found: found by the code sweep)
         move.l  a5,-(a7)                        ; 0BFA6
         move.l  #l_02000,d4                     ; 0BFA8
@@ -11874,12 +14035,23 @@ l_0BFC4:
         bsr.w   sub_0C036                       ; 0C02E
         movea.l (a7)+,a5                        ; 0C032
         rts                                     ; 0C034
+
+;-------------------------------------------------------------------------------
+; sub_0C036 - One plane of sub_0BFA6.
+;-------------------------------------------------------------------------------
 sub_0C036:
         move.l  a0,$4c(a5)                      ; 0C036
         move.l  a1,$48(a5)                      ; 0C03A
         move.l  a1,$54(a5)                      ; 0C03E
         move.w  d2,$58(a5)                      ; 0C042
         rts                                     ; 0C046
+
+;-------------------------------------------------------------------------------
+; sub_0C048 - The bit-reversal table (dat_4A2A6: each byte's bits reversed, from the nibble table
+; dat_0C080) for the mirrored frames (sub_0C52C). After it: a debug text ("KIWI POS:"), the title's
+; text (dat_0C0A2), the palettes and the copper lists (dat_0C27A / dat_0C29A for the two screens,
+; CopperList itself: the playfield, the split and the panel).
+;-------------------------------------------------------------------------------
 sub_0C048:
         lea.l   dat_0C080(pc),a2                ; 0C048
         lea.l   (dat_4A2A6).l,a1                ; 0C04C
@@ -11967,6 +14139,15 @@ dat_0C374:
 	dc.b	$00,$00,$01,$92,$00,$00,$01,$94,$00,$00,$01,$96,$00,$00,$01,$98
 	dc.b	$00,$00,$01,$9A,$00,$00,$01,$9C,$00,$00,$01,$9E,$00,$00,$FF,$FF
 	dc.b	$FF,$FE
+
+;-------------------------------------------------------------------------------
+; sub_0C3B6 - The start-up (GameStart): the music (Music_Init), the globals ($641B8) and the
+; joystick and display variables ($63DA6, $410 bytes) cleared, the display (sub_0BB4A), the
+; interrupts (Level6_CIAB at $78, Level3_VBL at $6C), CIA-B timers A ($000A) and B ($8BA6, counting
+; timer A's underflows), the time-of-day alarm and timer B interrupts, the vertical blank on, POTGO
+; (the second button's line), the line tables ($63DE0: 25 rows of 8 lines; $63E94: 200 lines x 40
+; bytes; $63E44: 0-39), the screens blanked.
+;-------------------------------------------------------------------------------
 sub_0C3B6:
         jsr     (Music_Init).l                  ; 0C3B6
         lea.l   (mem_641B8).l,a6                ; 0C3BC
@@ -12019,6 +14200,12 @@ l_0C496:
         addq.w  #$1,d0                          ; 0C498
         dbra    d7,l_0C496                      ; 0C49A
         bsr.w   sub_0BB76                       ; 0C49E
+
+;-------------------------------------------------------------------------------
+; sub_0C4A2 - The main BOB bank made ready (after the intro): its frames counted (the directory at
+; $39AB6: $88(a6) frames, $84(a6) its end); if still in the stored, interleaved form, deinterleaved
+; (DeinterleaveBobs) - as sub_04E08 for the intro's bank.
+;-------------------------------------------------------------------------------
 sub_0C4A2:
         lea.l   (dat_39AB6).l,a0                ; 0C4A2
         moveq   #$1,d0                          ; 0C4A8
@@ -12066,6 +14253,15 @@ l_0C4EE:
         bsr.w   DeinterleaveBobs                ; 0C526
 l_0C52A:
         rts                                     ; 0C52A
+
+;-------------------------------------------------------------------------------
+; sub_0C52C - The mirrored copies of the main bank's 289 frames, built once (a new game:
+; sub_04F1A): from
+; dat_4A3A6 on, each frame's bytes in reverse order through the bit-reversal table (sub_0C048), its
+; directory entry added after the bank's ($84(a6)) with the x offset mirrored. A mirrored frame is
+; drawn as frame + $122 ($88(a6)). The enhanced game builds them in its one-blit form instead
+; (enhanced/src/frames.s).
+;-------------------------------------------------------------------------------
 sub_0C52C:
         bsr.w   sub_0C048                       ; 0C52C
         movea.l #dat_4A3A6,a1                   ; 0C530
@@ -12119,6 +14315,15 @@ l_0C5A2:
         move.w  (a7)+,d7                        ; 0C5B8
         dbra    d7,l_0C54C                      ; 0C5BA
         rts                                     ; 0C5BE
+
+;-------------------------------------------------------------------------------
+; sub_0C5C0 - A level's map set up: the level's tile attributes (LevelTable +0; dat_0CDAC for level
+; 4-4's second part, $26(a6)), the map's size (dat_44AA8 width, dat_44AAA height in tiles; level
+; 4-4: 32 or 34 wide) - the camera's limits $10 (x) and $A (y), the map's width in pixels less 8
+; ($E), the bottom row's offset ($C: the map is stored bottom row first) - and the collision map at
+; dat_462A6 built from them: each tile's attribute word gives its four 8 x 8 cells a nibble each
+; (128 cells a row).
+;-------------------------------------------------------------------------------
 sub_0C5C0:
         move.w  $8(a6),d0                       ; 0C5C0
         lea.l   LevelTable(pc),a0               ; 0C5C4
@@ -12204,9 +14409,20 @@ l_0C662:
         swap    d7                              ; 0C6A0
         dbra    d7,l_0C648                      ; 0C6A2
         rts                                     ; 0C6A6
+
+;-------------------------------------------------------------------------------
+; sub_0C6A8 - A text printed (every text in the game: title, panel, high scores ...): a0 = column
+; (0-39) and row (in pixels) bytes, then sub_0C6B0's stream.
+;-------------------------------------------------------------------------------
 sub_0C6A8:
         move.b  (a0)+,$5(a6)                    ; 0C6A8
         move.b  (a0)+,$7(a6)                    ; 0C6AC
+
+;-------------------------------------------------------------------------------
+; sub_0C6B0 - The text stream: a character ($20 up: sub_0C744); 0 - a new column and row follow; 1
+; n - the background colour, 2 n - the text colour (sub_0C6E2); $FF - the end ($80 up: character -
+; $80).
+;-------------------------------------------------------------------------------
 sub_0C6B0:
         moveq   #$0,d0                          ; 0C6B0
         move.b  (a0)+,d0                        ; 0C6B2
@@ -12228,6 +14444,11 @@ l_0C6D8:
         cmp.w   #$7f,d0                         ; 0C6D8
         bne.w   sub_0C744                       ; 0C6DC
         rts                                     ; 0C6E0
+
+;-------------------------------------------------------------------------------
+; sub_0C6E2 - A text colour command: d0 = 1 (background) or 2 (foreground), d1 = the colour (0-15)
+; - its four plane bytes ($00 / $FF, dat_0C6F4) into dat_0C734 / dat_0C738.
+;-------------------------------------------------------------------------------
 sub_0C6E2:
         asl.w   #$2,d0                          ; 0C6E2
         asl.w   #$2,d1                          ; 0C6E4
@@ -12259,6 +14480,12 @@ dat_0C73A:
 	dc.b	$FF
 dat_0C73B:
 	dc.b	$FF,$00,$00,$00,$00,$00,$00,$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_0C744 - A character printed at the cursor ($4(a6) column, $6(a6) row in pixels) on both
+; screens: 8 x 8 from the font dat_0DA66, in the text and background colours; the cursor moves on
+; (40 columns, then the next line of 8; at 200 back to the top).
+;-------------------------------------------------------------------------------
 sub_0C744:
         movem.l d0-d3/d7/a0-a3,-(a7)            ; 0C744
         move.w  $6(a6),d1                       ; 0C748
@@ -12326,9 +14553,17 @@ l_0C786:
 l_0C80C:
         movem.l (a7)+,d0-d3/d7/a0-a3            ; 0C80C
         rts                                     ; 0C810
+
+;-------------------------------------------------------------------------------
+; sub_0C812 - As sub_0C6A8, with the cursor's x in pixels (sub_0C84C's characters).
+;-------------------------------------------------------------------------------
 sub_0C812:
         move.b  (a0)+,$5(a6)                    ; 0C812
         move.b  (a0)+,$7(a6)                    ; 0C816
+
+;-------------------------------------------------------------------------------
+; sub_0C81A - As sub_0C6B0, through sub_0C84C.
+;-------------------------------------------------------------------------------
 sub_0C81A:
         moveq   #$0,d0                          ; 0C81A
         move.b  (a0)+,d0                        ; 0C81C
@@ -12350,6 +14585,11 @@ l_0C842:
         cmp.w   #$7f,d0                         ; 0C842
         bne.w   sub_0C84C                       ; 0C846
         rts                                     ; 0C84A
+
+;-------------------------------------------------------------------------------
+; sub_0C84C - A character printed at any pixel position ($4(a6) x, $6(a6) y) on both screens, over
+; what is there (only the letter's own pixels change); the cursor 8 pixels on. Used by the title.
+;-------------------------------------------------------------------------------
 sub_0C84C:
         movem.l d0-d4/d7/a0-a3,-(a7)            ; 0C84C
         andi.w  #$ff,d0                         ; 0C850
@@ -12800,16 +15040,28 @@ dat_0DD68:
 	dcb.b	2686,$00
 
 ;-------------------------------------------------------------------------------
-; Jonathan Dunn's music driver: a jump table - init, stop, start song d0 (1-12), play one
-; frame (called from the vertical blank). Three voices on channels 0-2, their records $56
-; bytes each (Music_Voice0-2). The data format is in tools/assets/sound.py and docs/SOUND.md.
+; Music_Init - the music driver started: Music_InitInstruments. Music_Stop, Music_Start, Music_Play
+; after it are its other entry points (the driver is Jonathan Dunn's: docs/SOUND.md).
 ;-------------------------------------------------------------------------------
 Music_Init:
         bra.w   Music_InitInstruments           ; 0E800
+
+;-------------------------------------------------------------------------------
+; Music_Stop - d0 = a song: its voices stopped (l_0E9D6); 0 or out of range: all.
+;-------------------------------------------------------------------------------
 Music_Stop:
         bra.w   l_0E9D6                         ; 0E804
+
+;-------------------------------------------------------------------------------
+; Music_Start - d0 = a song (1-12): Music_StartSong.
+;-------------------------------------------------------------------------------
 Music_Start:
         bra.w   Music_StartSong                 ; 0E808
+
+;-------------------------------------------------------------------------------
+; Music_Play - once a frame from the vertical blank: Music_Frame. The voices' state follows
+; (Music_Voice0-2, 86 bytes each, and a fourth block, dat_0E92A).
+;-------------------------------------------------------------------------------
 Music_Play:
         bra.w   Music_Frame                     ; 0E80C
 Music_Voices:
@@ -12844,6 +15096,11 @@ Music_Voice2:
 dat_0E92A:
 	dcb.b	85,$00
 	dc.b	$08
+
+;-------------------------------------------------------------------------------
+; sub_0E980 - All the voices silenced: their state reset (sub_0E9B6 four times) and Paula's volumes
+; 0, the playing flags (Music_Voices) cleared.
+;-------------------------------------------------------------------------------
 sub_0E980:
         movem.l d0/a0-a1,-(a7)                  ; 0E980
         move.b  #$0,(dat_0E812).l               ; 0E984
@@ -12857,6 +15114,11 @@ sub_0E980:
         move.w  #$0,(Music_Voices).l            ; 0E9A8
         movem.l (a7)+,d0/a0-a1                  ; 0E9B0
         rts                                     ; 0E9B4
+
+;-------------------------------------------------------------------------------
+; sub_0E9B6 - One voice reset (a0 = its state, a1 = its audio registers), and on to the next.
+; l_0E9D6 (Music_Stop): the voices a song uses reset.
+;-------------------------------------------------------------------------------
 sub_0E9B6:
         move.w  #$0,$0(a0)                      ; 0E9B6
         move.w  #$1,$4a(a0)                     ; 0E9BC
@@ -12894,6 +15156,11 @@ l_0EA12:
 l_0EA16:
         movem.l (a7)+,d0/d7/a0-a2               ; 0EA16
         rts                                     ; 0EA1A
+
+;-------------------------------------------------------------------------------
+; Music_StartLow - A song started at low priority (unreferenced): flag $4000 rather than $8000,
+; only if the fourth block is free or the song is not lower than the one there (dat_0E813).
+;-------------------------------------------------------------------------------
 Music_StartLow:		; (no references found: found by the code sweep)
         tst.w   (dat_0E92A).l                   ; 0EA1C
         beq.b   l_0EA2C                         ; 0EA22
@@ -12906,6 +15173,13 @@ l_0EA2C:
         bra.b   l_0EA4C                         ; 0EA3A
 l_0EA3C:
         rts                                     ; 0EA3C
+
+;-------------------------------------------------------------------------------
+; Music_StartSong - d0 = the song (1-12; else all stopped): for each of its three voices
+; (Music_Songs: an offset each, 0 none) the order list is read - $80 the end (back to the mark, or
+; the voice stops), $81 the mark, $82 n a transpose, $83 n a repeat count; then the first pattern
+; (Music_Patterns). The voice's flags: $8000 playing.
+;-------------------------------------------------------------------------------
 Music_StartSong:
         movem.l d0/d7/a0-a2,-(a7)               ; 0EA3E
         move.w  #$8000,d1                       ; 0EA42
@@ -12977,6 +15251,10 @@ l_0EAEE:
 l_0EAFC:
         movem.l (a7)+,d0/d7/a0-a2               ; 0EAFC
         rts                                     ; 0EB00
+
+;-------------------------------------------------------------------------------
+; Music_Frame - each voice that plays (Music_Voice), then Paula written (Music_Output).
+;-------------------------------------------------------------------------------
 Music_Frame:
         lea.l   CUSTOM,a6                       ; 0EB02
         lea.l   (Music_Periods).l,a5            ; 0EB08
@@ -13008,6 +15286,13 @@ l_0EB6A:
         andi.w  #$c000,(Music_Voices).l         ; 0EB6A
         bsr.w   Music_Output                    ; 0EB72
         rts                                     ; 0EB76
+
+;-------------------------------------------------------------------------------
+; Music_Voice - one voice, a frame (a4 = its state, d7 its flags): when its note runs out the
+; pattern is read - commands $80-$90 (dat_0EBAE) and a note (Music_Periods, less the instrument's
+; base note, plus the transpose; then its length unless fixed) - and every frame the effects
+; (slide, trill, arpeggio, vibrato) and the volume envelope.
+;-------------------------------------------------------------------------------
 Music_Voice:
         subq.w  #$1,$52(a4)                     ; 0EB78
         bne.w   l_0EE60                         ; 0EB7C
@@ -13060,6 +15345,12 @@ dat_0EBAE:
         dc.w    0                               ; 0EBE8
         dc.w    0                               ; 0EBEA
         dc.w    0                               ; 0EBEC
+
+;-------------------------------------------------------------------------------
+; sub_0EBEE - Pattern command $80: the pattern's end - the next from the order list ($80-$83 as in
+; Music_StartSong; the order list's end with no mark stops the voice), or back to the pattern loop
+; ($81) if set.
+;-------------------------------------------------------------------------------
 sub_0EBEE:
         movea.l $a(a4),a3                       ; 0EBEE
         cmpa.w  #$0,a3                          ; 0EBF2
@@ -13105,42 +15396,88 @@ l_0EC56:
         adda.w  d0,a3                           ; 0EC64
         adda.w  (a3),a3                         ; 0EC66
         bra.w   l_0EB88                         ; 0EC68
+
+;-------------------------------------------------------------------------------
+; sub_0EC6C - Pattern command $81: a loop point in the pattern.
+;-------------------------------------------------------------------------------
 sub_0EC6C:
         move.l  a3,$a(a4)                       ; 0EC6C
         bra.w   l_0EB88                         ; 0EC70
+
+;-------------------------------------------------------------------------------
+; sub_0EC74 - Pattern command $82: nothing.
+;-------------------------------------------------------------------------------
 sub_0EC74:
         bra.w   l_0EB88                         ; 0EC74
+
+;-------------------------------------------------------------------------------
+; sub_0EC78 - Pattern command $83: nothing.
+;-------------------------------------------------------------------------------
 sub_0EC78:
         bra.w   l_0EB88                         ; 0EC78
+
+;-------------------------------------------------------------------------------
+; sub_0EC7C - Pattern command $84 n: every note n frames long from now ($51; no length bytes).
+;-------------------------------------------------------------------------------
 sub_0EC7C:
         bset    #$5,d7                          ; 0EC7C
         move.b  (a3)+,$51(a4)                   ; 0EC80
         bra.w   l_0EB88                         ; 0EC84
+
+;-------------------------------------------------------------------------------
+; sub_0EC88 - Pattern command $85: the notes' lengths in the stream again.
+;-------------------------------------------------------------------------------
 sub_0EC88:
         bclr    #$5,d7                          ; 0EC88
         bra.w   l_0EB88                         ; 0EC8C
+
+;-------------------------------------------------------------------------------
+; sub_0EC90 - Pattern command $86: 256 frames more.
+;-------------------------------------------------------------------------------
 sub_0EC90:
         addi.w  #$100,$52(a4)                   ; 0EC90
         bra.w   l_0EB88                         ; 0EC96
+
+;-------------------------------------------------------------------------------
+; sub_0EC9A - Pattern command $87: a rest - the voice silent (volume 0) for the length that
+; follows.
+;-------------------------------------------------------------------------------
 sub_0EC9A:
         bclr    #$4,d7                          ; 0EC9A
         bset    #$7,d7                          ; 0EC9E
         clr.w   $4c(a4)                         ; 0ECA2
         bra.w   l_0EE4A                         ; 0ECA6
+
+;-------------------------------------------------------------------------------
+; sub_0ECAA - Pattern command $88 a b: a slide from a semitones away over b frames.
+;-------------------------------------------------------------------------------
 sub_0ECAA:
         bset    #$3,d7                          ; 0ECAA
         move.b  (a3)+,$24(a4)                   ; 0ECAE
         move.b  (a3)+,$25(a4)                   ; 0ECB2
         bra.w   l_0EB88                         ; 0ECB6
+
+;-------------------------------------------------------------------------------
+; sub_0ECBA - Pattern command $89 a b: a trill with the note a semitones up, every b frames.
+;-------------------------------------------------------------------------------
 sub_0ECBA:
         andi.w  #$fff8,d7                       ; 0ECBA
         bset    #$0,d7                          ; 0ECBE
         move.b  (a3)+,$21(a4)                   ; 0ECC2
         move.b  (a3)+,$22(a4)                   ; 0ECC6
         bra.w   l_0EB88                         ; 0ECCA
+
+;-------------------------------------------------------------------------------
+; sub_0ECCE - Pattern command $8A: the trill off.
+;-------------------------------------------------------------------------------
 sub_0ECCE:
         bclr    #$0,d7                          ; 0ECCE
         bra.w   l_0EB88                         ; 0ECD2
+
+;-------------------------------------------------------------------------------
+; sub_0ECD6 - Pattern command $8D n: arpeggio n (Music_Arpeggios: its speed and length, then the
+; offsets).
+;-------------------------------------------------------------------------------
 sub_0ECD6:
         andi.w  #$fff8,d7                       ; 0ECD6
         bset    #$1,d7                          ; 0ECDA
@@ -13154,9 +15491,18 @@ sub_0ECD6:
         move.b  (a0)+,$30(a4)                   ; 0ECF2
         move.l  a0,$28(a4)                      ; 0ECF6
         bra.w   l_0EB88                         ; 0ECFA
+
+;-------------------------------------------------------------------------------
+; sub_0ECFE - Pattern command $8E: the arpeggio off.
+;-------------------------------------------------------------------------------
 sub_0ECFE:
         bclr    #$1,d7                          ; 0ECFE
         bra.w   l_0EB88                         ; 0ED02
+
+;-------------------------------------------------------------------------------
+; sub_0ED06 - Pattern command $8B d a s: vibrato - after d frames, a semitones deep, s frames a
+; swing.
+;-------------------------------------------------------------------------------
 sub_0ED06:
         andi.w  #$fff8,d7                       ; 0ED06
         bset    #$2,d7                          ; 0ED0A
@@ -13164,9 +15510,17 @@ sub_0ED06:
         move.b  (a3)+,$34(a4)                   ; 0ED12
         move.b  (a3)+,$35(a4)                   ; 0ED16
         bra.w   l_0EB88                         ; 0ED1A
+
+;-------------------------------------------------------------------------------
+; sub_0ED1E - Pattern command $8C: the vibrato off.
+;-------------------------------------------------------------------------------
 sub_0ED1E:
         bclr    #$2,d7                          ; 0ED1E
         bra.w   l_0EB88                         ; 0ED22
+
+;-------------------------------------------------------------------------------
+; sub_0ED26 - Pattern command $8F n: volume envelope n (Music_Envelopes).
+;-------------------------------------------------------------------------------
 sub_0ED26:
         lea.l   (Music_Envelopes).l,a0          ; 0ED26
         moveq   #$0,d0                          ; 0ED2C
@@ -13176,6 +15530,13 @@ sub_0ED26:
         adda.w  (a0),a0                         ; 0ED34
         move.l  a0,$14(a4)                      ; 0ED36
         bra.w   l_0EB88                         ; 0ED3A
+
+;-------------------------------------------------------------------------------
+; sub_0ED3E - Pattern command $90 n: instrument n (Music_Instruments, 16 bytes: base note, sample,
+; length, repeat, repeat length; a flag: not transposed - the drums). l_0ED72 on: a note - its
+; period, the effects set up, the envelope restarted, the voice triggered (Music_Trigger), the
+; length; then the per-frame effects and the envelope (steps of a count, a speed and a direction).
+;-------------------------------------------------------------------------------
 sub_0ED3E:
         lea.l   (Music_Instruments).l,a0        ; 0ED3E
         moveq   #$0,d0                          ; 0ED44
@@ -13386,8 +15747,8 @@ l_0EFBA:
 ;-------------------------------------------------------------------------------
 ; Music_Output - write the three voices to Paula: the voices that start a note this frame
 ; (Music_Trigger) are stopped, given a period of 1 so their DMA ends at once, then waited for
-; (their audio interrupt bits) and 3 lines more; then each voice's volume, period and sample
-; (the start for a new note, the repeat otherwise) and the DMA switched on again.
+; (their audio interrupt bits) and 3 lines more; then each voice's volume, period and sample (the
+; start for a new note, the repeat otherwise) and the DMA switched on again.
 ;-------------------------------------------------------------------------------
 Music_Output:
         move.w  (Music_Trigger).l,d0            ; 0EFBC
@@ -13493,6 +15854,12 @@ l_0F0FA:
         move.w  d0,$96(a6)                      ; 0F102
         clr.w   (Music_Trigger).l               ; 0F106
         rts                                     ; 0F10C
+
+;-------------------------------------------------------------------------------
+; Music_InitInstruments - all voices silenced, then the instrument table (dat_0F3AE) filled from
+; Music_SampleList: for each sample (an IFF 8SVX file in the program) its base note, and from the
+; file (sub_0F140) its start, length, repeat and repeat length.
+;-------------------------------------------------------------------------------
 Music_InitInstruments:
         bsr.w   sub_0E980                       ; 0F10E
         lea.l   (Music_SampleList).l,a0         ; 0F112
@@ -13512,6 +15879,12 @@ l_0F11E:
         bra.b   l_0F11E                         ; 0F13C
 l_0F13E:
         rts                                     ; 0F13E
+
+;-------------------------------------------------------------------------------
+; sub_0F140 - One instrument's sample read from its IFF file (sub_0F184): the BODY's address;
+; one-shot and repeat lengths from the VHDR (a sample with no repeat repeats a short silence,
+; dat_0F3EE).
+;-------------------------------------------------------------------------------
 sub_0F140:
         move.l  a1,-(a7)                        ; 0F140
         bsr.w   sub_0F184                       ; 0F142
@@ -13540,6 +15913,11 @@ l_0F178:
         rts                                     ; 0F180
 dat_0F182:
 	dc.b	$00,$00
+
+;-------------------------------------------------------------------------------
+; sub_0F184 - An IFF file's chunks walked (a0, d0 bytes), each through sub_0F1A8; dat_0F182 = an
+; error code.
+;-------------------------------------------------------------------------------
 sub_0F184:
         clr.w   (dat_0F182).l                   ; 0F184
         movem.l d0/a0,-(a7)                     ; 0F18A
@@ -13554,6 +15932,11 @@ l_0F192:
 l_0F1A2:
         movem.l (a7)+,d0/a0                     ; 0F1A2
         rts                                     ; 0F1A6
+
+;-------------------------------------------------------------------------------
+; sub_0F1A8 - A top-level IFF chunk: FORM (l_0F20C: must be 8SVX, its chunks through sub_0F258) or
+; CAT (gone into); anything else: error 1. l_0F1EA skips a LIST.
+;-------------------------------------------------------------------------------
 sub_0F1A8:
         cmp.l   #$464f524d,d1                   ; 0F1A8
         beq.w   l_0F20C                         ; 0F1AE
@@ -13618,6 +16001,13 @@ l_0F242:
 l_0F252:
         movem.l (a7)+,d0/a0                     ; 0F252
         rts                                     ; 0F256
+
+;-------------------------------------------------------------------------------
+; sub_0F258 - A chunk inside an 8SVX FORM: VHDR (kept: dat_0F2EA), BODY (kept: dat_0F314), FORM,
+; LIST, CAT; NAME, (c), AUTH, ANNO, ATAK, RLSE and anything else skipped (l_0F2CA). The data follow
+; to the end of the program: Music_Periods, the instruments, the samples, the songs, the BOB bank
+; and the pictures.
+;-------------------------------------------------------------------------------
 sub_0F258:
         cmp.l   #$464f524d,d1                   ; 0F258
         beq.w   l_0F20C                         ; 0F25E

@@ -1,11 +1,18 @@
 """Generate a source from its config, assemble it with vasm and check it against the original.
 
   python3 tools/disasm/make.py [main] [loader] [boot] [boot2]      (default: all)
+
+Kept for the record: the sources in original/ (nzs_main.s, nzs_loader.s, nzs_boot.s,
+nzs_boot2.s, nzs_hw.i, nzs_equates.i) were made by this from the configs and have been edited by
+hand since October 2026 - they are the source now, and this never writes over them. It writes
+what the configs give to tools/disasm/regen/ (not kept in git) and checks that against the
+original binaries, for comparing with the hand-edited sources if that is ever useful.
 """
 import hashlib, importlib, os, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
+OUT = os.path.join(HERE, 'regen')         # where the generated sources go (never ROOT)
 sys.path.insert(0, HERE)
 import core
 
@@ -19,7 +26,7 @@ PROGRAMS = {            # config module, source written, original binary (file, 
 
 def assemble(src, out):
     r = subprocess.run(['vasmm68k_mot', '-Fbin', '-m68000', '-no-opt', '-quiet', '-o', out, src],
-                       capture_output=True, text=True, cwd=ROOT)
+                       capture_output=True, text=True, cwd=OUT)
     if r.returncode:
         print(r.stdout + r.stderr)
         raise SystemExit(f'{src}: assembly failed')
@@ -38,18 +45,19 @@ def write_hw():
     L += [f'{n:<12}\tequ\t${0xBFD000 + o:06X}' for o, n in sorted(CIAB.items())]
     L += ['', '; 68000 exception vectors']
     L += [f'V_{n:<16}\tequ\t${a:02X}' for a, n in sorted(core.VECTOR_NAMES.items())]
-    open(os.path.join(ROOT, 'nzs_hw.i'), 'w').write('\n'.join(L) + '\n')
+    open(os.path.join(OUT, 'nzs_hw.i'), 'w').write('\n'.join(L) + '\n')
 
 
 def main():
+    os.makedirs(OUT, exist_ok=True)
     write_hw()
     names = sys.argv[1:] or list(PROGRAMS)
     ok = True
     for n in names:
         mod, src, (orig, start, length) = PROGRAMS[n]
-        print(f'{n}: {src}')
+        print(f'{n}: tools/disasm/regen/{src} (the source kept is original/{src}, edited by hand)')
         cfg = importlib.import_module(mod)
-        core.build(cfg, os.path.join(ROOT, src))
+        core.build(cfg, os.path.join(OUT, src))
         out = os.path.join(HERE, f'_{n}.bin')
         assemble(src, out)
         got = open(out, 'rb').read()

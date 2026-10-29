@@ -51,7 +51,8 @@ GAME_LOADER = (SYMS['TrackWrite'], SYMS['LoadTable'])  # the game's TrackRead / 
 GAME_HEADER = 0x426                     # the game's header (ext.i): 'NZSE', boot drive, machine
 GAME_ENTRY = 0x4000                     # GameStart: Init has run (EnhInit: the cache, the title's lines)
 STOP = 0x1F0                            # a return address that ends a call
-READS = [(2, 5), (84, 5), (18, 1), (89, 1), (152, 2), (158, 2), (144, 5), (68, 1)]   # (track, count)
+READS = [(2, 5), (84, 5), (18, 1), (89, 1), (152, 2), (158, 2), (144, 5), (68, 1),
+         (63, 5), (69, 1)]                               # (track, count; the last two: level 4-4's second map)
 MISSING = [(0, 1), (1, 1), (100, 1), (89, 2)]
 FILE_LEN = {}                           # (track, count): the level file's length (loadtable.i)
 for _ln in open(os.path.join(build_disk.OUT, 'loadtable.i')):
@@ -239,6 +240,9 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
         cacr, vbr = movec(u, 'MOVEC_GET')
         checks.append((f'above a 68000: the caches off and the vectors at 0 for the game (CACR {cacr}, VBR ${vbr:X}; '
                        f'set to 1 and $7E000 before the boot)', cacr == 0 and vbr == 0))
+    key = m.r32(0x24)
+    checks.append((f'the Copylock key in the trace vector at GameStart (${key:08X}: sub_0A742 checks it at '
+                   f'every boss and warp)', key == 0xF974DB7D))
     cache = struct.unpack('>LLLH', bytes(u.mem_read(SYMS['CacheBase'], 14)))     # base, size, used, kind
     lines = title_lines(u)
     checks += [(f'the file cache: {["no", "chip", "slow", "fast"][kind]} RAM, ${cbase:X}, {csize} bytes',

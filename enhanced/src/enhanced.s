@@ -308,6 +308,7 @@ EnhBob:         tst.b   ScrActive
         adda.l  d4,a1
         jmp     l_0B8BA
 
+; EnhBob4 - a BOB in its one-blit form (frames.s: OneBob4)
 EnhBob4:        jmp     OneBob4                 ; (frames.s: the frame in one-blit form)
 
 ; sub_0C744: a character at a character column
@@ -369,6 +370,10 @@ EnhCheatKeys:   movem.l d1-d7/a1-a5,-(a7)
         rts
 SkipHeld:       dc.b    0
 	even
+
+; EndPicLen - the ending picture's plane length, for sub_0B098: the original wrote the picture's
+; address into its own move.w (abs).l,d3 6 bytes ahead, which a 68020 has already prefetched
+EndPicLen:      dc.w    0
 
 ; sub_0BCDA: the game's display set up
 EnhDisplay:     bsr.w   ScrLeave

@@ -17,6 +17,7 @@ SCREEN_FILE     equ     $70000                  ; where the track 90 loader read
 SCREEN          equ     $78000                  ; 4 planes, $2000 apart
 FID_MAIN        equ     0                       ; (build_disk.py's file ids)
 FID_SCREEN      equ     1
+COPYLOCK_KEY    equ     $F974DB7D               ; the key the original disk's Copylock gives
 
 
 	org	EXT_BASE
@@ -110,7 +111,13 @@ ExtBoot:
 .mi:            move.l  (a3)+,(a1)+
         dbra    d0,.mi
         move.l  GAME_MACHINE+4+MI_DRIVE,GAME_BOOTDRIVE+4
-.nohdr:         move.l  #PROGRAM,d0                     ; as the track 90 loader left them
+; the Copylock key where the original's protection left it: in the trace vector, $24 (the vectors
+; are at 0 on every CPU by now). The game keeps $24 when it sets up its vectors and checks the key
+; at every boss and warp (sub_0A742: ($24 EOR $F9448D74) must end in $09); a wrong key makes it
+; overwrite its own collision test (original/docs/SELFMOD.md). Nothing traces, so the vector is
+; never taken.
+.nohdr:         move.l  #COPYLOCK_KEY,$24.w
+        move.l  #PROGRAM,d0                     ; as the track 90 loader left them
         movea.l d0,a0
         jmp     (a0)
 

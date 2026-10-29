@@ -1,4 +1,5 @@
 ; The New Zealand Story (Ocean 1989, Amiga) - bootblock, track 0 bytes $000-$3FF
+; Made by original/tools/disasm/make.py from its config; edited by hand since October 2026.
 ; Assemble: vasmm68k_mot -Fbin -m68000 -no-opt -o boot.bin nzs_boot.s
 ;
 ; Reads $1200 bytes from disk offset $400 (the rest of track 0: Rob Northen's protection
@@ -26,6 +27,13 @@ BootBlock:
 	dc.b	$44,$4F,$53,$00
 dat_00004:
 	dc.b	$4C,$CA,$C7,$2D,$00,$00,$03,$70
+
+;-------------------------------------------------------------------------------
+; BootEntry - Kickstart's bootblock call: five registers saved; exec's Forbid; the a2 slot on the
+; stack overwritten with $60000 and the rest of track 0 ($1200 bytes from disk offset $400 - Rob
+; Northen's protection loader) read there through the trackdisk IORequest Kickstart passed in a1;
+; four registers restored, so the rts goes to $60000.
+;-------------------------------------------------------------------------------
 BootEntry:
         movem.l d0-d1/a0-a2,-(a7)               ; 0000C  a0-a2 saved: 5 longs
         movea.l (AbsExecBase).w,a6              ; 00010  ExecBase
@@ -34,6 +42,10 @@ BootEntry:
         move.l  a0,$8(a7)                       ; 0001C
         move.l  #$60000,$10(a7)                 ; 00020  a2 slot = $60000: left on the stack, so the rts goes there
         movea.l $c(a7),a1                       ; 00028  a1 slot: the trackdisk IORequest
+
+;-------------------------------------------------------------------------------
+; ReadRetry - the read (CMD_READ, DoIO), again until it succeeds.
+;-------------------------------------------------------------------------------
 ReadRetry:
         move.l  $10(a7),d0                      ; 0002C
         move.l  d0,IO_DATA(a1)                  ; 00030

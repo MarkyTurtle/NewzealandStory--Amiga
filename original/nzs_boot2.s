@@ -1,6 +1,7 @@
 ; The New Zealand Story (Ocean 1989, Amiga) - second-stage bootblock
 ; Decrypted from the Rob Northen protection loader on track 0 (tools/protemu/run_protection.sh):
 ; its payload copies these 1024 bytes over Kickstart's boot buffer and jumps to offset 12.
+; Made by original/tools/disasm/make.py from its config; edited by hand since October 2026.
 ; Assemble: vasmm68k_mot -Fbin -m68000 -no-opt -o boot2.bin nzs_boot2.s
 ;
 ; Offset 12 goes to Start, which copies the loader (offset $10 onwards) to $76000 and runs it:
@@ -13,6 +14,10 @@
 
 	org	0
 	dc.b	$44,$4F,$53,$00,$DC,$4C,$1A,$A8,$00,$00,$00,$00
+
+;-------------------------------------------------------------------------------
+; BootEntry - offset 12, where the protection loader's payload jumps: to Start.
+;-------------------------------------------------------------------------------
 BootEntry:
         bra.w   Start                           ; 0000C
 
@@ -22,12 +27,22 @@ Loader_Stored:
 ;===============================================================================
 	org	$76000
 Loader:
+
+;-------------------------------------------------------------------------------
+; sub_76000 - The loader at $76000 (copied there by Start): to LoadGameLoader. A 308-byte buffer
+; follows (the sector headers).
+;-------------------------------------------------------------------------------
 sub_76000:
         bra.w   LoadGameLoader                  ; 76000
 	dc.b	$00
 	dc.b	$00
 dat_76006:
 	dcb.b	308,$00
+
+;-------------------------------------------------------------------------------
+; LoadGameLoader - the stack below $400, interrupts cleared, disk ADKCON (MFM), DMA on; track 90
+; (the game loader) read to $400 (ReadTracks) and entered.
+;-------------------------------------------------------------------------------
 LoadGameLoader:
         lea.l   $400.l,a7                       ; 7613A  stack below the game loader
         lea.l   CUSTOM,a5                       ; 76140
@@ -39,6 +54,10 @@ LoadGameLoader:
         move.l  #$5a,d0                         ; 76164  track 90 (the game loader)
         bsr.w   ReadTracks                      ; 7616A
         jmp     $400.w                          ; 7616E  enter the game loader
+
+;-------------------------------------------------------------------------------
+; MotorOn - DF0 selected with its motor on; waits for the drive's ready line (CIA-A /RDY).
+;-------------------------------------------------------------------------------
 MotorOn:
         ori.b   #$f8,(CIAB_PRB).l               ; 76172
         bclr    #$7,(CIAB_PRB).l                ; 7617A
@@ -49,6 +68,13 @@ l_76192:
         bne.w   l_76192                         ; 7619A
         rts                                     ; 7619E
 	dc.b	$00,$00,$00,$00
+
+;-------------------------------------------------------------------------------
+; ReadTracks - d0 = the track, a0 = where: the motor on, the head to track 0 (sub_762C4) and to the
+; track (sub_762CE); the track read by disk DMA to $68000 (sync $4489, $1996 words), again until it
+; starts with a sync; its 11 sectors decoded (sub_7624E). The variables are at $2000-$200C and
+; $61A0 (in what will be the game loader's space).
+;-------------------------------------------------------------------------------
 ReadTracks:
         move.l  a7,$61a0.w                      ; 761A4
         move.w  d0,-(a7)                        ; 761A8
@@ -94,6 +120,12 @@ l_76244:
         bsr.w   sub_7624E                       ; 76244
         dbra    d7,l_76244                      ; 76248
         rts                                     ; 7624C
+
+;-------------------------------------------------------------------------------
+; sub_7624E - A sector decoded: its header into the buffer (dat_76006: sub_762A4, 4 + 16 + 4 + 4
+; bytes), then its 512 bytes to $2004(the destination) + its sector number x 512; on to the next
+; sync. No checksum is checked.
+;-------------------------------------------------------------------------------
 sub_7624E:
         movea.l a4,a1                           ; 7624E
         moveq   #$4,d1                          ; 76250
@@ -126,6 +158,10 @@ l_7628E:
 l_762A0:
         clr.l   d0                              ; 762A0
         rts                                     ; 762A2
+
+;-------------------------------------------------------------------------------
+; sub_762A4 - MFM decoded: d1 bytes from a0 (odd bits) and a0 + d1 (even bits) into a1.
+;-------------------------------------------------------------------------------
 sub_762A4:
         lea.l   (a0,d1.w),a2                    ; 762A4
         subq.w  #$1,d1                          ; 762A8
@@ -140,9 +176,19 @@ l_762AA:
         dbra    d1,l_762AA                      ; 762BC
         movea.l a2,a0                           ; 762C0
         rts                                     ; 762C2
+
+;-------------------------------------------------------------------------------
+; sub_762C4 - The head to track 0: the position taken as 82 ($200C) and the target 0 ($200A) - on
+; into sub_762CE.
+;-------------------------------------------------------------------------------
 sub_762C4:
         clr.w   $200a.w                         ; 762C4
         move.w  #$52,$200c.w                    ; 762C8
+
+;-------------------------------------------------------------------------------
+; sub_762CE - The head to track $200A: side from bit 0, cylinder / 2, one step at a time with the
+; step delays, until there; at track 0 (/TRK0) the counts reset.
+;-------------------------------------------------------------------------------
 sub_762CE:
         move.w  $200a.w,d0                      ; 762CE
         bset    #$2,(CIAB_PRB).l                ; 762D2
@@ -184,6 +230,11 @@ LoaderEnd:
 ;===============================================================================
 	org	$368
 	dc.b	$00,$00
+
+;-------------------------------------------------------------------------------
+; Start - in Kickstart's boot buffer (offset $368): interrupts off, the loader copied to $76000 and
+; entered.
+;-------------------------------------------------------------------------------
 Start:
         move.w  #$7fff,(CUSTOM+INTENA).l        ; 0036A
         lea.l   Loader_Stored(pc),a0            ; 00372

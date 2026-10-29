@@ -694,8 +694,8 @@ def build(cfg, out_path, check_sha1=None):
     lines = p.generate()
     open(out_path, 'w').write('\n'.join(lines) + '\n')
     eq = getattr(cfg, 'EQUATES_FILE', None)
-    if eq:
-        open(os.path.join(p.root, eq), 'w').write(equates(p))
+    if eq:                                  # (next to the source written)
+        open(os.path.join(os.path.dirname(out_path), eq), 'w').write(equates(p))
     p.save_trace()
     p.stats()
     return p

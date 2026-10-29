@@ -131,6 +131,9 @@ SCR_GAMEBLK     equ     35                      ; the game's list from BPLCON1 t
                                                 ;   BPLCON1, 16 sprite pointers, 2 sprite colours,
                                                 ;   16 colours (a fixed layout: 35 MOVEs; checked
                                                 ;   at the end of nzs_game.s)
+; EnhVBL - the vertical blank's addition (Level3_VBL, $BE04): the random seed stirred as the
+; original does, the frame count (ScrFrames), and with the scroller's display on the game's copper
+; list's block (from BPLCON1 to the split) copied into both of the scroller's lists
 EnhVBL:         add.l   d1,(dat_0DD66).l
         addq.w  #1,ScrFrames
         tst.b   ScrActive
@@ -447,6 +450,7 @@ ScrCopy0:       lea     CUSTOM,a2
         move.w  d1,BLTSIZE(a2)
         rts
 
+; ScrBlitWait - wait for the blitter (a2 = CUSTOM; the first btst: the usual dummy read for early Agnus)
 ScrBlitWait:    btst    #6,DMACONR(a2)
 .w:             btst    #6,DMACONR(a2)
         bne.b   .w

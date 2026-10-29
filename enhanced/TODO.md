@@ -30,12 +30,26 @@ configurations), then merged into `main`. `README.md` describes everything done.
   or the menu's switch; F1 flies (the original's unused fly mode), F2 skips a level (`README.md`,
   *The cheat*). Tested in WinUAE.
 * **The level data as files, and a file cache** (branch `feature/file-cache`): each load the
-  game makes is a file with just the bytes it uses (445 KB against the tracks' 528 KB), kept in a
+  game makes is a file with just the bytes it uses (475 KB against the tracks' 555 KB), kept in a
   file cache in the largest memory beyond 512K of chip RAM: all of it in a trapdoor's 512K
   (`README.md`, *The game's disk reading*, *The machine's memory*). Tested in WinUAE on an
   expanded A500.
 * **The A1200** (branch `feature/a1200`): above a 68000 the CPU's caches off and the vector base
   at 0, FMODE 0 on AGA (`README.md`, *Booting*). Tested in WinUAE.
+* **The Copylock key** (branch `fix/copylock-key`): the game checks the key the original's
+  Copylock left in `$24` at every boss and warp (`sub_0A742`) and breaks its own collision test
+  if it is wrong; the extension module now puts it there (`README.md`, *Booting*). Not yet tested
+  in WinUAE.
+* **Level 4-4's second map** (branch `fix/level-4-4`): reaching the cage on level 4-4 loads a
+  second map (5 tracks from track 63, 1 from track 69: `$45CC`), a load `game_tracks.py` did not
+  list, so the disk had no file for it and the game stopped with a fatal disk error. It is listed
+  now, its tracks extracted, and the disk has the two files (`test_boot.py` reads them). Not yet
+  tested in WinUAE.
+* **The ending's picture on a 68020** (branch `fix/ending-picture`): `sub_0B098` wrote the
+  picture's address into its own instruction 6 bytes ahead, which a 68020 has already
+  prefetched, so the first plane was decoded with a stale length and the picture came out
+  scrambled on an A1200 (`../original/docs/SELFMOD.md`, site 8). The length is now kept as data.
+  Not yet tested in WinUAE.
 
 ## Next
 
@@ -50,9 +64,9 @@ configurations), then merged into `main`. `README.md` describes everything done.
   restarts: `LoadedLevel`). With a file cache it comes from memory; on a plain 512K machine it is
   read from the disk each time. Skip the load when the world's data is still unpacked in place,
   and load just the map.
-* **The level files packed**: the maps, boss frames and ending packed as the world data is (394 KB
-  in all against 445 KB): a 1MB machine's file cache, after the BOB frames, would hold 55 % of
-  them instead of 49 %. Perhaps.
+* **The level files packed**: the maps, boss frames and progress screen packed as the world data
+  is (about 423 KB in all against 475 KB): a 1MB machine's file cache, after the BOB frames, would
+  hold about 51 % of them instead of 45 %. Perhaps.
 * **Real hardware**: so far WinUAE, FS-UAE and the emulators of the tests.
 
 ## Not doing
@@ -97,7 +111,10 @@ contains:
 * On the 4th level of worlds 1, 2, 3 and 5, 2 more tracks to `$6C000`: the boss's BOB frames
   (9-26 frames). Their directory entries are appended to the main bank's at `$3BED6`,
   deinterleaved, and copied to `$613A6`.
-* At the end of the game: 5 tracks from track 144 (the ending).
+* Between levels: 5 tracks from track 144 (the progress screen: the map of New Zealand and the
+  kiwis rescued so far).
+* On level 4-4, when the kiwi reaches the cage: its second map, 5 tracks from track 63 and 1 from
+  track 69 (`$45CC`).
 
 These buffers are inside the program's own address range: `$3CAA6-$460A5` is part of the
 loaded program, overwritten by each level's data. So the level data replaces memory rather than

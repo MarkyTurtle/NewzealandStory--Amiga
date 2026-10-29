@@ -149,21 +149,26 @@ a wrong key the game is read to a wrong address and the machine crashes.
 
 Nothing from the protection or the loaders - but it does read the disk itself:
 
-* the game has no Copylock key check: neither key constant appears in it, and nothing in it
-  refers to the protection's or the loaders' memory (`$60000-$611FF`, `$76000`). It uses
+* **one thing: the Copylock key, left in the trace vector `$24`**. The game checks it at every
+  boss and every warp (`sub_0A742`: (`$24` EOR `$F9448D74`) must end in `$09`, which the key
+  `$F974DB7D` does) and, if it is wrong, quietly breaks its own collision test so the level can
+  never be finished (`SELFMOD.md`). Nothing else in it refers to the protection's or the loaders'
+  memory (`$60000-$611FF`, `$76000`). It uses
   `$70000` and `$78000` only as its own screen buffers, clearing them first; `$68000` is its own
   track reader's buffer;
-* `Init` saves and restores the trace vector while it fills the others, but nothing reads it;
+* `Init` saves and restores the trace vector while it fills the others - to keep that key;
 * it sets up the CIAs and interrupts it uses itself (`$11BE`: CIA-A; `$C3FE`: CIA-B timers and
   alarm);
 * **it loads level data from the disk while it runs**: `LoadTracks` (`$55BA`) reads tracks by
   number through the jump table's `TrackRead` (block 1, `$C24`: the hardware, AmigaDOS-format
   sectors, the MFM buffer at `$68000`, always DF0) - at the start of each level 5 tracks of
   packed level data (unpacked in place, in the main program's format) and 1 more track, on some
-  levels 2 more, and 5 at the end of the game (`../disk/DISKMAP.md`). After 5 failed tries it
+  levels 2 more, 5 for the progress screen between levels, and 6 for level 4-4's second map
+  (`../disk/DISKMAP.md`). After 5 failed tries it
   shows *There has been a fatal disk error - please check the disk & press the 'DEL' key* and
   stops. Those are standard AmigaDOS tracks, but at fixed track numbers.
 
 So the new disk must leave the program at `$400` and enter it there, as the track 90 loader did
 (with `d0 = a0 = $400`), **and** give the game a `TrackRead` that finds those tracks on the new
 disk: `../../enhanced/src/diskload.s` replaces `TrackWrite` and `TrackRead` in their own space.
+(And, for the bosses and warps, the key in `$24`.)

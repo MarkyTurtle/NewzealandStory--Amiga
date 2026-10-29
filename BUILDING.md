@@ -1,6 +1,7 @@
 # Building
 
-* **`original/`**: the original game. Its sources reassemble byte-identical to the original disk.
+* **`original/`**: the original game. Its sources (edited by hand) reassemble byte-identical to
+  the original disk.
 * **`enhanced/`**: the game on an ordinary AmigaDOS disk. Building it makes a playable disk
   image (ADF).
 
@@ -50,7 +51,6 @@ DF1-DF3) or write it to a floppy.
 
 ```
 original/build.sh                          # assembles the four sources and checks their SHA-1
-python3 original/tools/disasm/make.py      # regenerates the sources from their configs, and checks them
 ```
 
 ```
@@ -58,6 +58,9 @@ original/tools/nzsemu/build.sh             # the study emulator (needed for the 
 original/tools/assets/make_assets.sh       # regenerates original/assets/ (samples, music, BOBs)
 ```
 
+The sources are edited by hand: run `original/build.sh` after any edit (comments too) to check
+they still assemble to the original bytes. `python3 original/tools/disasm/make.py` shows how
+they were first made from their configs (into `original/tools/disasm/regen/`, for the record).
 `original/README.md` describes the sources and tools. The files in `original/disk/files/` were
 extracted from the disk images with `original/tools/disk/extract_files.py` (the game-tracks ADF)
 and `ipf_extract.py` (the original IPF, via capsimg: `build_dump.sh`); the protection's decrypted

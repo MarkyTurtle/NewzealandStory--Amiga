@@ -11,6 +11,8 @@
  * is not drawn: snapshots of memory and the custom registers are written instead, and
  * tools/screen.py draws them by following the copper list.
  *
+ * As the original's loader leaves it, the trace vector ($24) holds the Copylock key ($F974DB7D).
+ *
  * Every executed instruction's address is recorded (coverage), to give the disassembler entry
  * points it cannot find statically.
  *
@@ -509,6 +511,9 @@ int main(int argc, char **argv) {
     trackdir = argv[2];
     m68k_init(); m68k_set_cpu_type(M68K_CPU_TYPE_68000);
     ram[0] = 0; ram[1] = 7; ram[2] = 0xF0; ram[3] = 0; ram[4] = 0; ram[5] = 0; ram[6] = 4; ram[7] = 0;
+    /* the Copylock key, where the track 90 loader's protection leaves it (the trace vector): the
+     * game checks it at every boss and warp (sub_0A742; docs/SELFMOD.md) */
+    ram[0x24] = 0xF9; ram[0x25] = 0x74; ram[0x26] = 0xDB; ram[0x27] = 0x7D;
     m68k_pulse_reset();
     m68k_set_reg(M68K_REG_SR, 0x2700); m68k_set_reg(M68K_REG_SP, 0x7F000);
     m68k_set_reg(M68K_REG_D0, 0x400); m68k_set_reg(M68K_REG_A0, 0x400); m68k_set_reg(M68K_REG_PC, 0x400);

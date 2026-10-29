@@ -103,7 +103,10 @@ The module (`ExtBoot`) then:
    same copper list; the file loaded to `$70000` and decoded there, its colours doubled;
 7. loads the game to `$400` and unpacks it in place, as the track 90 loader's `Unpack`; writes
    the machine description and the boot drive into the game's header (`EnhHeader`, `$426`);
-8. enters the game at `$400` with `d0 = a0 = $400`, as the track 90 loader did. The game's
+8. puts the Copylock key (`$F974DB7D`) in the trace vector, `$24`, where the original's
+   protection left it: the game checks it at every boss and every warp, and quietly breaks its
+   own collision test if it is wrong (`../original/docs/SELFMOD.md`);
+9. enters the game at `$400` with `d0 = a0 = $400`, as the track 90 loader did. The game's
    start-up (`Init`) sets up the file cache and the title's memory lines (`EnhInit`).
 
 A load that fails is tried again; after 8 failures COLOR00 turns red while it goes on trying.
@@ -126,7 +129,7 @@ for the **file cache** (`FileGet` / `FilePut` in `enhanced.s`, called by `TrackR
 level file the game reads from the disk (*The game's disk reading*) is kept there while there is
 room, first come, first served, and read from memory the next time. A level played again (after
 a game over, the next game) reads nothing from the disk; the levels that share their world data
-(4-7, 12-14) read only their map. All the level files are 445 KB, so 512K of slow or fast RAM
+(4-7, 12-14) read only their map. All the level files are 475 KB, so 512K of slow or fast RAM
 holds every one of them (the track cache before it held 93 of the 96 tracks, 528 KB); a 1MB
 machine without other memory has 216 KB after the BOB frames (*BOBs in one blit*). With no memory
 beyond 512K of chip RAM, the game reads every level from the disk as the original did.
@@ -320,7 +323,7 @@ title, the story; planes `$2000` apart) the same frames are drawn with 4 blits r
 copied, so the original's mirrored copies (`sub_0C52C`: 94 KB at each new game) are never built.
 Their directory entries are made as the original makes them but point at the unmirrored frame,
 which has the same size, so BlitBob clips with it. The frames of the other banks (the boss's,
-the ending's, the story's) are drawn as the original draws them, and so is the oxygen gauge's:
+the progress screen's, the story's) are drawn as the original draws them, and so is the oxygen gauge's:
 the game writes the oxygen level into that frame's mask every pass (`sub_052C4`), so a copy of
 it would not change.
 
@@ -329,7 +332,7 @@ it would not change.
 * **More than 512K of chip RAM, with room for them all** (`ONE_ALL`, 296 KB; A500+, A600,
   A1200): all built once, at the first new game (about 0.7 seconds), from `$80000`. The file
   cache gets the chip RAM after them, if that is the largest memory (a 1MB machine: 216 KB of
-  the 445 KB of level files).
+  the 475 KB of level files).
 * **512K:** a cache from `$4A3A6` (where the original built its mirrored copies) to block 3,
   81 KB. It is a ring: a frame goes at the next free place and the oldest frames in its way are
   dropped (no search, nothing to fragment). As a level starts (`EnhLevelStart`, at `$41FE`) the
@@ -436,22 +439,22 @@ the title, start, press F1.)
 ## The game's disk reading (`src/diskload.s`)
 
 The original game reads its level data from the disk at the start of each level (5 tracks of
-packed world data and 1 more, 2 more on some levels) and at the end of the game, by **track
+packed world data and 1 more, 2 more on some levels) and for the progress screen between levels, by **track
 number** through the jump table's `TrackRead` (`../original/disk/DISKMAP.md`): whole tracks, of
 which a load uses part - the world data's packed stream fills 12-27 KB of its 28 KB, a map
 1-4 KB of its 5.5 KB, and the rest is what happened to be on the disk (some loads even overlap:
 levels 4-7's maps are in level 4's world data tracks). `diskload.s` takes the place of the
 original's `TrackWrite` and `TrackRead`.
 
-**The level files** (`build_disk.py`: `level_files`). Each distinct load the game makes (40 of
-them, from `original/tools/disk/game_tracks.py`) is a file on this disk with just the bytes the
-game uses:
+**The level files** (`build_disk.py`: `level_files`). Each distinct load the game makes (42 of
+them, from `original/tools/disk/game_tracks.py`, level 4-4's second map among them) is a file on
+this disk with just the bytes the game uses:
 * a level's world data: its packed stream - the length in its header - and the 8 bytes after
   it, which `UnpackLevel` moves with it;
 * a level's map: its 128-byte header and its rows of 64 tiles;
-* a boss's frames and the ending: the tracks without their trailing zeros.
+* a boss's frames and the progress screen: the tracks without their trailing zeros.
 
-445 KB against the tracks' 528 KB. `build/loadtable.i` (`LoadTable`) lists for each file the
+475 KB against the tracks' 555 KB. `build/loadtable.i` (`LoadTable`) lists for each file the
 first track and count the game asks for, its offset on the disk and its length.
 
 * `TrackRead`: same arguments and results (d0 = track, d1 = count, a0 = where; d0 = 0 if read,
@@ -463,7 +466,7 @@ first track and count the game asks for, its offset on the disk and its length.
   alone, so the music and display go on while a level loads;
 * `TrackWrite` returns -1: only the built-in debug monitor's `W` command used it.
 
-**Tested.** The boss frames and the ending come back exactly as the original's (their tails were
+**Tested.** The boss frames and the progress screen come back exactly as the original's (their tails were
 zeros). For the world data and maps, the bytes after them were what the disk had: to check that
 the game never reads them, `build_disk.py --poison N` fills them with N in the emulator's copies
 of the loads (`build/loads/`, from which `original/tools/nzsemu` now answers a load - the tests
@@ -484,10 +487,11 @@ to keep its size (about 1.4 KB is still free). Block 3 (`frames.s`) is stored af
 copied to `$5E800` as the game starts (*BOBs in one blit*).
 
 Block 2 (`$3214` on) keeps every byte where the original has it: much of it is reached at fixed
-addresses (self-modifying code writes into instructions by address, tables are built beyond the
-program's end), so the routines the enhanced code takes over get a `jmp` over their first
-instructions and nothing moves. `build_disk.py` compares the address of every label of block 2
-on with the original's (1,495 of them) and stops if one has moved.
+addresses (self-modifying code writes into instructions by address -
+`../original/docs/SELFMOD.md` lists every place - and tables are built beyond the program's
+end), so the routines the enhanced code takes over get a `jmp` over their first instructions and
+nothing moves. `build_disk.py` compares the address of every label of block 2 on with the
+original's (1,495 of them) and stops if one has moved.
 
 ## Next
 
