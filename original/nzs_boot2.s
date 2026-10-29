@@ -1,6 +1,7 @@
 ; The New Zealand Story (Ocean 1989, Amiga) - second-stage bootblock
 ; Decrypted from the Rob Northen protection loader on track 0 (tools/protemu/run_protection.sh):
 ; its payload copies these 1024 bytes over Kickstart's boot buffer and jumps to offset 12.
+; Made by original/tools/disasm/make.py from its config; edited by hand since October 2026.
 ; Assemble: vasmm68k_mot -Fbin -m68000 -no-opt -o boot2.bin nzs_boot2.s
 ;
 ; Offset 12 goes to Start, which copies the loader (offset $10 onwards) to $76000 and runs it:

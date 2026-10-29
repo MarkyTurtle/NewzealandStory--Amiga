@@ -1,4 +1,5 @@
 ; The New Zealand Story (Ocean 1989, Amiga) - bootblock, track 0 bytes $000-$3FF
+; Made by original/tools/disasm/make.py from its config; edited by hand since October 2026.
 ; Assemble: vasmm68k_mot -Fbin -m68000 -no-opt -o boot.bin nzs_boot.s
 ;
 ; Reads $1200 bytes from disk offset $400 (the rest of track 0: Rob Northen's protection

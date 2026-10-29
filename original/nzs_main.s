@@ -1,6 +1,8 @@
 ; The New Zealand Story (Ocean 1989, Amiga conversion by Choice Software:
 ; code C. Gordon, graphics S. Connor) - main program
 ;
+; Made by original/tools/disasm/make.py from its config; edited by hand since October 2026.
+;
 ; Packed on tracks 94-143; the track 90 loader unpacks it to $400 and jumps to $400.
 ; Assemble: vasmm68k_mot -Fbin -m68000 -no-opt -o main.bin nzs_main.s
 ;

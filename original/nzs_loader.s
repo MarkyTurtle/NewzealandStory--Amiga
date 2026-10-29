@@ -1,5 +1,6 @@
 ; The New Zealand Story (Ocean 1989, Amiga conversion by Choice Software)
 ; Game loader: track 90, loaded to $400 and entered there.
+; Made by original/tools/disasm/make.py from its config; edited by hand since October 2026.
 ; Assemble: vasmm68k_mot -Fbin -m68000 -no-opt -o loader.bin nzs_loader.s
 ;
 ; The bytes are written contiguously (5632 bytes, one track), but the block from file offset 4
