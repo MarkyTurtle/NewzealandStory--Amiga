@@ -21,7 +21,7 @@ The files (ids: FID_ in boot_4489.s):
      to $400
   1  the loading screen: the original file (original/disk/files/t091-093_loading_screen.bin)
   2  the level files, one after another: each load the game makes while it runs (a level's
-     world data and its map, a boss's frames, the ending: original/tools/disk/game_tracks.py)
+     world data and its map, a boss's frames, the progress screen: original/tools/disk/game_tracks.py)
      cut from the original disk's tracks to the bytes it uses (level_files); the game's
      TrackRead (diskload.s) finds each by the tracks it asks for through LoadTable
      (enhanced/build/loadtable.i, written here)
@@ -82,7 +82,7 @@ def level_files(orig_main):
       * a level's world data (5 tracks): its packed stream, the length in its header (counting
         the 8-byte header) and the 8 bytes after it, which UnpackLevel moves with it;
       * a level's map (1 track): its 128-byte header and its rows of 64 tiles;
-      * a boss's frames (2 tracks) and the ending (5): the tracks without their trailing zeros"""
+      * a boss's frames (2 tracks) and the progress screen (5): the tracks without their trailing zeros"""
     out, seen = [], set()
     for what, t, n in game_tracks.loads(orig_main):
         if (t, n) in seen:

@@ -28,7 +28,7 @@
 ;     drawn ones first, as many as fit); a frame drawn and not in the cache is built there and
 ;     then (OneMiss).
 ; BlitBob takes each frame's address from EnhBobFrame (at $B7CC), which leaves the frame's
-; one-blit form in OneCur (0: the other banks - the boss's, the ending's, the story's - and the
+; one-blit form in OneCur (0: the other banks - the boss's, the progress screen's, the story's - and the
 ; oxygen meter's frame, which the game redraws each pass: drawn as the original draws them).
 ; Nothing is built in the 512K cache before the first game starts (EnhMirrorInit, after the
 ; intro): the program's own tail there holds the intro's mirrored frames, which the original

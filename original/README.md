@@ -20,7 +20,9 @@ Conversion by Choice Software: code C. Gordon, graphics S. Connor.
 | `build.sh` | Assembles the four sources with vasm, checks their SHA-1 against the originals, and packs the program to check it against tracks 94-143 |
 | `bin/` | `main.bin` (the unpacked program the source reproduces), `protection_payload_60000.bin` |
 | `disk/` | Every file read from the disk (`disk/files/`), what each is and its format (`disk/FILES.md`), the track map (`disk/DISKMAP.md`) |
-| `docs/BOOT.md` | **How the disk boots and the copy protection**, stage by stage, and why the game does not need it |
+| `docs/BOOT.md` | **How the disk boots and the copy protection**, stage by stage, and the one thing the game takes from it (the key) |
+| `docs/CODE.md` | **The code**: where things are, the globals, the object record, the collision map (every routine also has a header box in the sources) |
+| `docs/SELFMOD.md` | **Self-modifying code**: every place the program writes into its own instructions, and the copy protection's hidden check |
 | `docs/SOUND.md` | **The sound**: the effects and instruments (IFF 8SVX files from Audio Master), Jonathan Dunn's music driver and its data format, the 12 songs |
 | `docs/GRAPHICS.md` | The screen, palettes and the BOB format |
 | `docs/LEVELS.md` | **The levels**: the level table, world data, maps, object lists, generators, the bosses' frames, object types and animation scripts; the frames each level can show |

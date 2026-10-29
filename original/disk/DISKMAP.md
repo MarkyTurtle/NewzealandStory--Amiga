@@ -9,11 +9,11 @@ are unformatted. Every track but track 1 is standard AmigaDOS MFM: 11 sectors of
 | 0, `$000-$3FF` | the bootblock | Kickstart |
 | 0, `$400-$15FF` | Rob Northen's protection loader (Copylock), to `$60000` | the bootblock (`trackdisk.device`) |
 | 1 | the Copylock track: custom MFM, a long track, 11 custom sync words | the protection loader, and again the game loader |
-| 2-89 | level data (below); tracks 64-67 and 69 are not read | the game (`LoadTracks`) |
+| 2-89 | level data (below); tracks 64-67 and 69 only for level 4-4's second map | the game (`LoadTracks`) |
 | 90 | the game loader, to `$400` | the second-stage bootblock (in the protection loader's payload) |
 | 91-93 | the loading screen, to `$70000` | the game loader |
 | 94-143 | the main program, packed (275,738 bytes: it ends in track 142), to `$400` | the game loader |
-| 144-148 | data read at the end of the game, to `$3CAA6` | the game |
+| 144-148 | the progress screen between levels, to `$3CAA6` | the game |
 | 149-151 | not read | - |
 | 152-159 | 2-track blocks read on some levels, to `$6C000` | the game |
 
@@ -23,7 +23,12 @@ At the start of each level `LoadTracks` (`$55BA`) reads, from `LevelTable` (`$5D
 level): 5 tracks of packed level data to `$3CAA6`, unpacked in place (`UnpackLevel`, the main
 program's packed format), and 1 track to `$44AA6`. The 5-track windows overlap: each level's
 packed data is shorter than 5 tracks. Then, on some levels, 2 tracks from `ExtraTracks`
-(`$418C`) to `$6C000`. At the end of the game, 5 tracks from track 144 to `$3CAA6`.
+(`$418C`) to `$6C000`. Between levels, for the progress screen (the map of New Zealand and the
+kiwis rescued so far: `l_043F4`), 5 tracks from track 144 to `$3CAA6`. And on level 4-4 (15),
+when the kiwi reaches the cage, its second map: 5 tracks from track 63 to `$3CAA6` and 1 from
+track 69 to `$44AA6` (`$45CC`: untraced code, the world-4 entry of the bosses' table
+`jtab_0AC58`); the level then restarts with `$26(a6)` set (the object list `dat_0D824`, the tile
+attributes `dat_0CDAC`).
 
 | Level | 5 tracks | 1 track | Level | 5 tracks | 1 track |
 |---|---|---|---|---|---|
@@ -39,4 +44,5 @@ packed data is shorter than 5 tracks. Then, on some levels, 2 tracks from `Extra
 | 9 | 34-38 | 49 | 19 | 84-88 | 89 |
 
 2-track blocks: 158-159, 156-157, 154-155, 152-153 (`ExtraTracks` entries 0, 1, 2 and 4, chosen
-by the level). 96 tracks in all: 2-63, 68, 70-89, 144-148, 152-159 (`disk/files/tracks/`).
+by the level). 96 tracks in all: 2-63, 68, 70-89, 144-148, 152-159 (`disk/files/tracks/`), and 64-67
+and 69 for level 4-4's second map (not extracted yet: `game_tracks.py` misses that load).

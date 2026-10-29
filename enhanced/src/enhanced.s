@@ -308,6 +308,7 @@ EnhBob:         tst.b   ScrActive
         adda.l  d4,a1
         jmp     l_0B8BA
 
+; EnhBob4 - a BOB in its one-blit form (frames.s: OneBob4)
 EnhBob4:        jmp     OneBob4                 ; (frames.s: the frame in one-blit form)
 
 ; sub_0C744: a character at a character column

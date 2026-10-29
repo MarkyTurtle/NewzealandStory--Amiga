@@ -147,7 +147,7 @@ COMMENTS = {
     0x415A: 'unpack it in place',
     0x4166: 'the single track to $44AA6',
     0x4192: 'on some levels: 2 more tracks (152-159) to $6C000',
-    0x43FE: 'track 144: 5 tracks (the end of the game)',
+    0x43FE: 'track 144: 5 tracks (the progress screen)',
     0x55BA: 'd0 = track, d1 = tracks, a0 = where, d2 = drive (always DF0): 5 tries',
     0x55CC: 'the track reader (TrackRead)',
     0x55EC: 'a fatal disk error: hangs (the text asks for DEL)',
@@ -155,7 +155,7 @@ COMMENTS = {
 HEADERS = {
     0x55BA: '''LoadTracks - read tracks of the disk through the jump table's TrackRead, 5 tries; then the
 "fatal disk error" screen. Called at the start of each level (5 tracks of packed level data,
-1 more track, and on some levels 2 more) and at the end of the game (track 144). On the
+1 more track, and on some levels 2 more) and for the progress screen between levels (track 144). On the
 AmigaDOS disk, TrackRead is replaced by enhanced/src/diskload.s.''',
     0x56A8: '''PlaySample - play a sound effect: a0 = an IFF 8SVX file (FORM). Finds VHDR and BODY,
 period = 3579546 / samples per second, and plays it on channel 3; the level 4 interrupt

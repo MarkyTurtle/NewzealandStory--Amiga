@@ -12,6 +12,11 @@
 	section	loader,code
 
 	org	$400				; file $0000: loaded here
+
+;-------------------------------------------------------------------------------
+; LoaderEntry - The game loader's entry ($400, track 90 as loaded by the second-stage bootblock):
+; to Start, which copies the loader to $76000.
+;-------------------------------------------------------------------------------
 LoaderEntry:
         bra.w   Start                           ; 00400
 
@@ -20,9 +25,22 @@ LoaderEntry:
 ;===============================================================================
 	org	$76000
 LoaderCode:
+
+;-------------------------------------------------------------------------------
+; LoaderMain - at $76000: into supervisor mode by a privilege violation (its vector set to
+; Supervisor first, then ori to sr from user mode).
+;-------------------------------------------------------------------------------
 LoaderMain:
         move.l  #Supervisor,(V_PrivilegeViol).w ; 76000  privilege violation -> Supervisor
         ori.w   #$700,sr                        ; 76008  (in user mode: privilege violation)
+
+;-------------------------------------------------------------------------------
+; Supervisor - the loader proper: the stack at $68000 (the variables at $76CE4: a6), the hardware
+; set up and the screen black (HardwareInit), both drives' motors off; the loading screen read (3
+; tracks from track 91 to $70000), the drive's head back to track 0, the picture decoded to $78000
+; (DecodeLoadScreen) and its colours (stored at half value) set; then the protection (Protection),
+; which ends in LoadAndRunGame.
+;-------------------------------------------------------------------------------
 Supervisor:
         lea.l   $68000.l,a7                     ; 7600C  stack, then the variables (a6)
         lea.l   $76ce4(pc),a6                   ; 76012
@@ -61,12 +79,17 @@ dat_76120:
 	dc.b	$FF,$FF,$FF,$FF
 
 ;-------------------------------------------------------------------------------
-; Protection - Rob Northen Copylock, as on track 0.
-; From $76148 the code is trace-vector encrypted: each instruction is decrypted by the trace
-; handler ($76234) just before it runs, and re-encrypted after. tools/disasm/tvd.py decrypts it to
-; nzs_loader_tvd.lst: it reads the Copylock track (track 1) with its 11 sync words ($764AC),
-; times the long track, checks the "Rob Northen Comp" signature and derives the key from the
-; track. It ends with a privilege violation into LoadAndRunGame with the key in d0.
+; Protection - Rob Northen Copylock, as on track 0. The registers saved (SavedRegs), then two
+; ILLEGALs through the illegal-instruction vector: Prot_Illegal1, and on a 68010+ the cache control
+; register handled (the bytes before Prot_NoCacr), then TVD_Enter. From $76148 the code is
+; trace-vector encrypted: each instruction is decrypted by the trace handler ($76234) just before
+; it runs, and re-encrypted after. tools/disasm/tvd.py decrypts it to nzs_loader_tvd.lst: it reads
+; the Copylock track (track 1) with its 11 sync words ($764AC), times the long track
+; (Prot_TimeLongTrack), checks the "Rob Northen Comp" signature and derives the key from the track.
+; It ends with a privilege violation into LoadAndRunGame with the key in d0 - and leaves the key in
+; the trace vector ($24), where the game checks it at every boss and warp (nzs_main.s: sub_0A742).
+; SELF-MODIFYING: all of it - TVD_Trace decrypts each instruction in place before it runs and puts
+; the previous one back.
 ;-------------------------------------------------------------------------------
 Protection:
         move.l  a6,-(a7)                        ; 76124  save the registers, ILLEGAL -> Prot_Illegal1 (see nzs_loader_tvd.lst)
@@ -78,12 +101,21 @@ Protection:
         pea.l   Prot_Illegal1(pc)               ; 7613C
         move.l  (a7)+,$10.l                     ; 76140
         illegal #$4afc                          ; 76146
+
+;-------------------------------------------------------------------------------
+; Prot_Illegal1 - the first ILLEGAL's handler: the next ILLEGAL goes to Prot_NoCacr.
+;-------------------------------------------------------------------------------
 Prot_Illegal1:
         pea.l   Prot_NoCacr(pc)                 ; 76148
         move.l  (a7)+,$10.l                     ; 7614C
         movea.l a7,a1                           ; 76152
 	dc.b	$4E,$7A,$00,$02,$41,$FA,$FF,$C6,$20,$80,$08,$80,$00,$00,$4E,$7B
 	dc.b	$00,$02
+
+;-------------------------------------------------------------------------------
+; Prot_NoCacr - the stack back, the illegal vector restored, the exception vectors $8-$24 saved
+; (into the variables), TVD_Enter installed for the ILLEGAL that starts the encrypted code.
+;-------------------------------------------------------------------------------
 Prot_NoCacr:
         movea.l a1,a7                           ; 76166
         move.l  d1,$10.l                        ; 76168
@@ -100,6 +132,12 @@ Prot_NoCacr:
 	dc.b	$D5,$81,$FF,$81,$60,$7E,$D5,$CC,$4A,$33,$60,$3B,$FF,$C4,$4A,$06
 	dc.b	$D5,$F9,$FF,$E9,$60,$16,$D5,$E8,$4A,$17,$60,$1F,$FF,$E0,$4A,$3E
 	dc.b	$D5,$C1,$FF,$F5
+
+;-------------------------------------------------------------------------------
+; TVD_Enter - starts (or, on the next ILLEGAL, stops) the trace-vector decryption: the trace vector
+; -> TVD_Trace, the privilege violation -> LoadAndRunGame, the stacked PC past the ILLEGAL,
+; interrupts masked, the trace bit toggled; going in, the first instruction decrypted.
+;-------------------------------------------------------------------------------
 TVD_Enter:
         movem.l d0/a0-a1,-(a7)                  ; 761FA
         lea.l   TVD_Trace(pc),a0                ; 761FE
@@ -114,6 +152,12 @@ TVD_Enter:
         movea.l (a1),a0                         ; 7622C
         move.l  $4(a1),(a0)                     ; 7622E
         bra.b   l_7625A                         ; 76232
+
+;-------------------------------------------------------------------------------
+; TVD_Trace - the trace handler: the long decrypted last put back as it was (tvd_Last), then the
+; next instruction decrypted - EOR with the long before it, inverted and swapped.
+; SELF-MODIFYING: it rewrites the code it traces.
+;-------------------------------------------------------------------------------
 TVD_Trace:
         andi.w  #$f8ff,sr                       ; 76234
         movem.l d0/a0-a1,-(a7)                  ; 76238
@@ -162,6 +206,13 @@ l_7625A:
 	dc.b	$A1,$9A,$47,$6D,$00,$9E,$CE,$1D,$2D,$92,$00,$9E,$CE,$1D,$52,$7D
 	dc.b	$00,$96,$CE,$15,$AD,$80,$00,$9C,$9E,$63,$52,$6F,$9C,$EC,$65,$9C
 	dc.b	$00,$9E,$B5,$E1,$06,$C1,$FC,$7F,$4D,$F5,$F8,$F6
+
+;-------------------------------------------------------------------------------
+; Prot_TimeLongTrack - (in the clear: an ILLEGAL turns the tracing off around it) the Copylock
+; track timed: disk DMA on, a count of loops while the track's bytes come in (DSKBYTR), $32 bytes
+; kept; d1 = the time (0 if the disk DMA did not finish). CopylockSyncs: the 11 sync words it reads
+; the track with.
+;-------------------------------------------------------------------------------
 Prot_TimeLongTrack:
         tst.b   (CIAB_ICR).l                    ; 76440
 l_76446:
@@ -229,6 +280,11 @@ l_764C2:
 	dc.b	$CE,$3C,$DB,$4B,$77,$34,$EE,$37,$5F,$BD,$E1,$B8,$EB,$B4,$34,$CB
 	dc.b	$87,$CE,$14,$B4,$FA,$B4,$25,$72,$EB,$4B,$00,$04,$DD,$FB,$63,$FE
 	dc.b	$FF,$D9,$2F,$6E,$9C,$03,$29,$00
+
+;-------------------------------------------------------------------------------
+; Prot_Exit - the protection's end: the key (dat_76120) into the registers, the exception vectors
+; $8-$24 put back, the registers restored, rte (with the key: into LoadAndRunGame).
+;-------------------------------------------------------------------------------
 Prot_Exit:
         move.l  dat_76120(pc),d0                ; 7664E
         bmi.b   l_76658                         ; 76652
@@ -240,7 +296,9 @@ l_76658:
 
 ;-------------------------------------------------------------------------------
 ; LoadAndRunGame - the key in d0 gives the load address (key - $F974D77D): with the right key,
-; $400. Reads the packed main program, unpacks it there and jumps to it.
+; $400. Reads the packed main program (50 tracks from track 94: ReadTracksOrReset), unpacks it
+; there (Unpack) and jumps to it. A wrong key loads the game somewhere else and the machine
+; crashes.
 ;-------------------------------------------------------------------------------
 LoadAndRunGame:
         move.l  d0,-(a7)                        ; 76668  the Copylock key in d0: key - $F974D77D = $400 (key $F974DB7D)
@@ -257,12 +315,22 @@ LoadAndRunGame:
         subi.l  #$f974d77d,d0                   ; 7668E
         movea.l d0,a0                           ; 76694
         jmp     (a0)                            ; 76696  enter the game at $400
+
+;-------------------------------------------------------------------------------
+; ReadTracksOrReset - ReadTracks; a read that fails resets the machine (a jump into Kickstart).
+;-------------------------------------------------------------------------------
 ReadTracksOrReset:
         bsr.w   ReadTracks                      ; 76698
         tst.w   d0                              ; 7669C
         bpl.w   l_7671C                         ; 7669E
         move.w  $c(a6),d1                       ; 766A2
         jmp     $f80000.l                       ; 766A6  a read that fails resets the machine (Kickstart)
+
+;-------------------------------------------------------------------------------
+; DecodeLoadScreen - the loading screen (at $70000: its colours, then byte-run packed ILBM lines
+; from $70022) unpacked to $78000, 4 planes $2000 apart (PutScreenByte) - the same unpacker as the
+; game's sub_0507E.
+;-------------------------------------------------------------------------------
 DecodeLoadScreen:
         lea.l   $78000.l,a1                     ; 766AC
         movea.l a1,a2                           ; 766B2
@@ -289,6 +357,11 @@ l_766E0:
         bsr.b   PutScreenByte                   ; 766E2
         dbra    d0,l_766E0                      ; 766E4
         bra.b   l_766C0                         ; 766E8
+
+;-------------------------------------------------------------------------------
+; PutScreenByte - a byte of the picture stored; after $28 bytes the next plane, after 4 planes the
+; next line; after 200 lines it returns past DecodeLoadScreen.
+;-------------------------------------------------------------------------------
 PutScreenByte:
         move.b  d1,(a1)+                        ; 766EA
         bchg    #$f,d5                          ; 766EC
@@ -310,6 +383,12 @@ PutScreenByte:
         addq.l  #$4,a7                          ; 7671A
 l_7671C:
         rts                                     ; 7671C
+
+;-------------------------------------------------------------------------------
+; Unpack - the packed main program unpacked in place (a0: unpacked length, packed length, then the
+; data - moved up first, then run-length decoded forwards: a marker byte, then bytes, or marker,
+; byte, count). The game's UnpackLevel is the same routine.
+;-------------------------------------------------------------------------------
 Unpack:
         movem.l d0-d3/a0-a2,-(a7)               ; 7671E
         move.l  a0,-(a7)                        ; 76722
@@ -348,6 +427,11 @@ l_76752:
 l_7675E:
         movem.l (a7)+,d0-d3/a0-a2               ; 7675E
         rts                                     ; 76762
+
+;-------------------------------------------------------------------------------
+; MotorOnWaitReady - the drive ($2(a6): 0 DF0, 1 DF1) selected with its motor on; waits for the
+; drive's ready line (CIA-A /RDY).
+;-------------------------------------------------------------------------------
 MotorOnWaitReady:
         move.w  d0,-(a7)                        ; 76764
         ori.b   #$f8,(CIAB_PRB).l               ; 76766
@@ -361,6 +445,10 @@ l_7678A:
         bne.b   l_7678A                         ; 76792
         move.w  (a7)+,d0                        ; 76794
         rts                                     ; 76796
+
+;-------------------------------------------------------------------------------
+; MotorOff - the drive's motor off (selected, motor bit high, deselected).
+;-------------------------------------------------------------------------------
 MotorOff:
         ori.b   #$78,(CIAB_PRB).l               ; 76798
         bset    #$7,(CIAB_PRB).l                ; 767A0
@@ -373,6 +461,14 @@ MotorOff:
         rts                                     ; 767BE
 dat_767C0:
 	dc.b	$00,$00,$00,$00
+
+;-------------------------------------------------------------------------------
+; ReadTracks - d0 = the first track, d1 = how many, a0 = where: for each track, the head moved
+; (SeekTrack) and the track read by disk DMA to $68000 (sync $4489, $1996 words; a 5-index
+; time-out), its 11 sectors decoded (sub_76922) to a0 + sector x 512; 10 tries a track, a bad sync
+; 5 (then the head re-seeked from track 0). d0 = 0, or negative on an error (-1 no sync, -2 a
+; checksum, -3 time-out), with the stack put back.
+;-------------------------------------------------------------------------------
 ReadTracks:
         move.l  a7,$67c0(a6)                    ; 767C4
         move.w  d0,-(a7)                        ; 767C8
@@ -465,6 +561,13 @@ l_76912:
         move.l  (a7)+,d0                        ; 76918
         movea.l (dat_767C0).l,a7                ; 7691A
         rts                                     ; 76920
+
+;-------------------------------------------------------------------------------
+; sub_76922 - A sector decoded from the MFM at a0: its header (info long, 16 bytes of label, header
+; and data checksums: sub_769B2) - the format byte must be $FF - and its 512 bytes to where its
+; sector number says; the data's checksum (sub_769A4) checked. d0 = 0, or -1 (not a sector) / -2 (a
+; bad checksum, d1 = the sum).
+;-------------------------------------------------------------------------------
 sub_76922:
         movea.l a4,a1                           ; 76922
         move.w  #$4,d1                          ; 76924
@@ -509,6 +612,11 @@ l_7698E:
 l_769A0:
         clr.l   d0                              ; 769A0
         rts                                     ; 769A2
+
+;-------------------------------------------------------------------------------
+; sub_769A4 - A checksum: d1 + 1 words added up into d0 (the loader's own check, not AmigaDOS's
+; EOR).
+;-------------------------------------------------------------------------------
 sub_769A4:
         clr.l   d0                              ; 769A4
         clr.l   d2                              ; 769A6
@@ -517,6 +625,11 @@ l_769A8:
         add.l   d2,d0                           ; 769AA
         dbra    d1,l_769A8                      ; 769AC
         rts                                     ; 769B0
+
+;-------------------------------------------------------------------------------
+; sub_769B2 - MFM decoded: d1 bytes from a0 (the odd bits) and a0 + d1 (the even bits) into a1; a0
+; moves past both halves.
+;-------------------------------------------------------------------------------
 sub_769B2:
         lea.l   (a0,d1.w),a2                    ; 769B2
         subq.w  #$1,d1                          ; 769B6
@@ -531,9 +644,20 @@ l_769B8:
         dbra    d1,l_769B8                      ; 769CA
         movea.l a2,a0                           ; 769CE
         rts                                     ; 769D0
+
+;-------------------------------------------------------------------------------
+; SeekTrack0 - the head to track 0: the position taken as 82 and stepped out until the drive's
+; /TRK0 line says it is there.
+;-------------------------------------------------------------------------------
 SeekTrack0:
         clr.w   $c(a6)                          ; 769D2
         move.w  #$52,$e(a6)                     ; 769D6
+
+;-------------------------------------------------------------------------------
+; SeekTrack - the head to track $C(a6): side from its bit 0, cylinder = track / 2, one step at a
+; time (with the step delays); at track 0 (/TRK0) the counts are reset. Then the disk's
+; precompensation (ADKCON) for the cylinder.
+;-------------------------------------------------------------------------------
 SeekTrack:
         move.w  $c(a6),d0                       ; 769DC
         bset    #$2,(CIAB_PRB).l                ; 769E0
@@ -582,6 +706,11 @@ l_76A82:
         move.w  #$6000,(CUSTOM+ADKCON).l        ; 76A82
         move.w  d2,(CUSTOM+ADKCON).l            ; 76A8A
         rts                                     ; 76A90
+
+;-------------------------------------------------------------------------------
+; HardwareOn - CIA-A's interrupts off and its serial port reset, interrupt requests cleared, disk
+; ADKCON set (MFM, no precomp), DMA on (bitplanes, copper, master).
+;-------------------------------------------------------------------------------
 HardwareOn:
         lea.l   CUSTOM,a0                       ; 76A92
         move.b  #$7f,(CIAA_ICR).l               ; 76A98
@@ -593,6 +722,12 @@ HardwareOn:
         move.w  #$9100,ADKCON(a0)               ; 76AC0
         move.w  #$8380,DMACON(a0)               ; 76AC6
         rts                                     ; 76ACC
+
+;-------------------------------------------------------------------------------
+; HardwareInit - the hardware into a known state: interrupts and DMA off, a 4-plane low resolution
+; display of $78000 (cleared) through LoadScreenCopper, the sprites off, the colours black; then
+; HardwareOn and interrupts enabled.
+;-------------------------------------------------------------------------------
 HardwareInit:
         movem.l d0/a0-a1,-(a7)                  ; 76ACE
         lea.l   CUSTOM,a0                       ; 76AD2
@@ -640,6 +775,11 @@ LoadScreenCopper:
 ;===============================================================================
 	org	$F90
 	dc.b	$00,$00
+
+;-------------------------------------------------------------------------------
+; Start - at $F90 where it was loaded: interrupts off, the loader (file offset 4 on) copied to
+; $76000 and entered (LoaderMain).
+;-------------------------------------------------------------------------------
 Start:
         move.w  #$7fff,(CUSTOM+INTENA).l        ; 00F92
         lea.l   $404(pc),a0                     ; 00F9A

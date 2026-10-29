@@ -166,17 +166,35 @@ their type at `$1C`.
 
 ![The object types](../assets/levels/types.png)
 
-What the code shows so far (the rest are to be named from their handlers):
+What the code shows (each handler's header box in `nzs_main.s` has the details):
 * 0: the kiwi. 1, 2: the caged kiwi; 2 on the 4th level of each world, with the boss.
 * 3: a generator (above).
-* 10-21: enemies that ride. Each has a linked type from 33-42 (what it rides: the balloons, the
-  duck, ...), created with it, and code and a script in `dat_05A7C` (by type − 10), reached
-  through an indirect jump (`$6F64`).
+* 10-13 and 15-20: enemies that ride. Each has a linked type from 33-41 (what it rides: the
+  balloons, the duck, ...), created with it. `dat_05A7C` (by type − 10, 10-21) holds each one's
+  attack routine, reached through an indirect jump (`$6F64`), and the script it falls with when
+  knocked off. Type 22's linked type is 42, the thing it carries and drops.
 * 27-30: not animated by a script: the handler (`$6DA4`) shows the first word of the "script"
   as a frame and reads its third as a time.
 * 31: fruit. An enemy that dies becomes a fruit (type `$FFFE`, script `dat_07414` entered at
   one of 16 fruits in turn, `$073C0`).
 * 32: an EXTEND letter: 1,000 points, a bit of `$13(a6)` set, the letter drawn on the panel.
+* 4: walks and rolls a shot along the ground; 5: walks and fires across; 6: leaps at the kiwi and
+  throws a boomerang; 7: hops, and near the kiwi bursts into 5 pieces; 8: bounces diagonally;
+  9: walks and throws a piece up; 14: leaps at the kiwi and makes copies of itself; 21: leaps,
+  and throws an egg that hatches into a random enemy (`sub_085E6`); 22: walks carrying a type 42
+  and drops it on the kiwi; 23: falls, lands and lets out walking copies of itself; 24: lurks
+  below and reaches up to catch the kiwi (a life lost); 25: walks, deadly to touch; 26: bounces
+  about.
+* The riders (10-13, 15-19): each type's handler picks one of six flights (`l_06ECA`: the
+  self-modified `jsr` at `$6F1E`) and one of the attacks in `dat_05A7C` (a shot across, aimed,
+  dropped or thrown up); 20 rides type 41 and fires its spread.
+* 33-41, the rides: the kiwi boards them from above (`sub_0635A`) and steers them
+  (`sub_08E1E`); a shot or spikes pop them. 39 trails 4 segments that hurt the kiwi, or the enemies while he rides it; 41 fires a
+  spread of 8 when ridden.
+* 43-45, platforms: 43 sinks when stood on, 44 is pushed the way the kiwi faces, 45 is a lift.
+* Bonus items (fruit's every 8th, `$28(a6)`): weapons (`sub_07672`, `sub_07680`, `sub_07694`,
+  the bow back `sub_0768A`), the clock, the bomb, invincibility, a flight straight to the cage
+  (`sub_07618`).
 * An enemy shot or knocked over is type `$FFFF`; `sub_085E6` turns an object into a random one
   of 16 enemies (the table at `dat_08628`: handler and script pairs).
 
@@ -269,6 +287,5 @@ recently used. That frees about 45 KB of chip RAM on 512K.
 
 ## Still to do
 
-* The object types' names, from their handlers.
 * The bosses: their objects and code (type 2's scripts show frames 579-596).
 * More plays for `observed.json`.

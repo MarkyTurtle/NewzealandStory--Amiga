@@ -6,7 +6,10 @@ The program reads the disk only through LoadTracks ($55BA, via JT_TrackRead):
   * at the start of each of the 20 levels (LevelTable, $5DBA, 16 bytes a level): 5 tracks of
     packed level data from +$C, and 1 track from +$E;
   * on some levels 2 more tracks (ExtraTracks, $418C: 152-159);
-  * at the end of the game 5 tracks from track 144 (move.w #$90,d0 at $43FE).
+  * between levels, for the progress screen, 5 tracks from track 144 (move.w #$90,d0 at $43FE).
+
+Not listed yet: level 4-4's second map - when the kiwi reaches the cage there, $45CC (untraced
+code: jtab_0AC58's world 4 entry) loads 5 tracks from track 63 and 1 from track 69.
 
   python3 tools/disk/game_tracks.py [bin/main.bin]      lists them
 """
@@ -37,7 +40,7 @@ def loads(main):
             out.append((f'extra tracks {k}', t, 2))
     if rd16(END_LOAD) != 0x303C:
         raise SystemExit('game_tracks.py: the load at $43FE is not move.w #imm,d0 any more')
-    out.append(('the end of the game', rd16(END_LOAD + 2), 5))
+    out.append(('the progress screen', rd16(END_LOAD + 2), 5))
     return out
 
 
