@@ -15,11 +15,11 @@
 ; The mirrored frames (frame + MIR_FIRST, $88(a6): an object facing left) are made in the same
 ; form, mirrored as they are copied: the original's mirrored copies (sub_0C52C) are never built.
 ; Their directory entries are made as the original makes them but point at the unmirrored frame
-; (the same size: BlitBob clips with it), as mirror.s did.
+; (the same size: BlitBob clips with it).
 ;
 ; Where they are, by the machine (OneInit):
 ;   * chip RAM above 512K, room for them all (ONE_ALL bytes, about 290 KB): all built once, at
-;     the first new game (EnhMirrorInit), from ONE_HI ($80000) on; the track cache gets the
+;     the first new game (EnhMirrorInit), from ONE_HI ($80000) on; the file cache gets the
 ;     chip RAM after them (CacheInit) - OneMode 0;
 ;   * 512K: a cache from ONE_LO ($4A3A6, where the original built its mirrored copies) to block
 ;     3, OneMode 1. A ring: a frame goes at the next free place and the oldest frames in its way

@@ -108,7 +108,7 @@ l_005C6:
         move.l  #ErrorTrap,(V_Trap14).w         ; 0061C
         movea.l dat_031D8(pc),a6                ; 00624
         bsr.w   sub_01260                       ; 00628
-        bsr.w   EnhInit                         ; enhanced: the track cache, the title's lines
+        bsr.w   EnhInit                         ; enhanced: the frames, the file cache, the title's lines
 l_0062C:
         lea.l   JT_Init(pc),a7                  ; 0062C
         clr.w   (dat_030BE).l                   ; 00630
@@ -718,7 +718,7 @@ l_041F0:
 l_041F6:
         move.w  $8(a6),(LoadedLevel).l          ; 041F6
 l_041FE:
-        jsr     (EnhLevelStart).l               ; 041FE  enhanced: + the mirror cache warmed (mirror.s)
+        jsr     (EnhLevelStart).l               ; 041FE  enhanced: + the frame cache filled (frames.s)
         bsr.w   sub_04C30                       ; 04204
         move.w  $8(a6),d0                       ; 04208
         lea.l   LevelTable(pc),a0               ; 0420C
@@ -8528,7 +8528,7 @@ l_0B7BC:
         move.l  d2,d4                           ; 0B7C2
         move.l  d3,d5                           ; 0B7C4
         lea.l   CUSTOM,a2                       ; 0B7C6
-        jsr     (EnhBobFrame).l                 ; 0B7CC  enhanced: the frame's address, mirrored on demand (mirror.s)
+        jsr     (EnhBobFrame).l                 ; 0B7CC  enhanced: the frame's address and its one-blit form (frames.s)
         nop                                     ; 0B7D2
         lea.l   (mem_63E94).l,a0                ; 0B7D4
         lsl.w   #$2,d0                          ; 0B7DA
@@ -9415,7 +9415,7 @@ l_0C4EE:
 l_0C52A:
         rts                                     ; 0C52A
 sub_0C52C:
-        jmp     (EnhMirrorInit).l               ; 0C52C  enhanced: the mirrored frames, all or a cache (mirror.s)
+        jmp     (EnhMirrorInit).l               ; 0C52C  enhanced: the mirrored frames' directory; the one-blit frames (frames.s)
         nop                                     ; 0C532
         nop                                     ; 0C534
         movea.l $84(a6),a3                      ; 0C536

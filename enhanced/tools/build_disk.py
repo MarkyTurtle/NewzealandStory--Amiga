@@ -25,8 +25,9 @@ The files (ids: FID_ in boot_4489.s):
      cut from the original disk's tracks to the bytes it uses (level_files); the game's
      TrackRead (diskload.s) finds each by the tracks it asks for through LoadTable
      (enhanced/build/loadtable.i, written here)
-  3  the extension module (src/ext.s, assembled at EXT_BASE): the rest of the boot, the
-     machine's memory on the title, the track cache; loaded by the bootblock
+  3  the extension module (src/ext.s, assembled at EXT_BASE): the rest of the boot (the
+     loading screen, the game, the machine description, the CPU's caches); loaded by the
+     bootblock
 """
 import json, hashlib, os, re, struct, subprocess, sys
 

@@ -9,8 +9,8 @@ S frame was taken (SmoothMid): it shows the same frame as the original's at $42D
 enhanced game's in-between frames turned off (SmoothOn 0).
 
 --chip: the enhanced game's machine description given that much chip RAM (default: none
-recorded, as on a 512K machine; 0x100000 for 1MB: the mirrored frames all built at start-up
-rather than the cache, src/mirror.s).
+recorded, as on a 512K machine; 0x100000 for 1MB: the BOB frames all built once rather than
+the 512K cache, src/frames.s).
 
 The session: the attract mode, then for each level (the level number poked in as the level
 starts, as tools/nzsemu/coverage.py does) N passes of the game loop (default 240) with a

@@ -31,15 +31,20 @@ pillow unicorn`. On Windows, WSL is the simplest way; WinUAE on Windows opens th
 ```
 python3 enhanced/tools/build_disk.py       # -> enhanced/build/nzs.adf
 python3 enhanced/tools/test_boot.py        # boots it in the emulator harness: every check "ok"
-original/tools/nzsemu/build.sh             # (once) the study emulator, for the next test
+original/tools/nzsemu/build.sh             # (once) the study emulator, for the tests below
 python3 enhanced/tools/test_scroller.py    # the display against the original's (a few minutes)
+python3 enhanced/tools/test_menu.py        # the title menu and the cheat
+python3 enhanced/tools/test_fly.py         # the cheat's fly mode
+python3 enhanced/tools/test_smooth.py --blittime   # 50 frames a second (some minutes)
+python3 enhanced/tools/test_frames.py      # the BOB frames' cache on 512K (some minutes)
 ```
 
 `build_disk.py` assembles the game (`enhanced/src/nzs_game.s`, the enhanced game's own source,
-with `diskload.s`, `enhanced.s` and `scroller.s`), the extension module and the bootblock,
-packs the game and writes the disk with the loading screen and the level tracks from
-`original/disk/files/`. Open `nzs.adf` in DF0 of an
-A500 (Kickstart 2.0 and later can also boot it from DF1-DF3) or write it to a floppy.
+with `diskload.s`, `enhanced.s` - which includes `scroller.s`, `smooth.s` and `menu.s` - and
+`frames.s`), the extension module and the bootblock, packs the game and writes the disk with
+the loading screen and the level files, cut from the tracks in `original/disk/files/tracks/`.
+Open `nzs.adf` in DF0 of an A500 or A1200 (Kickstart 2.0 and later can also boot it from
+DF1-DF3) or write it to a floppy.
 
 ## The original
 
