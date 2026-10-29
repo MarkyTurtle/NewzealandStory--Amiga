@@ -30,27 +30,27 @@ configurations), then merged into `main`. `README.md` describes everything done.
   or the menu's switch; F1 flies (the original's unused fly mode), F2 skips a level (`README.md`,
   *The cheat*). Tested in WinUAE.
 * **The level data as files, and a file cache** (branch `feature/file-cache`): each load the
-  game makes is a file with just the bytes it uses (445 KB against the tracks' 528 KB), kept in a
+  game makes is a file with just the bytes it uses (475 KB against the tracks' 555 KB), kept in a
   file cache in the largest memory beyond 512K of chip RAM: all of it in a trapdoor's 512K
   (`README.md`, *The game's disk reading*, *The machine's memory*). Tested in WinUAE on an
   expanded A500.
 * **The A1200** (branch `feature/a1200`): above a 68000 the CPU's caches off and the vector base
   at 0, FMODE 0 on AGA (`README.md`, *Booting*). Tested in WinUAE.
+* **Level 4-4's second map** (branch `fix/level-4-4`): reaching the cage on level 4-4 loads a
+  second map (5 tracks from track 63, 1 from track 69: `$45CC`), a load `game_tracks.py` did not
+  list, so the disk had no file for it and the game stopped with a fatal disk error. It is listed
+  now, its tracks extracted, and the disk has the two files (`test_boot.py` reads them). Not yet
+  tested in WinUAE.
 
 ## Next
 
-Two problems found while documenting the code (not yet fixed or tested in WinUAE):
+A problem found while documenting the code (not yet fixed or tested in WinUAE):
 
 * **The Copylock key** (`../original/docs/SELFMOD.md`): the game checks the key the original's
   Copylock left in the trace vector `$24` at every boss and every warp (`sub_0A742`), and if it
   is wrong breaks its own collision test: the kiwi can no longer be hurt, pick anything up or
   free the caged kiwi, so the level cannot be finished. This disk does not run Copylock, so the
   check fails. The fix: put `$F974DB7D` in `$24` as the game starts (`ext.s`).
-* **Level 4-4's second map**: reaching the cage on level 4-4 loads 5 tracks from track 63 and 1
-  from track 69 (`$45CC`), a load `game_tracks.py` does not list, so this disk has no file for it
-  and the game stops with *There has been a fatal disk error*. The fix: list it in
-  `game_tracks.py` (then `build_disk.py` stores it).
-
 * **Input test** (the title menu's options): the joystick's directions, both buttons and the
   last key, shown as they change.
 * **Sprite test**: any BOB frame of the main bank (and its mirrored copy) drawn on the title.
@@ -62,9 +62,9 @@ Two problems found while documenting the code (not yet fixed or tested in WinUAE
   restarts: `LoadedLevel`). With a file cache it comes from memory; on a plain 512K machine it is
   read from the disk each time. Skip the load when the world's data is still unpacked in place,
   and load just the map.
-* **The level files packed**: the maps, boss frames and progress screen packed as the world data is (394 KB
-  in all against 445 KB): a 1MB machine's file cache, after the BOB frames, would hold 55 % of
-  them instead of 49 %. Perhaps.
+* **The level files packed**: the maps, boss frames and progress screen packed as the world data
+  is (about 423 KB in all against 475 KB): a 1MB machine's file cache, after the BOB frames, would
+  hold about 51 % of them instead of 45 %. Perhaps.
 * **Real hardware**: so far WinUAE, FS-UAE and the emulators of the tests.
 
 ## Not doing

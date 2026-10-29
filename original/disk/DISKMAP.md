@@ -44,5 +44,4 @@ attributes `dat_0CDAC`).
 | 9 | 34-38 | 49 | 19 | 84-88 | 89 |
 
 2-track blocks: 158-159, 156-157, 154-155, 152-153 (`ExtraTracks` entries 0, 1, 2 and 4, chosen
-by the level). 96 tracks in all: 2-63, 68, 70-89, 144-148, 152-159 (`disk/files/tracks/`), and 64-67
-and 69 for level 4-4's second map (not extracted yet: `game_tracks.py` misses that load).
+by the level). 101 tracks in all: 2-89, 144-148, 152-159 (`disk/files/tracks/`).
