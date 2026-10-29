@@ -31,17 +31,33 @@ then merged.
 
 ## Next
 
-### Memory: the program in slow / fast RAM
+### Memory: the program in slow / fast RAM (looked at; not started)
 
-On an A500 with 512K of chip RAM and an expansion (a trapdoor's slow RAM, or fast RAM), move
-the program's code and tables there, as the Ghosts'n Goblins enhanced game does (`EnhRelocate`:
-assembled at two addresses to make a relocation table), and give the chip RAM it frees to the
-one-blit frames' cache; the file cache takes the rest of the expansion. Only the CPU reads code
-and tables; the BOBs, samples, music, copper lists, tiles and screens stay in chip RAM. From the
-listing: code and its tables are about 61 KB at `$400-$F33E` (block 1 and the start of block 2)
-plus block 3; everything after `$F33E` (about 275 KB) is data. To check first: that the
-custom chips read nothing in what moves (the emulator to report any copper, sprite, audio or
-blitter read there).
+The idea, as the Ghosts'n Goblins enhanced game does it (`EnhRelocate`: assembled at two
+addresses to make a relocation table): on an A500 with 512K of chip RAM and an expansion, run
+the code and tables from the expansion and give the chip RAM they free to the one-blit frames'
+cache. Only the CPU reads code and tables. From the listing, code and its tables are about 61 KB
+at `$400-$F33E`, everything after it (about 275 KB) data.
+
+What stands in the way (branch `feature/relocate`, `nzsemu`'s new `dmacheck`):
+* **Chip-only data inside the code.** `dmacheck 0x400 0xF340` over the title, menu, attract
+  sequence, intro and play on 6 levels: the game's own copper list (`CopperList`, `$C2BA`; the
+  title's and story's display) and an empty sprite (`$C22E`, every sprite pointer in its lists)
+  are read by the custom chips, in the data run `$C080-$C3B6`. They would have to stay in chip
+  RAM while the code around them moves: two relocation distances, or a cache over two regions.
+* **Addresses as numbers.** Self-modifying code writes into instructions by numeric address
+  (`DeinterleaveBobs`' `$4EE8`-`$4EF4`, `$6F20`, `$7C6A`, `$B0AA`, `$B6CC`, `$B8DE`), and
+  objects' script pointers are set from immediates (`move.l #$607E,$14(a5)`). Assembling twice
+  finds only labels: these, and any address inside the data tables (written as bytes), would
+  each have to be found and made a label - the whole of block 2's data by hand.
+* **Short addresses.** Block 2 calls block 1's jump table with absolute short addresses
+  (`jsr (JT_KeyTest).w`): block 1 would have to stay where it is.
+
+**What it would bring now:** little. With the frames laid out by the blitter, even a cold 512K
+cache (every frame built in play) keeps 99.7 % of passes at 50 Hz, as with 1MB of chip RAM
+(`tools/test_frames.py`), so a bigger cache would not show. A trapdoor's slow RAM shares the chip
+bus, so code would run no faster there; fast RAM (an accelerator, an A1200's) would run it
+faster, where the game already keeps up. Worth doing only for a new use of chip RAM.
 
 ### Frame rate
 
