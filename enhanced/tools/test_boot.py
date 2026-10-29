@@ -13,9 +13,11 @@ Writes enhanced/build/test_boot.png: the display rendered from the emulated memo
 (original/tools/screen.py).
 
 The machine's memory (exec's memory list, which the bootblock's MemDetect reads) is one of
-MACHINES: the machine description must reach the extension module (src/ext.s), the track cache
-must be set up in the largest memory beyond 512K of chip RAM, a level read twice must be read
-from the disk once when it fits the cache, and the title's memory lines must say so.
+MACHINES: the machine description must reach the extension module (src/ext.s), the file cache
+must be set up in the largest memory beyond 512K of chip RAM (after the BOB frames in chip RAM),
+a level read twice must be read from the disk once when it fits the cache, and the title's
+memory lines must say so. Above a 68000 (the A1200's 68020) the CPU's caches must be off and its
+vector base 0 when the game runs.
 
 The bootblock finds the boot drive by opening trackdisk.device's units; exec's OpenDevice is a
 stub (a Python hook) that knows the drives connected. Cases: booted from DF0, DF1 and DF3, and
@@ -63,7 +65,7 @@ EXT_BASE = build_disk.EXT_BASE
 MEMLIST = 0x2000                        # the memory headers exec lists (overwritten by the game later)
 TRACK = 5632
 # the one-blit BOB frames (src/frames.s): with room in the chip RAM above 512K, all of them from
-# $80000, and the track cache after them
+# $80000, and the file cache after them
 ONE_ALL = int(next(l.split()[2] for l in open(os.path.join(build_disk.OUT, 'frames.i')) if l.startswith('ONE_ALL')))
 ONE_END = (0x80000 + ONE_ALL + 3) & ~3
 # the level files (build_disk.py: level_files; diskload.s), all of them: LEVELS_BYTES

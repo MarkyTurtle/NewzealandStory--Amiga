@@ -4,10 +4,12 @@
 > AmigaDOS-format disk that boots with the
 > [4489_byteloader](https://github.com/MarkyTurtle/4489_byteloader) instead of Rob Northen's
 > Copylock-protected boot chain, with improvements: a scroller that updates only what moves (a
-> corkscrew with a vertical ring, double-buffered, with a pristine buffer), and the machine's
-> memory used for a cache of the level files, the sprites (BOBs) drawn in one blit each from frames kept
-> ready for it (on a 512K machine in a cache filled level by level), and 50 frames a second in play. Nothing on it is copy-protected: any emulator or real drive
-> reads it, and it can be written to a real floppy with any ADF tool.
+> corkscrew with a vertical ring, double-buffered, with a pristine buffer), 50 frames a second in
+> play, the sprites (BOBs) drawn in one blit each, a title menu (options, two-button joysticks,
+> a sound test, the cheat with its fly mode and level skip), and the machine's memory beyond
+> 512K used for the level files and the BOB frames. It runs on an A500 with 512K and on the
+> A1200. Nothing on it is copy-protected: any emulator or real drive reads it, and it can be
+> written to a real floppy with any ADF tool.
 
 ```
 python3 enhanced/tools/build_disk.py      # -> enhanced/build/nzs.adf
@@ -15,28 +17,33 @@ python3 enhanced/tools/test_boot.py       # boots it in an emulator and checks i
 python3 enhanced/tools/test_scroller.py   # the display against the original's, frame by frame
 python3 enhanced/tools/test_frames.py     # what the one-blit frames' 512K cache costs in play
 python3 enhanced/tools/test_smooth.py --blittime   # how much of the game runs at 50 Hz
+python3 enhanced/tools/test_menu.py       # the title menu, its settings, the cheat's level skip
+python3 enhanced/tools/test_fly.py        # the cheat's fly mode
 ```
 
-(`../BUILDING.md` has what to install.) Tested in FS-UAE as an A500 with FS-UAE's built-in AROS
-Kickstart replacement: it boots to the loading screen, then the attract sequence, and the game
-plays, loading its level data from the disk. Tested in WinUAE: the scroller, the mirror cache
-(now the one-blit frames: still to be tried) and 50 frames a second in play, the progress screens and the return to the title. Still to be
-tried: real hardware.
+The tests that play the game run it in the study emulator (`original/tools/nzsemu`: build it
+once with `original/tools/nzsemu/build.sh`).
+
+(`../BUILDING.md` has what to install.) Tested in WinUAE: an A500 with 512K, an A500 with a
+512K trapdoor expansion (every level read from the disk once, then from the file cache), and an
+A1200: the title menu, the play at 50 frames a second, the intro, the progress screens and the
+return to the title. Earlier versions also in FS-UAE with its built-in AROS Kickstart
+replacement. Still to be tried: real hardware.
 
 | File | What it is |
 |---|---|
 | `src/nzs_game.s` | **The game's source**, edited by hand since October 2026 (made from `original/nzs_main.s` by `tools/fork_source.py`): the original's, with the debug monitor removed and jumps put over the start of the routines the enhanced code takes over (each marked `enhanced:`) |
 | `src/enhanced.s` | The enhanced game's own code, in block 1 where the monitor was: the file cache, the title's memory lines, the entries for the routines taken over |
 | `src/scroller.s` | The scroller (below) |
-| `src/menu.s` | The title menu (start, options: input, cheat) and the joystick's second button |
+| `src/menu.s` | The title menu (start, options: input, cheat, sound test) and the joystick's second button |
 | `src/smooth.s` | 50 frames a second: the in-between frame drawn each pass (below) |
 | `src/frames.s` | The BOB frames in one-blit form, mirrored ones too: all built once with more than 512K of chip RAM, or on a 512K machine a cache filled level by level (below); block 3 of the program |
 | `src/diskload.s` | The game's disk reading on this disk, in place of the original's `TrackWrite` / `TrackRead`, reading the level files, with the file cache in front of the disk |
 | `src/boot_4489.s` | The bootblock: surveys the machine's memory, finds the boot drive, loads the extension module and goes on in it |
 | `src/ext.s`, `src/ext.i` | The extension module: the part of the boot the bootblock has no room for (loading screen, program, the machine description handed to the game) |
 | `src/byteloader.i` | The 4489_byteloader, as published (used by both) |
-| `tools/build_disk.py` | Builds the disk; checks that every label of block 2 on is where the original has it |
-| `tools/test_boot.py` | Boots the disk in an emulator (Unicorn) from Kickstart's call to the game's start, on four memory configurations, then calls the game's `TrackRead` as the game does, twice (the second time from the cache when it fits) |
+| `tools/build_disk.py` | Builds the disk: the level files, the game, the extension module, the bootblock; checks that every label of block 2 on is where the original has it and that the game unpacks in place; `--poison N` for testing the level files (*The game's disk reading*) |
+| `tools/test_boot.py` | Boots the disk in an emulator (Unicorn) from Kickstart's call to the game's start: four boot drives, and five machines (512K; a trapdoor's 512K; 1MB of chip RAM; slow and fast RAM; an A1200's 68020 with 2MB of chip RAM, its caches and vector base checked), then calls the game's `TrackRead` as the game does, twice (the second time from the cache when it fits) |
 | `tools/test_scroller.py` | Runs the original and the enhanced game side by side in `original/tools/nzsemu` and compares their displays pixel for pixel (`original/tools/display.py`); `--chip` for the machine's chip RAM |
 | `tools/test_menu.py` | The title menu, its settings and the joystick's input settings in play |
 | `tools/test_fly.py` | The cheat's fly mode on F1, with and without the cheat |
@@ -63,9 +70,9 @@ the `$4489` sync, no filesystem (Workbench shows it as NDOS):
 
 (`build_disk.py` prints the exact offsets.)
 
-The game is stored packed: unpacked (338,855 bytes) it would leave only about 3 KB free. It is
-packed by `original/tools/disk/pack.py`, which reproduces the original's tracks 94-143 byte for
-byte from the original program.
+The game is stored packed (345,068 bytes unpacked: the original's 338,855 and block 3), by
+`original/tools/disk/pack.py`, which reproduces the original's tracks 94-143 byte for byte from
+the original program; the extension module unpacks it in place, as the original's loader did.
 
 ## Booting (`src/boot_4489.s`, `src/ext.s`)
 
@@ -100,7 +107,7 @@ The module (`ExtBoot`) then:
    start-up (`Init`) sets up the file cache and the title's memory lines (`EnhInit`).
 
 A load that fails is tried again; after 8 failures COLOR00 turns red while it goes on trying.
-Memory while loading: the game `$400-$52FA6`, the loader and its buffers `$60000-$63FFF`
+Memory while loading: the game `$400-$547EC`, the loader and its buffers `$60000-$63FFF`
 (MFM buffer `$60000`, file table `$63000`, the loader `$63100`, stack below `$64000`), the
 module `$65400-`, the screen file `$70000`, the screen `$78000-$7FF3F`.
 
@@ -145,8 +152,8 @@ the scroller's buffers start there.
 
 **One program for every machine**, as decided for Ghosts'n Goblins: the same disk on every
 Amiga, scaling up at run time. The chip RAM above 512K also holds the BOB frames in one-blit form
-(*BOBs in one blit*), the file cache taking what they leave. Next (`TODO.md`): moving the
-program itself into slow / fast RAM to free chip RAM on an expanded A500.
+(*BOBs in one blit*), the file cache taking what they leave. The program itself stays in chip
+RAM on every machine (`TODO.md`, *Not doing*).
 
 ## The scroller (`src/scroller.s`)
 
@@ -200,7 +207,7 @@ what they did and in the scroller's goes to `scroller.s`:
 | Game routine | In the scroller's display |
 |---|---|
 | `sub_0B55C` (the playfield, after the fine scroll) | `EnhScroll`: the buffers brought to the camera, the back buffer's rectangles restored |
-| `sub_0B8B4` (a BOB's 4 blits) | `ScrBob`: the same cookie-cut blits, into the back buffer's ring (split where it wraps) or panel; the rectangle marked for restoring |
+| `sub_0B8B4` (a BOB's 4 blits) | `ScrBob`: the same cookie-cut drawing, into the back buffer's ring (split where it wraps) or panel - one blit from the frame's one-blit form (*BOBs in one blit*), or the original's 4 for the other banks; the rectangle marked for restoring |
 | `sub_0C744`, `sub_0C84C` (the text printers), `sub_04C78` (a panel fill) | `ScrPrintCol`, `ScrPrintPix`, `ScrFill`: the same pixels, written into both display buffers as the game writes both screens |
 | `sub_0BC8C`'s end (a frame ready) | `EnhFlip`: the copper list for the buffer just drawn |
 | the level 6 interrupt (the frame taken) | `EnhL6`: that copper list from the next frame |
@@ -216,8 +223,8 @@ rest.
 **Speed.** The original's game loop takes 2 frames a pass (25 frames a second) and its logic
 runs once a pass, so the enhanced game holds each pass to 2 frames: the game runs at the
 original's speed, without its slow-downs (and at 50 frames a second, below). In the emulator a pass now makes
-about 50 blits instead of about 1,000 (the BOBs, drawn as the original draws them, are most of
-what is left).
+about 50 blits instead of about 1,000, most of them the BOBs (since then one blit each: *BOBs in
+one blit*).
 
 **Tested** (`tools/test_scroller.py`): the original and the enhanced game run side by side in
 `original/tools/nzsemu`, each level from the start-up with the same random joystick (changed
@@ -276,10 +283,11 @@ CPU's more than the blitter's, and much of it was not drawing:
 |---|---|---|
 | the CPU timed (before the faster drawing) | 99.0 % | 10,501 / 10,474 |
 | the CPU and the blitter timed (`--blittime`), before | 96.4 % (83 % on level 2-1) | 10,527 / 10,501 |
-| the CPU and the blitter timed, now | **99.0 %** (93 % at worst, level 1-2; all of them on 12 levels) | 10,524 / 10,501 |
+| the CPU and the blitter timed, with the faster drawing | 99.0 % (93 % at worst, level 1-2; all of them on 12 levels) | 10,524 / 10,501 |
+| the CPU and the blitter timed, the BOBs in one blit (*BOBs in one blit*) | **99.7 %** | 10,524 / 10,500 |
 
 The emulator does not count the bitplanes' share of chip memory, which slows an A500's blitter
-during the display a little more: WinUAE will tell.
+during the display a little more; in WinUAE the play is smooth.
 
 **Tested** (`tools/test_scroller.py`): every S frame pixel for pixel the same as the original's
 frame for that pass, on all 20 levels (709 compared). M frames (`tools/test_smooth.py`, levels 1
@@ -319,7 +327,7 @@ it would not change.
 **Where they are** depends on the machine (`OneInit`):
 
 * **More than 512K of chip RAM, with room for them all** (`ONE_ALL`, 296 KB; A500+, A600,
-  A1200): all built once, at the first new game (about 0.7 seconds), from `$80000`. The track
+  A1200): all built once, at the first new game (about 0.7 seconds), from `$80000`. The file
   cache gets the chip RAM after them, if that is the largest memory (a 1MB machine: 216 KB of
   the 445 KB of level files).
 * **512K:** a cache from `$4A3A6` (where the original built its mirrored copies) to block 3,
@@ -350,7 +358,7 @@ when the game starts (in 26 bytes of padding there). The program is unpacked in 
 loads (`ext.s`: `Unpack`), and the end of a packed stream that compresses badly would overwrite
 its own unread bytes, so block 3 ends with its zero tables (`OneTab`, `OneQueue`), and
 `build_disk.py` runs `Unpack` step by step on the packed program and stops if it would not
-give the program back. Block 1 has 1.5 KB free again (the old `mirror.s` moved out).
+give the program back. Block 1 has about 1.4 KB free again (the old `mirror.s` moved out).
 
 **Performance** (`tools/test_frames.py`, every level for 240 passes, the blitter timed):
 
@@ -362,8 +370,9 @@ give the program back. Block 1 has 1.5 KB free again (the old `mirror.s` moved o
 | one blit, 512K, the cache cold (the worst case) | 99.7 % | 515 (244 KB) |
 
 **Tested** (`tools/test_scroller.py`): pixel for pixel the same display as the original's on
-all 20 levels at 512K, and with 1MB of chip RAM; the title and the game's own display the same
-as before. `tools/test_boot.py`: the file cache after the frames on a 1MB machine.
+all 20 levels at 512K, and with 1MB of chip RAM; the title, the intro and the game's own display
+the same as before. `tools/test_boot.py`: the file cache after the frames on a 1MB machine and
+an A1200. In WinUAE on a 512K A500, an expanded A500 and an A1200.
 
 ## The title menu and two-button joysticks (`src/menu.s`)
 
@@ -470,9 +479,9 @@ file and zeros, and from the cache the second time, on every memory configuratio
 hand. The original's block 1 held a debug monitor (commands, a 68000 disassembler, its own
 screen output: about 9 KB) that the game never uses - the start-up and every exception go
 straight to `GameStart` - so it was removed, and the enhanced code (`enhanced.s`, which includes
-`scroller.s`, `smooth.s` and `menu.s`) is in its place, block 1 padded to keep its size (about
-1.5 KB is still free). Block 3 (`frames.s`) is stored after block 2 and copied to `$5F000` as
-the game starts (*BOBs in one blit*).
+`scroller.s`, `smooth.s` and `menu.s`; `diskload.s` before it) is in its place, block 1 padded
+to keep its size (about 1.4 KB is still free). Block 3 (`frames.s`) is stored after block 2 and
+copied to `$5E800` as the game starts (*BOBs in one blit*).
 
 Block 2 (`$3214` on) keeps every byte where the original has it: much of it is reached at fixed
 addresses (self-modifying code writes into instructions by address, tables are built beyond the
