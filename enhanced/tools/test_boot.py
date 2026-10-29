@@ -239,6 +239,9 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
         cacr, vbr = movec(u, 'MOVEC_GET')
         checks.append((f'above a 68000: the caches off and the vectors at 0 for the game (CACR {cacr}, VBR ${vbr:X}; '
                        f'set to 1 and $7E000 before the boot)', cacr == 0 and vbr == 0))
+    key = m.r32(0x24)
+    checks.append((f'the Copylock key in the trace vector at GameStart (${key:08X}: sub_0A742 checks it at '
+                   f'every boss and warp)', key == 0xF974DB7D))
     cache = struct.unpack('>LLLH', bytes(u.mem_read(SYMS['CacheBase'], 14)))     # base, size, used, kind
     lines = title_lines(u)
     checks += [(f'the file cache: {["no", "chip", "slow", "fast"][kind]} RAM, ${cbase:X}, {csize} bytes',

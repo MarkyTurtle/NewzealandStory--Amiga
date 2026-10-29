@@ -36,16 +36,15 @@ configurations), then merged into `main`. `README.md` describes everything done.
   expanded A500.
 * **The A1200** (branch `feature/a1200`): above a 68000 the CPU's caches off and the vector base
   at 0, FMODE 0 on AGA (`README.md`, *Booting*). Tested in WinUAE.
+* **The Copylock key** (branch `fix/copylock-key`): the game checks the key the original's
+  Copylock left in `$24` at every boss and warp (`sub_0A742`) and breaks its own collision test
+  if it is wrong; the extension module now puts it there (`README.md`, *Booting*). Not yet tested
+  in WinUAE.
 
 ## Next
 
-Two problems found while documenting the code (not yet fixed or tested in WinUAE):
+A problem found while documenting the code (not yet fixed or tested in WinUAE):
 
-* **The Copylock key** (`../original/docs/SELFMOD.md`): the game checks the key the original's
-  Copylock left in the trace vector `$24` at every boss and every warp (`sub_0A742`), and if it
-  is wrong breaks its own collision test: the kiwi can no longer be hurt, pick anything up or
-  free the caged kiwi, so the level cannot be finished. This disk does not run Copylock, so the
-  check fails. The fix: put `$F974DB7D` in `$24` as the game starts (`ext.s`).
 * **Level 4-4's second map**: reaching the cage on level 4-4 loads 5 tracks from track 63 and 1
   from track 69 (`$45CC`), a load `game_tracks.py` does not list, so this disk has no file for it
   and the game stops with *There has been a fatal disk error*. The fix: list it in

@@ -103,7 +103,10 @@ The module (`ExtBoot`) then:
    same copper list; the file loaded to `$70000` and decoded there, its colours doubled;
 7. loads the game to `$400` and unpacks it in place, as the track 90 loader's `Unpack`; writes
    the machine description and the boot drive into the game's header (`EnhHeader`, `$426`);
-8. enters the game at `$400` with `d0 = a0 = $400`, as the track 90 loader did. The game's
+8. puts the Copylock key (`$F974DB7D`) in the trace vector, `$24`, where the original's
+   protection left it: the game checks it at every boss and every warp, and quietly breaks its
+   own collision test if it is wrong (`../original/docs/SELFMOD.md`);
+9. enters the game at `$400` with `d0 = a0 = $400`, as the track 90 loader did. The game's
    start-up (`Init`) sets up the file cache and the title's memory lines (`EnhInit`).
 
 A load that fails is tried again; after 8 failures COLOR00 turns red while it goes on trying.

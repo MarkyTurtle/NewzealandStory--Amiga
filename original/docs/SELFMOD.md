@@ -83,5 +83,7 @@ labels are checked against the original's by `build_disk.py`), with these differ
   new code reads it from there (`BobMinterm`).
 * `Relocate` also copies block 3 (`frames.s`) from after block 2 to `$5E800`.
 * The caches are off above a 68000 (`ext.s`), so none of the sites needs a cache flush.
-* The AmigaDOS bootblock and the extension module do not run Copylock, so `$24` does not hold the
-  key: the check in `sub_0A742` fails at the first boss or warp unless the key is put there.
+* The AmigaDOS disk does not run Copylock, so the extension module (`ext.s`) puts the key,
+  `$F974DB7D`, in `$24` before it enters the game, and the check in `sub_0A742` passes
+  (`test_boot.py` checks it is there at `GameStart`). The study emulator (`tools/nzsemu`) puts it
+  there too, for both games.

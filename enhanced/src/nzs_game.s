@@ -8850,9 +8850,8 @@ l_0A712:
 ; of the collision test (sub_065A8): from then on nothing touches the kiwi - no enemy hurts him, he
 ; boards no ride, picks up no fruit, and the caged kiwi cannot be freed (l_0AC6E), so the level can
 ; never be finished. The game plays on (docs/SELFMOD.md).
-; The enhanced game's bootblock does not run Copylock, so $24 does not hold the key.
-; Enhanced: the AmigaDOS bootblock (boot_4489.s) and the extension module do not run Copylock, so
-; unless the key is put in $24 the check fails at the first boss or warp.
+; Enhanced: this disk does not run Copylock; the extension module (ext.s) puts the key in $24
+; before it enters the game, so the check passes.
 ;-------------------------------------------------------------------------------
 sub_0A742:
         moveq   #$24,d0                         ; 0A742
