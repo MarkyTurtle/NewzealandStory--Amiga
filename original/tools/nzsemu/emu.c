@@ -6,7 +6,8 @@
  * (level 3), CIA-B timer A/B and TOD alarm (level 6), CIA-A (fire buttons, keyboard: level 2),
  * the audio channel 3 interrupt (level 4: the game's sample player), the blitter (area mode,
  * done at once when BLTSIZE is written), the joystick. The disk is not emulated: a call of the
- * game's TrackRead (its jump table entry, $40C) is answered from the extracted tracks (disk/files/tracks/). The display
+ * game's TrackRead (its jump table entry, $40C) is answered from the extracted tracks (disk/files/tracks/), or from
+ * TRACKDIR/load_T_N.bin when there is one for the load (track T, N tracks: N x 5632 bytes). The display
  * is not drawn: snapshots of memory and the custom registers are written instead, and
  * tools/screen.py draws them by following the copper list.
  *
@@ -53,6 +54,8 @@
  *                         LO-HI
  *   watch LO HI           log (to the log file) the first write to each 256-byte block of LO-HI,
  *                         with the PC that made it
+ *   readwatch LO HI       log (to the log file) each instruction's first CPU read of each 256-byte
+ *                         block of LO-HI (not the instruction fetches)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,6 +90,16 @@ static int blit_timed; static long blit_busy_until;   /* blittime: the blitter b
 static FILE *audf;
 static unsigned watch_lo = 1, watch_hi = 0; static uint8_t watched[RAM / 256];
 static int watch_pcs; static unsigned seen_n, seen[8192];   /* watchpc: (block << 20 | pc) seen */
+static unsigned rwatch_lo = 1, rwatch_hi = 0; static unsigned rseen_n, rseen[8192];
+static void rwatch(unsigned a) {
+    if (a < rwatch_lo || a >= rwatch_hi) return;
+    unsigned pc = m68k_get_reg(NULL, M68K_REG_PPC);
+    if (a - pc < 16) return;                                /* (fetching its own instruction) */
+    unsigned key = (a >> 8) << 20 | (pc & 0xFFFFF);
+    for (unsigned i = 0; i < rseen_n; i++) if (rseen[i] == key) return;
+    if (rseen_n < 8192) rseen[rseen_n++] = key;
+    if (logf) fprintf(logf, "frame %lu: read of $%05X by pc $%X\n", frame, a, pc);
+}
 static void watch(unsigned a) {
     if (watch_pcs && a >= watch_lo && a < watch_hi) {
         unsigned pc = m68k_get_reg(NULL, M68K_REG_PPC), key = (a >> 8) << 20 | (pc & 0xFFFFF);
@@ -278,7 +291,7 @@ static void cia_write(cia_t *c, int reg, unsigned v) {
 }
 unsigned int m68k_read_memory_8(unsigned int a) {
     a &= 0xFFFFFF;
-    if (a < RAM) return ram[a];
+    if (a < RAM) { rwatch(a); return ram[a]; }
     if (a - SLOW_LO < SLOW_SIZE) return slow[a - SLOW_LO];
     if ((a & 0xFFF000) == 0xBFE000 && (a & 1)) return cia_read(&ciaa, (a >> 8) & 15, 1);
     if ((a & 0xFFF000) == 0xBFD000 && !(a & 1)) return cia_read(&ciab, (a >> 8) & 15, 0);
@@ -287,7 +300,7 @@ unsigned int m68k_read_memory_8(unsigned int a) {
 }
 unsigned int m68k_read_memory_16(unsigned int a) {
     a &= 0xFFFFFF;
-    if (a < RAM) return ram[a] << 8 | ram[a + 1];
+    if (a < RAM) { rwatch(a); return ram[a] << 8 | ram[a + 1]; }
     if (a - SLOW_LO < SLOW_SIZE) return slow[a - SLOW_LO] << 8 | slow[a - SLOW_LO + 1];
     if ((a & 0xFFF000) == 0xDFF000) return custom_read(a & 0x1FE);
     return m68k_read_memory_8(a) << 8 | m68k_read_memory_8(a + 1);
@@ -320,7 +333,12 @@ static int track_read(void) {
     unsigned d0 = m68k_get_reg(NULL, M68K_REG_D0) & 0xFFFF, d1 = m68k_get_reg(NULL, M68K_REG_D1) & 0xFFFF;
     unsigned a0 = m68k_get_reg(NULL, M68K_REG_A0);
     int ok = 1;
-    for (unsigned k = 0; k < d1; k++) {
+    char ln[1024]; snprintf(ln, sizeof ln, "%s/load_%u_%u.bin", trackdir, d0, d1);
+    FILE *lf = fopen(ln, "rb");                     /* a whole load as a file (the enhanced game's level files) */
+    if (lf) {
+        ok = a0 + 5632 * d1 <= RAM && fread(ram + a0, 1, 5632 * d1, lf) == 5632 * d1; fclose(lf);
+    }
+    for (unsigned k = 0; !lf && k < d1; k++) {
         char fn[1024]; snprintf(fn, sizeof fn, "%s/t%03u.bin", trackdir, d0 + k);
         FILE *f = fopen(fn, "rb");
         if (!f || a0 + 5632 * (k + 1) > RAM) { ok = 0; if (f) fclose(f); break; }
@@ -486,6 +504,7 @@ int main(int argc, char **argv) {
           }
         }
         else if (!strcmp(cmd, "trace")) { trace_pc = strtoul(a1, 0, 0); }
+        else if (!strcmp(cmd, "readwatch")) { rwatch_lo = strtoul(a1, 0, 0); rwatch_hi = strtoul(a2, 0, 0); }
         else if (!strcmp(cmd, "blittime")) { blit_timed = atoi(a1); }
         else if (!strcmp(cmd, "profile")) {                  /* profile 1: start counting, 0: stop */
             if (atoi(a1)) { if (!prof) prof = calloc(RAM / 2, sizeof *prof); prof_pc = RAM; prof_cyc = cyc_now(); }

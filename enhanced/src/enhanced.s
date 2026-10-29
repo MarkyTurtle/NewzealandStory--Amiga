@@ -2,9 +2,9 @@
 ; enhanced.s - the enhanced game's own code, in block 1 of nzs_game.s (in the space the debug
 ; monitor left; included at its end).
 ;
-;   EnhInit       at start-up: the track cache set up for the machine, the title's lines made
-;   CacheGet      \ the track cache, for TrackRead (diskload.s): the level tracks read from the
-;   CachePut      / disk are kept in memory the game does not otherwise use
+;   EnhInit       at start-up: the file cache set up for the machine, the title's lines made
+;   FileGet       \ the file cache, for TrackRead (diskload.s): the level files read from the
+;   FilePut       / disk are kept in memory the game does not otherwise use
 ;   EnhTitleText  the title's text (the game calls it at $404C in place of the printer,
 ;                 sub_0C6A8): the original's, then the machine's memory lines
 ;   frames.s      (block 3) the main bank's BOB frames in one-blit form, mirrored ones too: all
@@ -22,26 +22,24 @@ BLOCK3          equ     $5E800                  ; block 3 (frames.s) runs here: 
 BLOCK3_LIMIT    equ     $611B0                  ;   original's mirrored copies took, which only it uses
                                                 ;   (build_disk.py reads BLOCK3: the 512K cache ends here)
 
-	include	"tracks.i"                      ; TRACKS_STORED (build_disk.py)
 
 ; EnhInit - at start-up (Init), before the game starts
 EnhInit:        jsr     OneInit                 ; (first: the chip RAM it takes)
         bsr.w   CacheInit
         bra.w   MakeTitleText
 
-; the track cache: where, how many tracks it holds, how many it holds now, and for each of the
-; original disk's 160 tracks its slot + 1 (0: not in the cache)
+; the file cache: where, its size, how much of it is used, and for each level file
+; (diskload.s: LoadTable) where it is kept (0: not in the cache)
 CacheBase:      dc.l    0
-CacheSlots:     dc.w    0
-CacheUsed:      dc.w    0
+CacheSize:      dc.l    0
+CacheUsed:      dc.l    0
 CacheKind:      dc.w    0                       ; 0 none, 1 chip, 2 slow, 3 fast
-CacheMap:       dcb.b   160,0
+CacheFiles:     dcb.l   LEVEL_FILES,0
 
 ;------------------------------------------------------------------------------
-; CacheInit - choose the track cache's memory: the largest of the chip RAM above 512K, the slow
-; RAM region and the fast RAM region; as many whole tracks as fit (at most the tracks on the
-; disk). Nothing else in the game uses that memory (the chip RAM after the one-blit frames,
-; when they are there: frames.s, OneMode 0).
+; CacheInit - choose the file cache's memory: the largest of the chip RAM above 512K, the slow
+; RAM region and the fast RAM region. Nothing else in the game uses that memory (the chip RAM
+; after the one-blit frames, when they are there: frames.s, OneMode 0).
 CacheInit:
         lea     EnhMachine(pc),a1
         moveq   #0,d4                           ; the best: size
@@ -63,14 +61,10 @@ CacheInit:
         bsr.b   .consider
         move.w  d6,CacheKind
         move.l  d5,CacheBase
-        divu    #TRACK_BYTES,d4                 ; (d4 < 64K tracks)
-        cmp.w   #TRACKS_STORED,d4
-        bls.b   .n
-        move.w  #TRACKS_STORED,d4
-.n:             move.w  d4,CacheSlots
-        clr.w   CacheUsed
-        lea     CacheMap(pc),a0
-        moveq   #160/4-1,d0
+        move.l  d4,CacheSize
+        clr.l   CacheUsed
+        lea     CacheFiles(pc),a0
+        moveq   #LEVEL_FILES-1,d0
 .clr:           clr.l   (a0)+
         dbra    d0,.clr
         rts
@@ -79,10 +73,7 @@ CacheInit:
         andi.w  #$fffc,d0
         sub.l   d0,d1
         bls.b   .no
-        cmp.l   #TRACK_BYTES*$ffff,d1           ; (at most 64K tracks: divu)
-        bls.b   .size
-        move.l  #TRACK_BYTES*$ffff,d1
-.size:          cmp.l   d4,d1
+        cmp.l   d4,d1
         bls.b   .no
         move.l  d1,d4
         move.l  d0,d5
@@ -90,59 +81,60 @@ CacheInit:
 .no:            rts
 
 ;------------------------------------------------------------------------------
-; CacheGet - d0.w = the original disk's track, a0 = where it goes -> d7.l = 0 if the track
-; was in the cache (copied to a0), -1 if not. Keeps every other register.
-CacheGet:
-        moveq   #-1,d7
+; FileGet - d3.w = a level file, a0 = where it goes, d6.l = its length -> d7.l = 0 if it was in
+; the cache (copied to a0), -1 if not. Keeps every other register.
+FileGet:        moveq   #-1,d7
         movem.l d0-d1/a0-a1,-(a7)
-        bsr.b   CacheSlot
+        bsr.b   CacheFile
         beq.b   .out                            ; not in the cache
         exg     a0,a1                           ; from the cache to a0
-        bsr.b   CopyTrack
+        bsr.b   CopyBytes
         moveq   #0,d7
 .out:           movem.l (a7)+,d0-d1/a0-a1
         rts
 
-; CachePut - d0.w = the original disk's track, just read to a0: kept in the cache if there is
-; a free slot and it is not there already. Keeps every register.
-CachePut:
-        movem.l d0-d1/a0-a1,-(a7)
-        bsr.b   CacheSlot
+; FilePut - d3.w = a level file, just read to a0, d6.l = its length: kept in the cache if it
+; has room, first come first served. Keeps every register.
+FilePut:        movem.l d0-d1/a0-a1,-(a7)
+        bsr.b   CacheFile
         bne.b   .out                            ; there already
-        move.w  CacheUsed(pc),d1
-        cmp.w   CacheSlots(pc),d1
-        bcc.b   .out                            ; full (or no cache)
-        addq.w  #1,d1
-        move.w  d1,CacheUsed
-        lea     CacheMap(pc),a1
-        move.b  d1,(a1,d0.w)
-        bsr.b   CacheSlot                       ; a1 = the slot
-        bsr.b   CopyTrack                       ; a0 -> the slot
+        move.l  CacheUsed(pc),d0
+        move.l  d0,d1
+        add.l   d6,d1
+        addq.l  #3,d1
+        andi.w  #$fffc,d1                       ; (each on a long boundary)
+        cmp.l   CacheSize(pc),d1
+        bhi.b   .out                            ; no room (or no cache)
+        move.l  d1,CacheUsed
+        movea.l CacheBase(pc),a1
+        adda.l  d0,a1
+        move.w  d3,d0
+        add.w   d0,d0
+        add.w   d0,d0
+        move.l  a0,-(a7)
+        lea     CacheFiles(pc),a0
+        move.l  a1,(a0,d0.w)                    ; where it is kept
+        movea.l (a7)+,a0
+        bsr.b   CopyBytes                       ; a0 -> a1
 .out:           movem.l (a7)+,d0-d1/a0-a1
         rts
 
-; CacheSlot - d0.w = track -> d1 = its slot + 1 (Z set: not in the cache), a1 = the slot's memory
-CacheSlot:      andi.l  #$ff,d0
-        lea     CacheMap(pc),a1
-        moveq   #0,d1
-        move.b  (a1,d0.w),d1
-        beq.b   .no
-        move.w  d1,-(a7)
-        subq.w  #1,d1
-        mulu    #TRACK_BYTES,d1
-        movea.l CacheBase(pc),a1
-        adda.l  d1,a1
-        move.w  (a7)+,d1                        ; (sets Z: not zero)
-.no:            rts
-
-; CopyTrack - a track from a0 to a1 (even addresses; the CPU reaches any memory)
-CopyTrack:      move.w  #TRACK_BYTES/16-1,d1
-.copy:          move.l  (a0)+,(a1)+
-        move.l  (a0)+,(a1)+
-        move.l  (a0)+,(a1)+
-        move.l  (a0)+,(a1)+
-        dbra    d1,.copy
+; CacheFile - d3.w = a level file -> a1 = where it is kept (Z set: not in the cache). Uses d0.
+CacheFile:      move.w  d3,d0
+        add.w   d0,d0
+        add.w   d0,d0
+        lea     CacheFiles(pc),a1
+        move.l  (a1,d0.w),d0
+        movea.l d0,a1
         rts
+
+; CopyBytes - d6.l bytes from a0 to a1 (the CPU reaches any memory; any alignment)
+CopyBytes:      move.l  d6,d0
+        beq.b   .done
+.copy:          move.b  (a0)+,(a1)+
+        subq.l  #1,d0
+        bne.b   .copy
+.done:          rts
 
 ;------------------------------------------------------------------------------
 ; EnhTitleText - a0 = the title's text (dat_0C0A2): printed by the game's printer, then the
@@ -158,7 +150,7 @@ EnhTitleText:
 ; MakeTitleText - the title's two memory lines, in the printer's form: x (character column),
 ; y (pixel line), then $02,colour and the characters, $00 then the next line's x, y; $FF ends.
 ;   CHIP 512K  SLOW 512K  FAST 0K
-;   TRACK CACHE 93 OF 96 IN SLOW RAM   /   NO TRACK CACHE
+;   FILE CACHE 410K IN SLOW RAM (all of it)  /  FILE CACHE 215K OF 410K IN CHIP RAM  /  NO FILE CACHE
 MakeTitleText:
         lea     LineBuf(pc),a0                  ; line 1: the memory
         lea     .chip(pc),a1
@@ -181,21 +173,21 @@ MakeTitleText:
         move.w  #TITLE_Y1,d2
         moveq   #TITLE_COL1,d3
         bsr.w   PutLine
-        lea     LineBuf(pc),a0                  ; line 2: the track cache
-        move.w  CacheSlots(pc),d0
+        lea     LineBuf(pc),a0                  ; line 2: the file cache
+        move.l  CacheSize(pc),d0
         bne.b   .cache
         lea     .none(pc),a1
         bsr.w   PutStr
         bra.b   .line2
 .cache:         lea     .tc(pc),a1
         bsr.w   PutStr
-        moveq   #0,d0
-        move.w  CacheSlots(pc),d0
-        bsr.w   PutDec
+        cmp.l   #LEVELS_BYTES,d0
+        bhs.b   .all
+        bsr.w   PutKB
         lea     .of(pc),a1
         bsr.w   PutStr
-        moveq   #TRACKS_STORED,d0
-        bsr.w   PutDec
+.all:           move.l  #LEVELS_BYTES,d0
+        bsr.w   PutKB
         lea     .in(pc),a1
         bsr.w   PutStr
         move.w  CacheKind(pc),d0
@@ -217,8 +209,8 @@ MakeTitleText:
 .chip:          dc.b    'CHIP ',0
 .slow:          dc.b    '  SLOW ',0
 .fast:          dc.b    '  FAST ',0
-.none:          dc.b    'NO TRACK CACHE',0
-.tc:            dc.b    'TRACK CACHE ',0
+.none:          dc.b    'NO FILE CACHE',0
+.tc:            dc.b    'FILE CACHE ',0
 .of:            dc.b    ' OF ',0
 .in:            dc.b    ' IN ',0
 .ram:           dc.b    ' RAM',0
@@ -243,6 +235,15 @@ PutK:           add.l   #$ffff,d0
         lsr.l   #4,d0
         bsr.w   PutDec
         move.b  #'K',(a0)+
+        rts
+
+; PutKB - d0.l = bytes -> to a0 in K, rounded down ('410K')
+PutKB:          move.l  d0,-(a7)
+        lsr.l   #8,d0
+        lsr.l   #2,d0
+        bsr.w   PutDec
+        move.b  #'K',(a0)+
+        move.l  (a7)+,d0
         rts
 
 ; PutDec - d0.l (below 655360) to a0 in decimal

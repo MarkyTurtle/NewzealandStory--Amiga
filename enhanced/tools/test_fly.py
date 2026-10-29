@@ -32,7 +32,7 @@ def run(cheat, tmp):
           f'key {F1:x}\nframes 16\nsnap {tmp}/{tag}d\n')
     p = os.path.join(tmp, tag + '.txt')
     open(p, 'w').write(s)
-    subprocess.run([EMU, os.path.join(ENH, 'build', 'nzs_game.bin'), os.path.join(ORIG, 'disk', 'files', 'tracks'), p],
+    subprocess.run([EMU, os.path.join(ENH, 'build', 'nzs_game.bin'), os.path.join(ENH, 'build', 'loads'), p],
                    check=True, stdout=subprocess.DEVNULL)
     out = []
     for k in 'abcd':

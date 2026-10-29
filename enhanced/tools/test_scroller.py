@@ -57,7 +57,9 @@ def script(tmp, tag, lv, every, passes, seed, pre='', snap=0x42DE):
 def run(binary, text, tmp, tag):
     p = os.path.join(tmp, f'{tag}.txt')
     open(p, 'w').write(text)
-    subprocess.run([EMU, binary, os.path.join(ORIG, 'disk', 'files', 'tracks'), p], check=True,
+    loads = (os.path.join(ENH, 'build', 'loads') if os.path.dirname(binary) == os.path.join(ENH, 'build')
+             else os.path.join(ORIG, 'disk', 'files', 'tracks'))   # (the enhanced game: its level files)
+    subprocess.run([EMU, binary, loads, p], check=True,
                    stdout=subprocess.DEVNULL)
 
 

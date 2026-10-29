@@ -28,7 +28,7 @@ def play(lv, seed, passes, tmp):
          f'log {log}\ntrace 0xB7CC\npasses {passes} {seed} 0x42CE 0 {tmp}/x\n')
     p = os.path.join(tmp, f'{lv}_{seed}.txt')
     open(p, 'w').write(s)
-    subprocess.run([EMU, os.path.join(ENH, 'build', 'nzs_game.bin'), os.path.join(ORIG, 'disk', 'files', 'tracks'), p],
+    subprocess.run([EMU, os.path.join(ENH, 'build', 'nzs_game.bin'), os.path.join(ENH, 'build', 'loads'), p],
                    check=True, stdout=subprocess.DEVNULL)
     c = {}
     for ln in open(log):

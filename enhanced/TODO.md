@@ -7,6 +7,7 @@ then merged.
 
 * **The machine's memory** (branch `feature/memory-config`): the bootblock's machine
   description (chip / slow / fast RAM, PAL / NTSC, CPU), a track cache in the largest memory
+  (now the file cache, below)
   beyond 512K of chip RAM, and the memory shown on the title menu's options page (`README.md`, *The
   machine's memory*).
 * **The source edited by hand** (branch `feature/scroller`): `src/nzs_game.s`, the debug monitor
@@ -35,7 +36,7 @@ then merged.
 On an A500 with 512K of chip RAM and an expansion (a trapdoor's slow RAM, or fast RAM), move
 the program's code and tables there, as the Ghosts'n Goblins enhanced game does (`EnhRelocate`:
 assembled at two addresses to make a relocation table), and give the chip RAM it frees to the
-one-blit frames' cache; the track cache takes the rest of the expansion. Only the CPU reads code
+one-blit frames' cache; the file cache takes the rest of the expansion. Only the CPU reads code
 and tables; the BOBs, samples, music, copper lists, tiles and screens stay in chip RAM. From the
 listing: code and its tables are about 61 KB at `$400-$F33E` (block 1 and the start of block 2)
 plus block 3; everything after `$F33E` (about 275 KB) is data. To check first: that the
@@ -128,10 +129,11 @@ its map and sometimes 2 tracks of extra BOBs.
   use 52-56), but the game reads them again at every new level. It skips the load only when the
   same level restarts (`LoadedLevel`). Skip it when the world's data is already in memory, and
   load just the 1-track map.
-* The track cache (done) keeps whole tracks. A file cache - the level data split into files
-  (world data, maps, extra BOBs, the ending; about 470-490 KB against the tracks' 528 KB) read
-  by file id - would hold all of it in 512K of slow RAM, keep whole levels, and suit new data
-  (pre-masked BOBs, edited levels).
+* Done (branch `feature/file-cache`): the level data as files (world data, maps, boss frames,
+  the ending: 445 KB against the tracks' 528 KB) found by the load the game asks for, and a file
+  cache in place of the track cache: all of it in 512K of slow RAM (`README.md`, *The game's
+  disk reading*). Perhaps: the maps, boss frames and ending packed as the world data is (394 KB:
+  a 1MB machine's cache would hold 55 % instead of 49 %).
 
 ---
 

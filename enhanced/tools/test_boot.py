@@ -25,7 +25,7 @@ from a unit of another device (DF0 then).
 """
 import os, struct, sys
 from unicorn import Uc, UC_ARCH_M68K, UC_MODE_BIG_ENDIAN, UC_HOOK_MEM_READ, UC_HOOK_MEM_WRITE, UC_HOOK_CODE
-from unicorn.m68k_const import (UC_CPU_M68K_M68000, UC_M68K_REG_A0, UC_M68K_REG_A1, UC_M68K_REG_A6,
+from unicorn.m68k_const import (UC_CPU_M68K_M68000, UC_CPU_M68K_M68020, UC_M68K_REG_D3, UC_M68K_REG_D4, UC_M68K_REG_A0, UC_M68K_REG_A1, UC_M68K_REG_A6,
                                 UC_M68K_REG_A7, UC_M68K_REG_D0, UC_M68K_REG_D1, UC_M68K_REG_D2,
                                 UC_M68K_REG_SR, UC_M68K_REG_PC)
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -45,12 +45,18 @@ UNITS = [0x1400 + 0x40 * n for n in range(4)]     # trackdisk's unit structures,
 FOREIGN = 0x1600                        # a unit of some other device
 LOADER = (0x63100, 0x63500)             # where the loader runs (VHPOSR moves while it is here)
 SYMS = build_disk.symbols(os.path.join(build_disk.OUT, 'nzs_game.lst'))   # the game's labels
-GAME_LOADER = (SYMS['TrackWrite'], SYMS['TrackMap'])  # the game's TrackRead / byteloader (diskload.s)
+GAME_LOADER = (SYMS['TrackWrite'], SYMS['LoadTable'])  # the game's TrackRead / byteloader (diskload.s)
 GAME_HEADER = 0x426                     # the game's header (ext.i): 'NZSE', boot drive, machine
 GAME_ENTRY = 0x4000                     # GameStart: Init has run (EnhInit: the cache, the title's lines)
 STOP = 0x1F0                            # a return address that ends a call
 READS = [(2, 5), (84, 5), (18, 1), (89, 1), (152, 2), (158, 2), (144, 5), (68, 1)]   # (track, count)
 MISSING = [(0, 1), (1, 1), (100, 1), (89, 2)]
+FILE_LEN = {}                           # (track, count): the level file's length (loadtable.i)
+for _ln in open(os.path.join(build_disk.OUT, 'loadtable.i')):
+    if _ln.startswith('\tdc.b\t') and ',' in _ln:
+        _tn = tuple(int(x) for x in _ln.split()[1].split(','))
+    elif _ln.startswith('\tdc.w\t') and '_tn' in globals():
+        FILE_LEN[_tn] = int(_ln.split()[1]); del _tn
 
 
 EXT_BASE = build_disk.EXT_BASE
@@ -60,24 +66,30 @@ TRACK = 5632
 # $80000, and the track cache after them
 ONE_ALL = int(next(l.split()[2] for l in open(os.path.join(build_disk.OUT, 'frames.i')) if l.startswith('ONE_ALL')))
 ONE_END = (0x80000 + ONE_ALL + 3) & ~3
+# the level files (build_disk.py: level_files; diskload.s), all of them: LEVELS_BYTES
+LEVELS = int(next(l.split()[2] for l in open(os.path.join(build_disk.OUT, 'loadtable.i')) if l.startswith('LEVELS_BYTES')))
+LK = LEVELS // 1024
 # name: [(lower, upper, attributes)] as exec lists them (MEMF_CHIP 2, MEMF_FAST 4), and what the
-# extension module must make of it: (cache kind, its base, its tracks, the title's two lines)
+# extension module must make of it: (file cache kind, its base, its size, the title's two lines)
 MACHINES = {
-    'A500 512K': ([(0x400, 0x80000, 2)], (0, 0, 0, 'CHIP 512K  SLOW 0K  FAST 0K', 'NO TRACK CACHE')),
+    'A500 512K': ([(0x400, 0x80000, 2)], (0, 0, 0, 'CHIP 512K  SLOW 0K  FAST 0K', 'NO FILE CACHE')),
     'A500 512K + 512K slow': ([(0xC00020, 0xC80000, 4), (0x400, 0x80000, 2)],
-                              (2, 0xC00020, 93, 'CHIP 512K  SLOW 512K  FAST 0K', 'TRACK CACHE 93 OF 96 IN SLOW RAM')),
+                              (2, 0xC00020, 0x80000 - 0x20, 'CHIP 512K  SLOW 512K  FAST 0K', f'FILE CACHE {LK}K IN SLOW RAM')),
     'A500+ 1MB chip (Kickstart 1.3 lists $FE800)': ([(0x400, 0xFE800, 2)],
-                              (1, ONE_END, (0xFE800 - ONE_END) // TRACK, 'CHIP 1024K  SLOW 0K  FAST 0K',
-                               f'TRACK CACHE {(0xFE800 - ONE_END) // TRACK} OF 96 IN CHIP RAM')),
+                              (1, ONE_END, 0xFE800 - ONE_END, 'CHIP 1024K  SLOW 0K  FAST 0K',
+                               f'FILE CACHE {(0xFE800 - ONE_END) // 1024}K OF {LK}K IN CHIP RAM')),
     'A500 512K + 512K slow + 2MB fast': ([(0x200000, 0x400000, 5), (0xC00020, 0xC80000, 4), (0x400, 0x80000, 2)],
-                              (3, 0x200000, 96, 'CHIP 512K  SLOW 512K  FAST 2048K', 'TRACK CACHE 96 OF 96 IN FAST RAM')),
+                              (3, 0x200000, 0x200000, 'CHIP 512K  SLOW 512K  FAST 2048K', f'FILE CACHE {LK}K IN FAST RAM')),
+    'A1200 (68020) 2MB chip': ([(0x400, 0x200000, 2)],
+                              (1, ONE_END, 0x200000 - ONE_END, 'CHIP 2048K  SLOW 0K  FAST 0K', f'FILE CACHE {LK}K IN CHIP RAM')),
 }
+ATTN = {'A1200 (68020) 2MB chip': 0x0003}   # exec's AttnFlags (bit 0 68010, bit 1 68020); 0 for the rest
 
 
 class Machine:
-    def __init__(self, regions=()):
+    def __init__(self, regions=(), attn=0):
         u = self.u = Uc(UC_ARCH_M68K, UC_MODE_BIG_ENDIAN)
-        u.ctl_set_cpu_model(UC_CPU_M68K_M68000)
+        u.ctl_set_cpu_model(UC_CPU_M68K_M68020 if attn & 2 else UC_CPU_M68K_M68000)
         u.mem_map(0, 0x80000); u.mem_map(0xBFD000, 0x2000); u.mem_map(0xDFF000, 0x1000)
         for lo, hi, attr in regions:                        # memory beyond the first 512K of chip RAM
             lo = max(lo & ~0xFFF, 0x80000) if attr & 2 else lo & ~0xFFF
@@ -91,9 +103,26 @@ class Machine:
     def w32(self, a, v): self.u.mem_write(a, struct.pack('>L', v & 0xFFFFFFFF))
 
 
-def memlist(w, regions):
+# 68020 control registers, through code (Unicorn's own access to CACR / VBR does not work): set the
+# instruction cache on and the VBR to $7E000; read them into d3, d4. Run at $1C0, regs kept but d1-d4.
+MOVEC_SET = '72014e7b1002243c0007e0004e7b2801'        # moveq #1,d1; movec d1,cacr; move.l #$7E000,d2; movec d2,vbr
+MOVEC_GET = '4e7a30024e7a4801'                        # movec cacr,d3; movec vbr,d4
+
+
+def movec(u, which):
+    code = bytes.fromhex(globals()[which])
+    keep = [u.reg_read(r) for r in (UC_M68K_REG_PC, UC_M68K_REG_SR, UC_M68K_REG_A7)]
+    u.reg_write(UC_M68K_REG_SR, 0x2700)
+    u.mem_write(0x1C0, code)
+    u.emu_start(0x1C0, 0x1C0 + len(code))
+    out = u.reg_read(UC_M68K_REG_D3), u.reg_read(UC_M68K_REG_D4)
+    u.reg_write(UC_M68K_REG_SR, keep[1]); u.reg_write(UC_M68K_REG_A7, keep[2]); u.reg_write(UC_M68K_REG_PC, keep[0])
+    return out
+
+
+def memlist(w, regions, attn=0):
     """exec's MemList (ExecBase + $142) with a header per region; VBlankFrequency, AttnFlags"""
-    w(EXEC + 0x212, '>B', 50); w(EXEC + 0x128, '>H', 0)
+    w(EXEC + 0x212, '>B', 50); w(EXEC + 0x128, '>H', attn)
     nodes = [MEMLIST + 0x20 * k for k in range(len(regions))]
     w(EXEC + 0x142, '>LLL', nodes[0], 0, nodes[-1])           # lh_Head, lh_Tail, lh_TailPred
     for k, (lo, hi, attr) in enumerate(regions):
@@ -114,10 +143,11 @@ def title_lines(u):
 
 
 def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None, machine='A500 512K'):
-    regions, (kind, cbase, slots, line1, line2) = MACHINES[machine]
-    m = Machine(regions); u = m.u
+    regions, (kind, cbase, csize, line1, line2) = MACHINES[machine]
+    attn = ATTN.get(machine, 0)
+    m = Machine(regions, attn); u = m.u
     w = lambda a, f, *v: u.mem_write(a, struct.pack(f, *v))
-    memlist(w, regions)
+    memlist(w, regions, attn)
     u.mem_write(BOOTBUF, adf[:1024])
     w(EXEC - 0x1BC, '>HL', 0x4EF9, OPENDEVICE)                 # jmp OPENDEVICE
     w(OPENDEVICE, '>H', 0x4E75)                                  # rts
@@ -144,6 +174,8 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
     u.reg_write(UC_M68K_REG_A6, EXEC)
     u.reg_write(UC_M68K_REG_SR, 0x2000)
     u.reg_write(UC_M68K_REG_A7, 0x7F000)
+    if attn & 2:                                    # a 68020 as Kickstart could leave it: its instruction
+        movec(u, 'MOVEC_SET')                       #   cache on, the vectors elsewhere
     # (in supervisor mode already: the privilege-violation trick is not exercised here)
     u.emu_start(BOOTBUF + 0x0C, 0x400, count=600_000_000)
     pc = u.reg_read(UC_M68K_REG_PC)
@@ -184,7 +216,7 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
     chip = next((lo, hi) for lo, hi, at in reversed(regions) if at & 2)
     slow = next(((lo, hi) for lo, hi, at in reversed(regions) if not at & 2 and 0xC00000 <= lo < 0xDC0000), (0, 0))
     fast = next(((lo, hi) for lo, hi, at in reversed(regions) if not at & 2 and not 0xC00000 <= lo < 0xDC0000), (0, 0))
-    want_mi = b'NZSM' + struct.pack('>BBH', 1, 50, 0) + struct.pack('>6LL', *chip, *slow, *fast, unit if not foreign else 0)
+    want_mi = b'NZSM' + struct.pack('>BBH', 1, 50, attn) + struct.pack('>6LL', *chip, *slow, *fast, unit if not foreign else 0)
     checks += [('the extension module at $65400', bytes(u.mem_read(EXT_BASE, 16)) == ext[:16]),
                ('the machine description and the boot drive in the game\'s header (chip, slow, fast RAM, PAL)',
                 mi == want_mi and bootdrive == (unit if not foreign else 0))]
@@ -201,10 +233,14 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
     orig_track = build_disk.original_track
     u.emu_start(0x400, GAME_ENTRY, count=20_000_000)
     relocated = u.reg_read(UC_M68K_REG_PC) == GAME_ENTRY
-    cache = struct.unpack('>LHHH', bytes(u.mem_read(SYMS['CacheBase'], 10)))
+    if attn & 2:
+        cacr, vbr = movec(u, 'MOVEC_GET')
+        checks.append((f'above a 68000: the caches off and the vectors at 0 for the game (CACR {cacr}, VBR ${vbr:X}; '
+                       f'set to 1 and $7E000 before the boot)', cacr == 0 and vbr == 0))
+    cache = struct.unpack('>LLLH', bytes(u.mem_read(SYMS['CacheBase'], 14)))     # base, size, used, kind
     lines = title_lines(u)
-    checks += [(f'the track cache: {["none", "chip", "slow", "fast"][kind]} RAM, ${cbase:X}, {slots} tracks',
-                (cache[3], cache[1]) == (kind, slots) and (not slots or cache[0] == cbase)),
+    checks += [(f'the file cache: {["no", "chip", "slow", "fast"][kind]} RAM, ${cbase:X}, {csize} bytes',
+                (cache[3], cache[1]) == (kind, csize) and (not csize or cache[0] == cbase)),
                (f'the title: "{line1}" / "{line2}"', [l[3] for l in lines] == [line1, line2]
                 and all(l[0] == (40 - len(l[3])) // 2 for l in lines))]
     def track_read(track, count, buf=0x3CAA6):
@@ -218,22 +254,24 @@ def boot(adf, unit=0, drives=(0, 1), random_start=False, foreign=False, png=None
         d0 = u.reg_read(UC_M68K_REG_D0)
         kept = u.reg_read(UC_M68K_REG_A6) == 0x641B8 and u.reg_read(UC_M68K_REG_A0) == buf and u.reg_read(UC_M68K_REG_PC) == STOP
         return d0, bytes(u.mem_read(buf, count * 5632)), kept
+    load = lambda t, n: open(os.path.join(build_disk.LOADS, f'load_{t}_{n}.bin'), 'rb').read()
     good_reads = True
     for t, n in READS:
         d0, data, kept = track_read(t, n)
-        good_reads &= d0 == 0 and kept and data == b''.join(orig_track(t + k) for k in range(n))
+        good_reads &= d0 == 0 and kept and data == load(t, n)
     bad_reads = all(track_read(t, n)[0] == 0xFFFFFFFF for t, n in MISSING)
     disk_reads = fd.reads                                     # the same reads again: from the cache?
     again = True
     for t, n in READS:
         d0, data, kept = track_read(t, n)
-        again &= d0 == 0 and kept and data == b''.join(orig_track(t + k) for k in range(n))
-    tracks_read = len({t + k for t, n in READS for k in range(n)})
-    cached = fd.reads == disk_reads if slots >= tracks_read else fd.reads > disk_reads
+        again &= d0 == 0 and kept and data == load(t, n)
+    need = sum((FILE_LEN[k] + 3) & ~3 for k in set(READS))      # the cache's room for the files read
+    cached = fd.reads == disk_reads if csize >= need else fd.reads > disk_reads
     checks += [('Relocate and Init run: at GameStart ($4000)', relocated),
-               (f'TrackRead: {len(READS)} reads (tracks {", ".join(f"{t}+{n}" for t, n in READS)}) as on the original disk, registers kept', good_reads),
+               (f'TrackRead: {len(READS)} reads (tracks {", ".join(f"{t}+{n}" for t, n in READS)}): each its level file, '
+                f'the rest filled, registers kept', good_reads),
                (f'TrackRead: -1 for tracks the disk does not have ({", ".join(f"{t}+{n}" for t, n in MISSING)})', bad_reads),
-               (f'TrackRead again: the same tracks, ' + ('all from the cache (no disk reads)' if slots >= tracks_read
+               (f'TrackRead again: the same files, ' + ('all from the cache (no disk reads)' if csize >= need
                                                          else f'from the disk ({fd.reads - disk_reads} track reads)'), again and cached),
                (f'the motor off again', not fd.motor or not fd.sel)]
     ok = True

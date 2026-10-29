@@ -1,6 +1,9 @@
 """Build the AmigaDOS-format disk image of The New Zealand Story: enhanced/build/nzs.adf.
 
-  python3 enhanced/tools/build_disk.py
+  python3 enhanced/tools/build_disk.py [--poison N]
+
+(--poison N: for testing, the emulator's copies of the loads (enhanced/build/loads) have N, not
+0, after each world data and map file: what the game must never read - the disk is as always.)
 
 An ordinary 880K disk (80 cylinders x 2 heads x 11 sectors of 512 bytes, standard AmigaDOS MFM
 with the $4489 sync) with no filesystem - nothing on it is copy-protected, so any emulator or
@@ -17,10 +20,11 @@ The files (ids: FID_ in boot_4489.s):
      original/tools/disk/pack.py in the original's format; the extension module unpacks it
      to $400
   1  the loading screen: the original file (original/disk/files/t091-093_loading_screen.bin)
-  2  the tracks of the original disk that the game reads while it runs (level data:
-     original/disk/files/tracks/, found by original/tools/disk/game_tracks.py), one after
-     another; the game's TrackRead (diskload.s) finds each through TrackMap
-     (enhanced/build/trackmap.i, written here)
+  2  the level files, one after another: each load the game makes while it runs (a level's
+     world data and its map, a boss's frames, the ending: original/tools/disk/game_tracks.py)
+     cut from the original disk's tracks to the bytes it uses (level_files); the game's
+     TrackRead (diskload.s) finds each by the tracks it asks for through LoadTable
+     (enhanced/build/loadtable.i, written here)
   3  the extension module (src/ext.s, assembled at EXT_BASE): the rest of the boot, the
      machine's memory on the title, the track cache; loaded by the bootblock
 """
@@ -70,19 +74,69 @@ def bootblock_checksum(bb):
     return bytes(bb)
 
 
-def write_trackmap(tracks, tracks_offset):
-    m = [0xFF] * 160
-    for i, t in enumerate(tracks):
-        m[t] = i
-    L = ['; the original disk\'s tracks on the AmigaDOS disk (written by enhanced/tools/build_disk.py)',
-         f'TRACKS_OFFSET\tequ\t${tracks_offset:X}\t\t; where the stored tracks start on the disk',
-         '; per original track (0-159): its place among the stored tracks, $FF = not on the disk']
-    for r in range(0, 160, 16):
-        L.append('\tdc.b\t' + ','.join(f'${v:02X}' for v in m[r:r + 16]) + f'\t; tracks {r}-{r + 15}')
-    open(os.path.join(OUT, 'trackmap.i'), 'w').write('\n'.join(L) + '\n')
-    open(os.path.join(OUT, 'tracks.i'), 'w').write(
-        '; written by enhanced/tools/build_disk.py\n'
-        f'TRACKS_STORED\tequ\t{len(tracks)}\t\t; the original disk\'s tracks on this disk (the game reads them)\n')
+def level_files(orig_main):
+    """[(first track, count, what, bytes)]: each distinct load the game makes (game_tracks.loads),
+    cut to the bytes it uses - the rest of the count x 5,632 bytes the game asks for is filled
+    with zeros as it loads (diskload.s):
+      * a level's world data (5 tracks): its packed stream, the length in its header (counting
+        the 8-byte header) and the 8 bytes after it, which UnpackLevel moves with it;
+      * a level's map (1 track): its 128-byte header and its rows of 64 tiles;
+      * a boss's frames (2 tracks) and the ending (5): the tracks without their trailing zeros"""
+    out, seen = [], set()
+    for what, t, n in game_tracks.loads(orig_main):
+        if (t, n) in seen:
+            continue
+        seen.add((t, n))
+        d = b''.join(original_track(t + i) for i in range(n))
+        if what.endswith(' data'):
+            d = d[:struct.unpack_from('>L', d, 4)[0] + 1 + 8]
+        elif what.endswith(' track'):
+            d = d[:0x80 + 64 * struct.unpack_from('>H', d, 4)[0]]
+        else:
+            d = d.rstrip(b'\0')
+        out.append((t, n, what, d))
+    return out
+
+
+def write_loadtable(files, levels_offset):
+    """loadtable.i: LoadTable, for each level file: its first track.b and count.b (as the game asks
+    for them), its offset on the disk.l and its length.w; $FF ends. LEVEL_FILES, LEVELS_BYTES
+    (all of them)"""
+    L = ['; the level files on the disk (written by enhanced/tools/build_disk.py: level_files)',
+         f'LEVEL_FILES\tequ\t{len(files)}',
+         f'LEVELS_BYTES\tequ\t{sum(len(d) for *_, d in files)}\t\t; all of them',
+         'LoadTable:']
+    off = levels_offset
+    for t, n, what, d in files:
+        L.append(f'\tdc.b\t{t},{n}\n\tdc.l\t${off:06X}\n\tdc.w\t{len(d)}\t\t\t; {what}')
+        off = (off + len(d) + 1) & ~1
+    L.append('\tdc.b\t$FF\n\teven')
+    open(os.path.join(OUT, 'loadtable.i'), 'w').write('\n'.join(L) + '\n')
+
+
+LOADS = os.path.join(OUT, 'loads')                # each load as the game sees it, for the emulator
+
+
+def write_loads(files, poison=0):
+    """enhanced/build/loads/load_T_N.bin: each level file followed by the fill to the N x 5,632
+    bytes the game asks for - what TrackRead (diskload.s) leaves in memory - for the study
+    emulator (original/tools/nzsemu answers a load from such a file), so the tests play the
+    enhanced game with what it really loads"""
+    os.makedirs(LOADS, exist_ok=True)
+    for f in os.listdir(LOADS):
+        os.remove(os.path.join(LOADS, f))
+    for t, n, what, d in files:
+        fill = poison if what.endswith((' data', ' track')) else 0     # (those cut to their format)
+        open(os.path.join(LOADS, f'load_{t}_{n}.bin'), 'wb').write(d + bytes([fill]) * (n * TRACK - len(d)))
+
+
+def levels_blob(files):
+    out = bytearray()
+    for *_, d in files:
+        out += d
+        if len(out) & 1:
+            out.append(0)
+    return bytes(out)
 
 
 BOB_DIRECTORY, BOB_FRAMES, MIR_FIRST = 0x39AA6, 289, 0x122
@@ -144,8 +198,9 @@ def write_frames(orig_main):
     open(os.path.join(OUT, 'frames.i'), 'w').write('\n'.join(L) + '\n')
 
 
-def game(tracks_offset, tracks, orig_main):
-    write_trackmap(tracks, tracks_offset)
+def game(levels_offset, files, orig_main, poison=0):
+    write_loadtable(files, levels_offset)
+    write_loads(files, poison)
     write_frames(orig_main)
     return assemble(os.path.join(ENH, 'src', 'nzs_game.s'), os.path.join(OUT, 'nzs_game.bin'), OUT,
                     [OUT, os.path.join(ENH, 'src'), ORIG], listing=os.path.join(OUT, 'nzs_game.lst'))
@@ -234,13 +289,15 @@ def build():
     if hashlib.sha1(orig_main).hexdigest() != MAIN_SHA1:
         print('  (original/nzs_main.s no longer assembles to the original program)')
     tracks = game_tracks.tracks(orig_main)
-    track_data = b''.join(original_track(t) for t in tracks)
+    lfiles = level_files(orig_main)
+    track_data = levels_blob(lfiles)
     screen = open(os.path.join(ORIG, 'disk/files/t091-093_loading_screen.bin'), 'rb').read()
     offsets, off = {}, FILES_START
     for i, n in ((1, len(screen)), (2, len(track_data))):
         offsets[i] = off
         off = (off + n + 1) & ~1
-    main = game(offsets[2], tracks, orig_main)
+    poison = int(sys.argv[sys.argv.index('--poison') + 1], 0) if '--poison' in sys.argv else 0
+    main = game(offsets[2], lfiles, orig_main, poison)
     ext = assemble(os.path.join(ENH, 'src', 'ext.s'), os.path.join(OUT, 'ext.bin'), OUT, [OUT, os.path.join(ENH, 'src')])
     offsets[3] = off
     off = (off + len(ext) + 1) & ~1
@@ -258,7 +315,8 @@ def build():
         raise SystemExit(f'the files do not fit on the disk: {end} bytes')
     files = {0: ('FID_MAIN', packed, 0x400, 'the game, packed (enhanced/build/nzs_game.s)'),
              1: ('FID_SCREEN', screen, 0x70000, 'the loading screen (byte-run, decoded to $78000)'),
-             2: ('FID_TRACKS', track_data, None, f'{len(tracks)} tracks of the original disk the game reads'),
+             2: ('FID_LEVELS', track_data, None, f'{len(lfiles)} level files (from {len(tracks)} tracks of the '
+                                                 f'original disk: {len(tracks) * TRACK} bytes)'),
              3: ('FID_EXT', ext, EXT_BASE, 'the extension module (src/ext.s)')}
     boot = assemble(os.path.join(ENH, 'src', 'boot_4489.s'), os.path.join(OUT, 'boot.bin'), os.path.join(ENH, 'src'))
     if len(boot) != 1024:
@@ -278,7 +336,7 @@ def build():
     for i in DISK_ORDER:
         name, data, load, desc = files[i]
         o, n = offsets[i], len(data)
-        ld = f'${load:06X}' if load is not None else '(by track)'
+        ld = f'${load:06X}' if load is not None else '(by file)'
         print(f'  {i:>2}  {name:<11} ${o:06X} {n:>8}  {o // TRACK:>3}-{(o + n - 1) // TRACK:<4} {ld:>10}  {desc}')
     print(f'  free from ${end:06X}: {DISK - end} bytes')
     print(f'  the original tracks the game reads: {", ".join(game_tracks.runs(tracks))}')

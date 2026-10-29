@@ -39,7 +39,7 @@ def run(syms, lv, passes, seed, smooth, pre, tmp):
           f'snap {tmp}/{tag}_a\npasses {passes} {seed} 0x42CE 0 {tmp}/x\nsnap {tmp}/{tag}_b\n')
     p = os.path.join(tmp, tag + '.txt')
     open(p, 'w').write(s)
-    subprocess.run([EMU, os.path.join(ENH, 'build', 'nzs_game.bin'), os.path.join(ORIG, 'disk', 'files', 'tracks'), p],
+    subprocess.run([EMU, os.path.join(ENH, 'build', 'nzs_game.bin'), os.path.join(ENH, 'build', 'loads'), p],
                    check=True, stdout=subprocess.DEVNULL)
     a, b = (open(os.path.join(tmp, f'{tag}_{x}.mem'), 'rb').read() for x in 'ab')
     frames = struct.unpack_from('>H', b, syms['ScrFrames'])[0] - struct.unpack_from('>H', a, syms['ScrFrames'])[0]
@@ -59,7 +59,7 @@ def midpoints(syms, lv, passes, seed, pre, tmp):
                    f'passes {passes} {seed} 0x42CE 1 {tmp}/mp{lv}{tag} {addr:#x}\n')
         p = os.path.join(tmp, f'mp{lv}{tag}.txt')
         open(p, 'w').write(s)
-        subprocess.run([EMU, os.path.join(ENH, 'build', 'nzs_game.bin'), os.path.join(ORIG, 'disk', 'files', 'tracks'), p],
+        subprocess.run([EMU, os.path.join(ENH, 'build', 'nzs_game.bin'), os.path.join(ENH, 'build', 'loads'), p],
                        check=True, stdout=subprocess.DEVNULL)
 
     def objs(k, tag):
