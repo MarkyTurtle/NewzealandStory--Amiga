@@ -14,6 +14,10 @@ Why it matters:
 * **Caches.** A 68020 or later with its instruction cache on can run the old instruction after it
   has been rewritten. The enhanced game turns the caches off above a 68000 (`ext.s`, the A1200
   fix) rather than flushing at each site.
+* **Prefetch.** Even with the caches off, a 68020 has fetched the next few words before the
+  instruction that writes them has finished, so a write just ahead of the program counter is
+  missed once. Only site 8 is that close (the operand 6 bytes after the write): on an A1200 the
+  ending's picture came out scrambled. The enhanced game no longer modifies that one.
 * **Moving the program.** Several sites write to absolute addresses given as numbers
   (`move.w d3,$4ee8.l`, `move.l a0,$6f20.l`), not labels, so the code cannot be moved or
   reassembled at another address without changing them (`enhanced/TODO.md`, *Not doing*).
@@ -83,5 +87,8 @@ labels are checked against the original's by `build_disk.py`), with these differ
   new code reads it from there (`BobMinterm`).
 * `Relocate` also copies block 3 (`frames.s`) from after block 2 to `$5E800`.
 * The caches are off above a 68000 (`ext.s`), so none of the sites needs a cache flush.
+* Site 8 (`sub_0B098`, the ending's picture) is gone: `move.w (a1),(EndPicLen).l` and
+  `move.w (EndPicLen).l,d3`, the same sizes, keep the plane length in a data word in block 1
+  (`enhanced.s`), because a 68020 prefetches the operand before it is written.
 * The AmigaDOS bootblock and the extension module do not run Copylock, so `$24` does not hold the
   key: the check in `sub_0A742` fails at the first boss or warp unless the key is put there.

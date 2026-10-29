@@ -9302,15 +9302,19 @@ dat_0AFF4:
 ; SELF-MODIFYING: move.l a1,$b0aa.l writes the picture's address into the operand of its own move.w
 ; (abs).l,d3 at $B0A8 (the listing shows the operand saved in the program, sub_0B098 itself), which
 ; then reads the plane's length from the picture's first word (docs/SELFMOD.md).
+; Enhanced: no longer self-modifying. On a 68020 the move.w at $B0A8 is already in the prefetch
+; when $B0AA is written 6 bytes before it, so the first plane was decoded with the old operand
+; (the word at $B098: 18,663 bytes) and the ending's picture came out scrambled on an A1200.
+; The length is now kept in EndPicLen (enhanced.s), same-size instructions, nothing moves.
 ;-------------------------------------------------------------------------------
 sub_0B098:
         movem.l d0-d3/a0-a2,-(a7)               ; 0B098
         moveq   #$3,d7                          ; 0B09C
-        move.l  a1,$b0aa.l                      ; 0B09E  SMC -> $B0AA, the move.w (abs).l,d3 below: the picture
+        move.w  (a1),(EndPicLen).l              ; 0B09E  enhanced: the plane length kept as data (was SMC -> $B0AA)
         addq.l  #$2,a1                          ; 0B0A4
 l_0B0A6:
         movea.l a2,a0                           ; 0B0A6
-        move.w  (sub_0B098).l,d3                ; 0B0A8  SELF-MODIFIED operand: the picture, written at $B09E
+        move.w  (EndPicLen).l,d3                ; 0B0A8  enhanced: no longer self-modified (68020: prefetched)
         move.b  (a1)+,d2                        ; 0B0AE
 l_0B0B0:
         move.b  (a1)+,d0                        ; 0B0B0
