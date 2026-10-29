@@ -38,18 +38,18 @@ configurations), then merged into `main`. `README.md` describes everything done.
   at 0, FMODE 0 on AGA (`README.md`, *Booting*). Tested in WinUAE.
 * **The Copylock key** (branch `fix/copylock-key`): the game checks the key the original's
   Copylock left in `$24` at every boss and warp (`sub_0A742`) and breaks its own collision test
-  if it is wrong; the extension module now puts it there (`README.md`, *Booting*). Not yet tested
-  in WinUAE.
+  if it is wrong; the extension module now puts it there (`README.md`, *Booting*). Tested in
+  WinUAE (a warp, the 1-4 boss).
 * **Level 4-4's second map** (branch `fix/level-4-4`): reaching the cage on level 4-4 loads a
   second map (5 tracks from track 63, 1 from track 69: `$45CC`), a load `game_tracks.py` did not
   list, so the disk had no file for it and the game stopped with a fatal disk error. It is listed
-  now, its tracks extracted, and the disk has the two files (`test_boot.py` reads them). Not yet
-  tested in WinUAE.
+  now, its tracks extracted, and the disk has the two files (`test_boot.py` reads them). Tested in
+  WinUAE.
 * **The ending's picture on a 68020** (branch `fix/ending-picture`): `sub_0B098` wrote the
   picture's address into its own instruction 6 bytes ahead, which a 68020 has already
   prefetched, so the first plane was decoded with a stale length and the picture came out
   scrambled on an A1200 (`../original/docs/SELFMOD.md`, site 8). The length is now kept as data.
-  Not yet tested in WinUAE.
+  Tested in WinUAE on an A1200.
 
 ## Next
 
