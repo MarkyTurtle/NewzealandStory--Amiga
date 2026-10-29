@@ -45,6 +45,11 @@ configurations), then merged into `main`. `README.md` describes everything done.
   list, so the disk had no file for it and the game stopped with a fatal disk error. It is listed
   now, its tracks extracted, and the disk has the two files (`test_boot.py` reads them). Not yet
   tested in WinUAE.
+* **The ending's picture on a 68020** (branch `fix/ending-picture`): `sub_0B098` wrote the
+  picture's address into its own instruction 6 bytes ahead, which a 68020 has already
+  prefetched, so the first plane was decoded with a stale length and the picture came out
+  scrambled on an A1200 (`../original/docs/SELFMOD.md`, site 8). The length is now kept as data.
+  Not yet tested in WinUAE.
 
 ## Next
 
