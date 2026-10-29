@@ -1,0 +1,3 @@
+# The enhanced game's Python packages: build_disk.py needs none of them (only vasm); the tests do.
+unicorn>=2.1      # (tested 2.1.4) the 68000 emulator: test_boot.py
+pillow>=10        # the tests' screenshots

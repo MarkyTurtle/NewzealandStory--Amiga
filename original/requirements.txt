@@ -1,0 +1,6 @@
+# The original game's Python packages. build.py (and build.sh) need none of them: only vasm.
+# They are for the tools: the disassembly tools (capstone), the pictures (pillow), the emulator
+# harnesses (unicorn). Tested with the versions noted.
+capstone>=5.0
+pillow>=10
+unicorn>=2.1      # (tested 2.1.4)
