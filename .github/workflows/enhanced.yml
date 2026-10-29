@@ -1,0 +1,66 @@
+# The enhanced game: build its disk on Windows and Linux (enhanced/tools/build_disk.py, as
+# BUILDING.md describes), check the disk's SHA-1, run the tests on Linux, and keep the disk as the
+# run's artifact (downloadable from the run's page). The disk is built from the level tracks in
+# original/disk/files/tracks/, so changes there run it too.
+name: enhanced
+
+on:
+  push:
+    paths: ['enhanced/**', 'original/**', '.gitattributes', '.github/workflows/enhanced.yml', '.github/actions/**']
+  pull_request:
+    paths: ['enhanced/**', 'original/**', '.gitattributes', '.github/workflows/enhanced.yml', '.github/actions/**']
+  workflow_dispatch:
+
+env:
+  PYTHONUTF8: '1'
+  # The disk's SHA-1 while the game is unchanged since release v1.0. A change to the game changes
+  # it: update this line with the new SHA-1 (the "SHA-1" step prints it).
+  ADF_SHA1: 5ee6d8b61b36ac4ecda57c2be2fe8dfec30fbbb6
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, python: '3.13'}
+          - {os: ubuntu-latest, python: '3.11'}            # the oldest Python tested
+          - {os: ubuntu-latest, python: '3.13'}
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }}, Python ${{ matrix.python }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Python packages
+        shell: bash
+        run: |
+          python -m pip install -r enhanced/requirements.txt > "$RUNNER_TEMP/pip.log" 2>&1 || { tail -n 25 "$RUNNER_TEMP/pip.log" | sed 's/^/::error::/'; exit 1; }
+      - uses: ./.github/actions/vasm
+      - name: Build the disk (enhanced/tools/build_disk.py)
+        run: python enhanced/tools/build_disk.py
+      - name: SHA-1
+        shell: bash
+        run: |
+          s=$(python -c "import hashlib; print(hashlib.sha1(open('enhanced/build/nzs.adf','rb').read()).hexdigest())")
+          echo "nzs.adf: $s"
+          test "$s" = "$ADF_SHA1" || { echo "::error::nzs.adf's SHA-1 is $s, not $ADF_SHA1 (update ADF_SHA1 if the game was changed on purpose)"; exit 1; }
+      - name: Boot test (test_boot.py)
+        run: python enhanced/tools/test_boot.py
+      - name: The study emulator (nzsemu, Linux)
+        if: runner.os != 'Windows'
+        run: sh original/tools/nzsemu/build.sh
+      - name: The menu, the cheat and the fly mode (Linux)
+        if: runner.os != 'Windows'
+        run: |
+          python enhanced/tools/test_menu.py
+          python enhanced/tools/test_fly.py
+      - name: The checkout is unchanged
+        shell: bash
+        run: |
+          test -z "$(git status --porcelain)" || { git status --porcelain | sed 's/^/::error::changed by the build - /'; exit 1; }
+      - uses: actions/upload-artifact@v5
+        with:
+          name: disk-${{ matrix.os }}-py${{ matrix.python }}
+          path: enhanced/build/nzs.adf

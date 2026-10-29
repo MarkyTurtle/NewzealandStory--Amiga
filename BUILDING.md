@@ -51,6 +51,7 @@ DF1-DF3) or write it to a floppy.
 
 ```
 original/build.sh                          # assembles the four sources and checks their SHA-1
+python original/build.py                   # the same, on any system (Windows too)
 ```
 
 ```
@@ -65,3 +66,18 @@ they were first made from their configs (into `original/tools/disasm/regen/`, fo
 extracted from the disk images with `original/tools/disk/extract_files.py` (the game-tracks ADF)
 and `ipf_extract.py` (the original IPF, via capsimg: `build_dump.sh`); the protection's decrypted
 parts with `original/tools/protemu/run_protection.sh` (Musashi: `build.sh`).
+
+## GitHub Actions
+
+`.github/workflows/` builds on every push that changes them:
+
+* **original** (Windows and Linux, Python 3.11 and 3.13): `original/build.py` (and `build.sh` on
+  Linux) - the four sources against the original disk's SHA-1.
+* **enhanced** (the same systems): `build_disk.py`, the disk's SHA-1 against `ADF_SHA1` in the
+  workflow (update it when the game is changed on purpose), `test_boot.py`, and on Linux
+  `test_menu.py` and `test_fly.py`; the disk is kept as the run's artifact.
+* **release**: when a release is published, the disk built from its tag is attached to it as
+  `NewZealandStory_Enhanced_<tag>.adf`.
+
+vasm is built from its source mirror for each run (`.github/actions/vasm`). The packages for the
+tests are in `enhanced/requirements.txt` and `original/requirements.txt`.

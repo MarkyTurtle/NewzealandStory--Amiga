@@ -1,0 +1,14 @@
+# Text files keep LF line endings in the checkout on every system (Windows included), so the
+# sources assemble to the same bytes and the build leaves the checkout unchanged. vasm and Python
+# read LF on Windows.
+* text=auto eol=lf
+
+# Binary files: never converted
+*.bin   binary
+*.mfm   binary
+*.iff   binary
+*.wav   binary
+*.ogg   binary
+*.png   binary
+*.adf   binary
+*.ipf   binary

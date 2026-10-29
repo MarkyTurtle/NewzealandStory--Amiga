@@ -1,0 +1,41 @@
+# When a release is published on GitHub: build the enhanced disk from the release's tag and
+# attach it to the release (NewZealandStory_Enhanced_<tag>.adf). It can also be run by hand for
+# an existing release (Actions -> release -> Run workflow, with the release's tag); a disk
+# already attached under that name is replaced.
+name: release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release's tag (for example v1.0)
+        required: true
+
+permissions:
+  contents: write                                     # to attach files to the release
+
+jobs:
+  disk:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: ./.github/actions/vasm
+      - name: Build the disk (enhanced/tools/build_disk.py)
+        run: python enhanced/tools/build_disk.py
+      - name: Attach it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp enhanced/build/nzs.adf "NewZealandStory_Enhanced_${TAG}.adf"
+          sha1sum "NewZealandStory_Enhanced_${TAG}.adf"
+          gh release upload "$TAG" "NewZealandStory_Enhanced_${TAG}.adf" --clobber
