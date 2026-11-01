@@ -13,9 +13,9 @@ on:
 
 env:
   PYTHONUTF8: '1'
-  # The disk's SHA-1 while the game is unchanged since release V1.0. A change to the game changes
-  # it: update this line with the new SHA-1 (the "SHA-1" step prints it).
-  ADF_SHA1: 5ee6d8b61b36ac4ecda57c2be2fe8dfec30fbbb6
+  # The disk's SHA-1 for the game as it is now (since the two-button change after V1.0). A change
+  # to the game changes it: update this line with the new SHA-1 (the "SHA-1" step prints it).
+  ADF_SHA1: 8eb5344e3ec745e9c6baad8c53fa25b7fe471b47
 
 jobs:
   build:

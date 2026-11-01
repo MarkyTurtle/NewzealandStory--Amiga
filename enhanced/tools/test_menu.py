@@ -129,6 +129,19 @@ def main():
             check(r['mode'] == mode and bool(r['joy'] & 4) == bool(up) and bool(r['joy'] & 0x80) == bool(fire),
                   f'in play, input {mode}: {dict(u="up", f="button 1")[hold] if hold != "2" else "button 2"} -> '
                   + ('up (jump)' if up else 'fire' if fire else 'nothing'))
+    # swimming (the kiwi's handler sub_0965C) and riding (sub_08E1E): the stick's up is up in every
+    # setting, the jump button is not
+    for handler in ('sub_0965C', 'sub_08E1E'):
+        for mode, cases in ((0, (('u', 1, 0),)),
+                            (1, (('u', 1, 0), ('2', 0, 0))),
+                            (2, (('u', 1, 0), ('f', 0, 0), ('2', 0, 1)))):
+            set_mode = opts + tap('r') * mode + tap('d') * 3 + tap('f') + tap('u') if mode else title
+            for hold, up, fire in cases:
+                r = run(set_mode + game + f'poke 0x643D2 {syms[handler]} l\njoy {hold}\nframes 1\n')
+                check(r['mode'] == mode and bool(r['joy'] & 4) == bool(up) and bool(r['joy'] & 0x80) == bool(fire),
+                      f'{dict(sub_0965C="swimming", sub_08E1E="riding")[handler]}, input {mode}: '
+                      f'{dict(u="up", f="button 1")[hold] if hold != "2" else "button 2"} -> '
+                      + ('up' if up else 'fire' if fire else 'nothing'))
     cheat_game = opts + tap('d') + tap('f') + tap('u') * 2 + tap('f') + tap('u') + game + 'frames 100\n'
     for start, key, skips, what in ((cheat_game, 0x51, True, 'the cheat on, F2: the next level'),
                                     (cheat_game, 0x5F, False, 'the cheat on, HELP: no longer skips'),
