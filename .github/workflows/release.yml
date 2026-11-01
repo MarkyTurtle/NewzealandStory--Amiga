@@ -1,7 +1,13 @@
-# When a release is published on GitHub: build the enhanced disk from the release's tag and
-# attach it to the release (NewZealandStory_Enhanced_<tag>.adf). It can also be run by hand for
-# an existing release (Actions -> release -> Run workflow, with the release's tag); a disk
-# already attached under that name is replaced.
+# The enhanced disk, attached to a release as NewZealandStory_Enhanced_<tag>.adf.
+#
+# Two ways to run it:
+# * Publish a release on GitHub (Releases -> Draft a new release): the disk is built from the
+#   release's tag and attached to it.
+# * Run it by hand (Actions -> release -> Run workflow) with a tag, for example V1.0: if that
+#   release does not exist yet it is made here - the tag on the chosen branch (main) as it is now,
+#   titled "The New Zealand Story - Enhanced <tag>", its notes from .github/release-notes/<tag>.md
+#   (or GitHub's generated notes if there is no such file) - with the disk built from that commit.
+#   If it exists, its disk is rebuilt from its tag and replaced.
 name: release
 
 on:
@@ -14,27 +20,41 @@ on:
         required: true
 
 permissions:
-  contents: write                                     # to attach files to the release
+  contents: write                                     # to make the release and attach files to it
 
 jobs:
   disk:
     runs-on: ubuntu-latest
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
       PYTHONUTF8: '1'
     steps:
+      - name: Does the release exist?
+        id: rel
+        run: |
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"; echo "ref=$TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"; echo "ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG does not exist: it will be made from $GITHUB_REF_NAME ($GITHUB_SHA)"
+          fi
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ steps.rel.outputs.ref }}
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
       - uses: ./.github/actions/vasm
       - name: Build the disk (enhanced/tools/build_disk.py)
         run: python enhanced/tools/build_disk.py
-      - name: Attach it to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Make the release (run by hand, for a new tag)
+        if: steps.rel.outputs.exists != 'true'
+        run: |
+          notes=".github/release-notes/${TAG}.md"
+          if [ -f "$notes" ]; then set -- --notes-file "$notes"; else set -- --generate-notes; fi
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "The New Zealand Story - Enhanced ${TAG}" "$@"
+      - name: Attach the disk to the release
         run: |
           cp enhanced/build/nzs.adf "NewZealandStory_Enhanced_${TAG}.adf"
           sha1sum "NewZealandStory_Enhanced_${TAG}.adf"
