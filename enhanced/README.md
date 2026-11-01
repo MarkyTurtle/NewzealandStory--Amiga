@@ -398,8 +398,14 @@ whatever the input setting.
 **The input setting** (`JoyMode`) changes what `ReadJoystick` gives the game (`EnhJoy`): the
 second button is port 2's pin 9 (`POTINP` bit 14, low when pressed; `POTGO` `$FF00`).
 * `JUMP ON UP`: the original's controls (the default).
-* `JUMP ON BUTTON 2`: button 2 is up - it jumps, and swims up; the stick's up does nothing.
-* `JUMP 1 FIRE 2`: button 1 jumps, button 2 fires.
+* `JUMP ON BUTTON 2`: button 2 jumps, and does nothing else; the stick's up no longer jumps, but
+  everywhere else it is still up - it swims up under water, steers a ride up and flies up (the
+  cheat's fly mode).
+* `JUMP 1 FIRE 2`: button 1 jumps, button 2 fires; the stick's up as in `JUMP ON BUTTON 2`.
+
+The jump button stands for up only while the kiwi is on the ground or in the air (his handler is
+`sub_091D4` or `sub_0933E`, where up jumps - and held, jumps higher); in any other state the
+stick's own up goes through.
 
 **The sound test**: on `MUSIC` and `EFFECT` left and right choose the tune (the driver's 12,
 `PlaySong`) or the effect (the 12 IFF 8SVX effects, `PlaySample`; names from their files,
@@ -413,10 +419,11 @@ is reset.
 To make room in block 1, the 50 Hz buffers moved to the scroller's free memory after its
 restore lists (`$7FB80`).
 
-**Tested** (`tools/test_menu.py`, 34 cases, the sound test's included: the numbers going round,
+**Tested** (`tools/test_menu.py`, 49 cases, the sound test's included: the numbers going round,
 the tune playing (`Music_Voices`) and stopping, the effect on channel 3): starting a game, moving round, each setting and
 `EXIT`, the title's time-out and none on the options page, the typed code on both pages, and in
-play each input setting with up, button 1 and button 2 (what the game reads at `$63DB0`).
+play each input setting with up, button 1 and button 2 (what the game reads at `$63DB0`), on the
+ground, swimming and riding.
 `nzsemu`'s `joy 2` holds the second button.
 
 ## The cheat

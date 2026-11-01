@@ -22,8 +22,9 @@
 ; vertical blank): the second button is POTINP's bit 14 (DATRY: port 2's pin 9, low when
 ; pressed; POTGO $FF00, as the game sets it, drives it high).
 ;   0  JUMP ON UP       the original: up jumps, button 1 fires
-;   1  JUMP ON BUTTON 2 button 2 is up (jumps, and swims up); the stick's up does nothing
-;   2  JUMP 1 FIRE 2    button 1 is up, button 2 fires
+;   1  JUMP ON BUTTON 2 button 2 jumps; the stick's up jumps no more but still swims up, steers a
+;                       ride up and flies up (EnhJoy)
+;   2  JUMP 1 FIRE 2    button 1 jumps, button 2 fires; the stick's up as in setting 1
 ; The cheat is the original's: the game's starting lives (l_04F46+2) 1,000 (on) or 3.
 ; The settings last until the machine is reset.
 ;==============================================================================
@@ -52,25 +53,33 @@ MenuText:       dcb.b   MENU_LINES*(4+MENU_W+1)+1,$ff ; the printer's form of th
 EnhJoy:         move.w  #$ff00,(CUSTOM+POTGO).l
         tst.w   JoyMode
         beq.b   .out
-        move.w  d1,-(a7)
+        movem.l d1-d2,-(a7)
         moveq   #0,d1                           ; d1 = button 2
         btst    #6,(CUSTOM+POTGOR).l            ; (POTINP bit 14: its high byte's bit 6)
         seq.b   d1
-        cmp.w   #1,JoyMode
-        bne.b   .m2
-        bclr    #2,d0                           ; 1: button 2 is up
+        moveq   #0,d2                           ; d2 = the jump button: 2 in setting 1,
+        cmp.w   #1,JoyMode                      ;   1 in setting 2 (which then fires on 2)
+        beq.b   .b2
+        bclr    #7,d0                           ; 2: button 1 jumps, button 2 fires
+        sne.b   d2
         tst.b   d1
-        beq.b   .done
-        bset    #2,d0
-        bra.b   .done
-.m2:            bclr    #2,d0                   ; 2: button 1 is up, button 2 fires
-        bclr    #7,d0
-        beq.b   .f
-        bset    #2,d0
-.f:             tst.b   d1
-        beq.b   .done
+        beq.b   .jmp
         bset    #7,d0
-.done:          move.w  (a7)+,d1
+        bra.b   .jmp
+.b2:            move.b  d1,d2
+; the jump button is up only where up jumps: the kiwi on the ground or in the air (sub_091D4,
+; sub_0933E: up jumps, and held, jumps higher). Anywhere else - swimming, riding, the fly mode -
+; the stick's up is up, as in the original, and the jump button does nothing.
+.jmp:           move.l  (mem_643BA+$18).l,d1            ; the kiwi's handler
+        cmp.l   #sub_091D4,d1
+        beq.b   .ground
+        cmp.l   #sub_0933E,d1
+        bne.b   .done
+.ground:        bclr    #2,d0
+        tst.b   d2
+        beq.b   .done
+        bset    #2,d0
+.done:          movem.l (a7)+,d1-d2
 .out:           rts
 
 ; MenuInput - d0 = the joystick as the menu reads it, from the hardware: bit 0 up, 1 down, 2 left,

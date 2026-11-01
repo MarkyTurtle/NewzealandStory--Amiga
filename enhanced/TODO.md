@@ -50,6 +50,9 @@ configurations), then merged into `main`. `README.md` describes everything done.
   prefetched, so the first plane was decoded with a stale length and the picture came out
   scrambled on an A1200 (`../original/docs/SELFMOD.md`, site 8). The length is now kept as data.
   Tested in WinUAE on an A1200.
+* **Two-button joysticks: button 2 only jumps** (branch `feature/joy-swim`): in `JUMP ON BUTTON
+  2` (and `JUMP 1 FIRE 2`) the jump button is up only where up jumps (on the ground, in the air);
+  swimming, riding and flying, the stick's up is up again (`README.md`, *The title menu*).
 
 ## Next
 
@@ -57,8 +60,6 @@ configurations), then merged into `main`. `README.md` describes everything done.
   last key, shown as they change.
 * **Sprite test**: any BOB frame of the main bank (and its mirrored copy) drawn on the title.
 * **50 Hz / 25 Hz** on the options page (`SmoothOn`), for comparing. Perhaps.
-* **`test_jump.py`**: each input setting with up, button 2 and both, where up does something
-  else (in water, on a ride); `test_menu.py` covers them on open ground.
 * **Shared world data read once**: levels 4-7 share their world data, and so do levels 12-14,
   but the game reads it again at every level (it skips the load only when the same level
   restarts: `LoadedLevel`). With a file cache it comes from memory; on a plain 512K machine it is
