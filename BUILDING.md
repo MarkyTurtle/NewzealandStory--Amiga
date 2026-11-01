@@ -76,8 +76,11 @@ parts with `original/tools/protemu/run_protection.sh` (Musashi: `build.sh`).
 * **enhanced** (the same systems): `build_disk.py`, the disk's SHA-1 against `ADF_SHA1` in the
   workflow (update it when the game is changed on purpose), `test_boot.py`, and on Linux
   `test_menu.py` and `test_fly.py`; the disk is kept as the run's artifact.
-* **release**: when a release is published, the disk built from its tag is attached to it as
-  `NewZealandStory_Enhanced_<tag>.adf`.
+* **release**: the disk attached to a release as `NewZealandStory_Enhanced_<tag>.adf`. Either
+  publish a release on GitHub (the disk is built from its tag), or run the workflow by hand
+  (Actions -> release -> Run workflow, branch `main`, a tag such as `V1.0`): a new tag makes the
+  release from `main` as it is, with its notes from `.github/release-notes/<tag>.md` if there is
+  one; an existing release gets its disk rebuilt and replaced.
 
 vasm is built from its source mirror for each run (`.github/actions/vasm`). The packages for the
 tests are in `enhanced/requirements.txt` and `original/requirements.txt`.
